@@ -35,10 +35,10 @@
 	via returned RADIUS attributes. This page has been modified to delete any
 	added rules which may have been created by other per-user code (index.php, etc).
 	These changes are (c) 2004 Keycom PLC.
-	
+
 	pfSense_BUILDER_BINARIES:	/sbin/ipfw	/sbin/sysctl	/sbin/kldunload
 	pfSense_BUILDER_BINARIES:	/usr/local/sbin/lighttpd	/usr/local/bin/minicron /sbin/pfctl
-	pfSense_BUILDER_BINARIES:	/bin/hostname	/bin/cp 
+	pfSense_BUILDER_BINARIES:	/bin/hostname	/bin/cp
 	pfSense_MODULE: captiveportal
 */
 
@@ -49,164 +49,199 @@ require_once("filter.inc");
 require_once("radius.inc");
 require_once("voucher.inc");
 
+function get_default_captive_portal_error_html() {
+	return <<<EOD
+	<!DOCTYPE HTML>
+	<html>
+  <head>
+    <title>coworking login</title>
+    <style>
+      html,body,div,span,object,iframe,
+      h1,h2,h3,h4,h5,h6,p,blockquote,pre,
+      a,abbr,acronym,address,code,
+      del,dfn,em,img,q,dl,dt,dd,ol,ul,li,
+      fieldset,form,label,legend,
+      table,caption,tbody,tfoot,thead,tr,th,td,
+      article,aside,dialog,figure,footer,header,
+      hgroup,nav,section{margin:0;padding:0;border:0;font-weight:inherit;font-style:inherit;font-size:100%;font-family:inherit;vertical-align:baseline;}
+      article,aside,dialog,figure,footer,header,
+      hgroup,nav,section{display:block;}
+      body{line-height:1.5;}
+      a img{border:none;}
+      /* --------------------------------------*/
+      body{font-family:"Lucida Grande","Lucida Sans Unicode","Lucida Sans",Verdana,Tahoma,sans-serif;background:#E3E2DD}
+      h1{margin:.25em 0 0 0;float:left;font-family:"Museo","Lucida Grande","Lucida Sans Unicode","Lucida Sans",Verdana,Tahoma,sans-serif;font-size:2.4em;border-bottom:1px dotted #B9B997;}
+      .desc{float:left;margin-bottom: 1em;}
+      .wrapper{margin:5px auto 2em auto;width:100%;max-width:525px;}
+      .login{-moz-border-radius:6px 6px 6px 6px;-moz-box-shadow:0 0 2px #999999;-webkit-border-radius:6px 6px 6px 6px;-webkit-box-shadow:0 0 2px #999999;background:none repeat scroll 0 0 rgba(237,237,232,0.8);margin:0 3px;padding:1em 2em 2em;clear:both;}
+      h2 {font-size: 1.5em;}
+      p{font-size:0.9m;margin-bottom: 0.5em;}
+      .info{font-size:0.875em;margin-top:2em;}
+      a:link,a:active,a:visited{color:#295177;}
+      a:focus,a:hover{color:#000000;}
+      label{color:#04080E;font-weight:normal;display:block;margin:15 0 7px 0;}
+      .hint{color:#666666;font-size:0.79em;display:block;margin:7px 0 0 0;}
+      .error{color:#C50C40;}
+      form ul{list-style:none;padding:none;}
+      form li{margin-bottom:1em;}
+      form{display:block;margin-top:2em;}
+      input[type="email"],input[type="text"],input[type="password"],select{-moz-border-radius:5px 5px 5px 5px;-webkit-border-radius:5px 5px 5px 5px;background:#E3E2DD;border:1px solid #999;color:#666;font-family:"Lucida Grande","Lucida Sans Unicode","Lucida Sans",Verdana,Tahoma,sans-serif;padding:6px;width:100%;}
+      input[type="email"]:hover,
+      input[type="text"]:hover,
+      input[type="password"]:hover,
+      select:hover,
+      input[type="email"]:focus,
+      input[type="text"]:focus,
+      input[type="password"]:focus,
+      select:focus,
+      input[type="email"]:active,
+      input[type="text"]:active,
+      input[type="password"]:active,
+      select:active{color:#000;background:#FFF;-moz-box-shadow:inset 0px 2px 6px #D6D4C8;-webkit-box-shadow:inset 0px 2px 6px #D6D4C8;box-shadow:inset 0px 2px 6px #D6D4C8;}
+      img.stage{float:right;height:7em;display:block;margin:0 auto .5em;}
+      input[type="submit"]{background:#295177;border:none;color:#F6F6F4;font-size:1.2em;cursor:pointer;-moz-border-radius:5px;-webkit-border-radius:5px;border-radius:5px;text-shadow:1px 1px 1px #000;}
+      input[type="submit"]:hover{background:#27333F;}
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <h1>coworking login</h1>
+      <p class="desc">Please log in with your Cobot account.</p>
+      <div class="login">
+        <h2 class="error">Sorry, we could not log you in</h2>
+				<p class="error" id="portal_message">\$PORTAL_MESSAGE\$</p>
+        <form method="post" action="\$PORTAL_ACTION\$" id="auth_form">
+          <ul>
+            <li>
+              <p>
+                 <label for="auth_user">Email address or guest login</label>
+                 <input name="auth_user" id="auth_user" type="text" />
+                 <span class="hint" id="email_hint">The same you use to log in on Cobot</span>
+              </p>
+            </li>
+
+            <li>
+              <p>
+                 <label for="auth_pass">Password</label>
+                 <input id="auth_pass" name="auth_pass" type="password" />
+              </p>
+            </li>
+
+            <li>
+              <p>
+                 <input name="redirurl" type="hidden" value="\$PORTAL_REDIRURL\$" />
+                 <label></label>
+                 <input name="accept" type="submit" value="Log In" />
+                 No account yet? <a href="http://\$SPACE_SUBDOMAIN\$.cobot.me">Sign up</a>
+              </p>
+            </li>
+          </ul>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>
+EOD;
+}
+
 function get_default_captive_portal_html() {
-	global $config, $g;
-	// Detect if vouchers are being used and default to the voucher page
-	if(isset($config['voucher']['enable'])) {
-			$htmltext = <<<EOD
-<html> 
-	<body> 
-		<form method="post" action="\$PORTAL_ACTION\$"> 
-			<input name="redirurl" type="hidden" value="\$PORTAL_REDIRURL\$"> 
-			<center>
-				<table cellpadding="6" cellspacing="0" width="550" height="380" style="border:1px solid #000000">
-					<tr height="10" bgcolor="#990000">
-						<td style="border-bottom:1px solid #000000">
-							<font color='white'>
-								<b>
-									Guest Voucher code required to continue
-								</b>
-							</font>
-						</td>
-					</tr>
-					<tr>
-						<td>
-							<div id="mainlevel">
-								<center>
-									<table width="100%" border="0" cellpadding="5" cellspacing="0">
-										<tr>
-											<td>
-												<center>
-													<div id="mainarea">
-														<center>
-															<table width="100%" border="0" cellpadding="5" cellspacing="5">
-																<tr>
-																	<td>
-																		<div id="maindivarea">
-																			<center>
-																				<div id='statusbox'>
-																					<font color='red' face='arial' size='+1'>
-																						<b>
-																							\$PORTAL_MESSAGE\$
-																						</b>
-																					</font>
-																				</div>
-																				<p/>
-																				<div id='loginbox'>
-																					Enter Voucher Code: 
-																					<input name="auth_voucher" type="text" style="border:1px dashed;" size="22"> 
-																					<input name="accept" type="submit" value="Continue"> 
-																				</div>
-																			</center>
-																		</div>
-																	</td>
-																</tr>
-															</table>
-														</center>
-													</div>
-												</center>
-											</td>
-										</tr>
-									</table>
-								</center>
-							</div>
-						</td>
-					</tr>
-				</table>
-			</center>
-		</form>
-	</body> 
+	return <<<EOD
+	<!DOCTYPE HTML>
+	<html>
+  <head>
+    <title>coworking login</title>
+    <style>
+      html,body,div,span,object,iframe,
+      h1,h2,h3,h4,h5,h6,p,blockquote,pre,
+      a,abbr,acronym,address,code,
+      del,dfn,em,img,q,dl,dt,dd,ol,ul,li,
+      fieldset,form,label,legend,
+      table,caption,tbody,tfoot,thead,tr,th,td,
+      article,aside,dialog,figure,footer,header,
+      hgroup,nav,section{margin:0;padding:0;border:0;font-weight:inherit;font-style:inherit;font-size:100%;font-family:inherit;vertical-align:baseline;}
+      article,aside,dialog,figure,footer,header,
+      hgroup,nav,section{display:block;}
+      body{line-height:1.5;}
+      a img{border:none;}
+      /* --------------------------------------*/
+      body{font-family:"Lucida Grande","Lucida Sans Unicode","Lucida Sans",Verdana,Tahoma,sans-serif;background:#E3E2DD}
+      h1{margin:.25em 0 0 0;float:left;font-family:"Museo","Lucida Grande","Lucida Sans Unicode","Lucida Sans",Verdana,Tahoma,sans-serif;font-size:2.4em;border-bottom:1px dotted #B9B997;}
+      .desc{float:left;margin-bottom: 1em;}
+      .wrapper{margin:5px auto 2em auto;width:100%;max-width:525px;}
+      .login{-moz-border-radius:6px 6px 6px 6px;-moz-box-shadow:0 0 2px #999999;-webkit-border-radius:6px 6px 6px 6px;-webkit-box-shadow:0 0 2px #999999;background:none repeat scroll 0 0 rgba(237,237,232,0.8);margin:0 3px;padding:1em 2em 2em;clear:both;}
+      h2 {font-size: 1.5em;}
+      p{font-size:0.9m;margin-bottom: 0.5em;}
+      .info{font-size:0.875em;margin-top:2em;}
+      a:link,a:active,a:visited{color:#295177;}
+      a:focus,a:hover{color:#000000;}
+      label{color:#04080E;font-weight:normal;display:block;margin:15 0 7px 0;}
+      .hint{color:#666666;font-size:0.79em;display:block;margin:7px 0 0 0;}
+      .error{color:#C50C40;}
+      form ul{list-style:none;padding:none;}
+      form li{margin-bottom:1em;}
+      form{display:block;margin-top:2em;}
+      input[type="email"],input[type="text"],input[type="password"],select{-moz-border-radius:5px 5px 5px 5px;-webkit-border-radius:5px 5px 5px 5px;background:#E3E2DD;border:1px solid #999;color:#666;font-family:"Lucida Grande","Lucida Sans Unicode","Lucida Sans",Verdana,Tahoma,sans-serif;padding:6px;width:100%;}
+      input[type="email"]:hover,
+      input[type="text"]:hover,
+      input[type="password"]:hover,
+      select:hover,
+      input[type="email"]:focus,
+      input[type="text"]:focus,
+      input[type="password"]:focus,
+      select:focus,
+      input[type="email"]:active,
+      input[type="text"]:active,
+      input[type="password"]:active,
+      select:active{color:#000;background:#FFF;-moz-box-shadow:inset 0px 2px 6px #D6D4C8;-webkit-box-shadow:inset 0px 2px 6px #D6D4C8;box-shadow:inset 0px 2px 6px #D6D4C8;}
+      img.stage{float:right;height:7em;display:block;margin:0 auto .5em;}
+      input[type="submit"]{background:#295177;border:none;color:#F6F6F4;font-size:1.2em;cursor:pointer;-moz-border-radius:5px;-webkit-border-radius:5px;border-radius:5px;text-shadow:1px 1px 1px #000;}
+      input[type="submit"]:hover{background:#27333F;}
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <h1>coworking login</h1>
+      <p class="desc">Please log in with your Cobot account.</p>
+      <div class="login">
+        <form method="post" action="\$PORTAL_ACTION\$" id="auth_form">
+          <ul>
+            <li>
+              <p>
+                 <label for="auth_user">Email address or guest login</label>
+                 <input name="auth_user" id="auth_user" type="text" />
+                 <span class="hint" id="email_hint">The same you use to log in on Cobot</span>
+              </p>
+            </li>
+
+            <li>
+              <p>
+                 <label for="auth_pass">Password</label>
+                 <input id="auth_pass" name="auth_pass" type="password" />
+              </p>
+            </li>
+
+            <li>
+              <p>
+                 <input name="redirurl" type="hidden" value="\$PORTAL_REDIRURL\$" />
+                 <label></label>
+                 <input name="accept" type="submit" value="Log In" />
+                 No account yet? <a href="http://\$SPACE_SUBDOMAIN\$.cobot.me">Sign up</a>
+              </p>
+            </li>
+          </ul>
+        </form>
+      </div>
+    </div>
+  </body>
 </html>
-
 EOD;
-		return $htmltext;
-	}
-
-	// Vouchers are not found, return the normal user/pass auth page
-	$htmltext = <<<EOD
-<html> 
-	<body> 
-		<form method="post" action="\$PORTAL_ACTION\$"> 
-		<input name="redirurl" type="hidden" value="\$PORTAL_REDIRURL\$">
-			<center>
-				<table cellpadding="6" cellspacing="0" width="550" height="380" style="border:1px solid #000000">
-					<tr height="10" bgcolor="#990000">
-						<td style="border-bottom:1px solid #000000">
-							<font color='white'>
-								<b>
-									{$g['product_name']} captive portal
-								</b>
-							</font>
-						</td>
-					</tr>
-					<tr>
-						<td>
-							<div id="mainlevel">
-								<center>
-									<table width="100%" border="0" cellpadding="5" cellspacing="0">
-										<tr>
-											<td>
-												<center>
-													<div id="mainarea">
-														<center>
-															<table width="100%" border="0" cellpadding="5" cellspacing="5">
-																<tr>
-																	<td>
-																		<div id="maindivarea">
-																			<center>
-																				<div id='statusbox'>
-																					<font color='red' face='arial' size='+1'>
-																						<b>
-																							\$PORTAL_MESSAGE\$
-																						</b>
-																					</font>
-																				</div>
-																				<br/>
-																				<div id='loginbox'>
-																					<table>
-																					   <tr><td colspan="2"><center>Welcome to the {$g['product_name']} Captive Portal!</td></tr>
-																					   <tr><td>&nbsp;</td></tr>
-																					   <tr><td align="right">Username:</td><td><input name="auth_user" type="text" style="border: 1px dashed;"></td></tr>
-																					   <tr><td align="right">Password:</td><td><input name="auth_pass" type="password" style="border: 1px dashed;"></td></tr>
-																					   <tr><td>&nbsp;</td></tr>
-																					   <tr>
-																						 <td colspan="2">
-																							<center><input name="accept" type="submit" value="Continue"></center>
-																						 </td>
-																					   </tr>
-																					</table>
-																				</div>
-																			</center>
-																		</div>
-																	</td>
-																</tr>
-															</table>
-														</center>
-													</div>
-												</center>
-											</td>
-										</tr>
-									</table>
-								</center>
-							</div>
-						</td>
-					</tr>
-				</table>
-			</center>
-		</form>
-	</body> 
-</html>
-
-EOD;
-
-	return $htmltext;
 }
 
 function captiveportal_configure() {
 	global $config, $g;
 
 	$captiveportallck = lock('captiveportal', LOCK_EX);
-	
+
 	if (isset($config['captiveportal']['enable'])) {
 
 		if ($g['booting'])
@@ -244,12 +279,7 @@ function captiveportal_configure() {
 			$croninterval = 60;
 
 		/* write portal page */
-		if ($config['captiveportal']['page']['htmltext'])
-			$htmltext = base64_decode($config['captiveportal']['page']['htmltext']);
-		else {
-			/* example/template page */
-			$htmltext = get_default_captive_portal_html();
-		}
+		$htmltext = get_default_captive_portal_html();
 
 		$fd = @fopen("{$g['varetc_path']}/captiveportal.html", "w");
 		if ($fd) {
@@ -261,6 +291,7 @@ function captiveportal_configure() {
 			$htmltext = str_replace("\$CLIENT_IP\$", "#CLIENT_IP#", $htmltext);
 			$htmltext = str_replace("\$ORIGINAL_PORTAL_IP\$", "#ORIGINAL_PORTAL_IP#", $htmltext);
 			$htmltext = str_replace("\$PORTAL_ACTION\$", "#PORTAL_ACTION#", $htmltext);
+			$htmltext = str_replace("\$SPACE_SUBDOMAIN\$", "{$config['captiveportal']['webapi_space']}", $htmltext);
 			if($config['captiveportal']['preauthurl']) {
 				$htmltext = str_replace("\$PORTAL_REDIRURL\$", "{$config['captiveportal']['preauthurl']}", $htmltext);
 				$htmltext = str_replace("#PORTAL_REDIRURL#", "{$config['captiveportal']['preauthurl']}", $htmltext);
@@ -270,12 +301,7 @@ function captiveportal_configure() {
 		}
 
 		/* write error page */
-		if ($config['captiveportal']['page']['errtext'])
-			$errtext = base64_decode($config['captiveportal']['page']['errtext']);
-		else {
-			/* example page  */
-			$errtext = get_default_captive_portal_html();
-		}
+		$errtext = get_default_captive_portal_error_html();
 
 		$fd = @fopen("{$g['varetc_path']}/captiveportal-error.html", "w");
 		if ($fd) {
@@ -287,6 +313,7 @@ function captiveportal_configure() {
 			$errtext = str_replace("\$CLIENT_IP\$", "#CLIENT_IP#", $errtext);
 			$errtext = str_replace("\$ORIGINAL_PORTAL_IP\$", "#ORIGINAL_PORTAL_IP#", $errtext);
 			$errtext = str_replace("\$PORTAL_ACTION\$", "#PORTAL_ACTION#", $errtext);
+			$errtext = str_replace("\$SPACE_SUBDOMAIN\$", "{$config['captiveportal']['webapi_space']}", $errtext);
 			if($config['captiveportal']['preauthurl']) {
 				$errtext = str_replace("\$PORTAL_REDIRURL\$", "{$config['captiveportal']['preauthurl']}", $errtext);
 				$errtext = str_replace("#PORTAL_REDIRURL#", "{$config['captiveportal']['preauthurl']}", $errtext);
@@ -369,7 +396,7 @@ EOD;
 		mwexec("/sbin/sysctl net.link.ether.ipfw=0");
 
 		/* unload ipfw */
-		if (is_module_loaded("ipfw.ko"))		
+		if (is_module_loaded("ipfw.ko"))
 			mwexec("/sbin/kldunload ipfw.ko");
 		$listifs = get_configured_interface_list_by_realif();
 		foreach ($listifs as $listrealif => $listif) {
@@ -388,7 +415,7 @@ EOD;
 	}
 
 	unlock($captiveportallck);
-	
+
 	return 0;
 }
 
@@ -564,7 +591,7 @@ EOD;
 		$cprules .= "add {$rulenum} set 1 allow ip from any to table(2) out\n";
 		$rulenum++;
 	}
-	
+
 	   $cprules .= <<<EOD
 
 # redirect non-authenticated clients to captive portal
@@ -587,7 +614,7 @@ EOD;
 
 	/* allowed ipfw rules to make allowed hostnames work */
 	$cprules .= captiveportal_allowedhostname_configure();
-	
+
 	/* load rules */
 	if ($reinit == true)
 		$cprules = "table all flush\nflush\n{$cprules}";
@@ -638,7 +665,7 @@ function captiveportal_prune_old() {
 	else
 		$idletimeout = $config['captiveportal']['idletimeout'] * 60;
 
-	if (!$timeout && !$idletimeout && !isset($config['captiveportal']['reauthenticate']) && 
+	if (!$timeout && !$idletimeout && !isset($config['captiveportal']['reauthenticate']) &&
 	!isset($config['captiveportal']['radiussession_timeout']) && !isset($config['voucher']['enable']))
 		return;
 
@@ -654,7 +681,7 @@ function captiveportal_prune_old() {
 	 */
 	$unsetindexes = array();
 	$voucher_needs_sync = false;
-	/* 
+	/*
 	 * Snapshot the time here to use for calculation to speed up the process.
 	 * If something is missed next run will catch it!
 	 */
@@ -687,7 +714,7 @@ function captiveportal_prune_old() {
 		if (!$timedout && $uidletimeout) {
 			$lastact = captiveportal_get_last_activity($cpentry[2]);
 			/*	If the user has logged on but not sent any traffic they will never be logged out.
-			 *	We "fix" this by setting lastact to the login timestamp. 
+			 *	We "fix" this by setting lastact to the login timestamp.
 			 */
 			$lastact = $lastact ? $lastact : $cpentry[0];
 			if ($lastact && (($pruning_time - $lastact) >= $uidletimeout)) {
@@ -799,7 +826,7 @@ function captiveportal_disconnect($dbent, $radiusservers,$term_cause = 1,$stop_t
 			false,
 			$stop_time);
 	}
-	
+
 	if (is_ipaddr($dbent[2])) {
 		/* Delete client's ip entry from tables 3 and 4. */
 		mwexec("/sbin/ipfw table 1 delete {$dbent[2]}");
@@ -809,7 +836,7 @@ function captiveportal_disconnect($dbent, $radiusservers,$term_cause = 1,$stop_t
 		mwexec("pfctl -K {$dbent[2]}");
 	}
 
-	/* 
+	/*
 	* These are the pipe numbers we use to control traffic shaping for each logged in user via captive portal
 	* We could get an error if the pipe doesn't exist but everything should still be fine
 	*/
@@ -851,7 +878,7 @@ function captiveportal_disconnect_client($sessionid, $term_cause = 1, $logoutRea
 
 		captiveportal_disconnect($cpentry, $radiusservers, $term_cause);
 		captiveportal_logportalauth($cpentry[4], $cpentry[3], $cpentry[2], "DISCONNECT");
-	}		
+	}
 }
 
 /* send RADIUS acct stop for all current clients */
@@ -932,14 +959,14 @@ function captiveportal_passthrumac_findbyname($username) {
 	return NULL;
 }
 
-/* 
+/*
  * table (3=IN)/(4=OUT) hold allowed ip's without bw limits
  * table (5=IN)/(6=OUT) hold allowed ip's with bw limit.
  */
 function captiveportal_allowedip_configure_entry($ipent) {
 
 	/* This function can deal with hostname or ipaddress */
-	if($ipent['ip']) 	
+	if($ipent['ip'])
 		$ipaddress = $ipent['ip'];
 
 	/*  Instead of copying this entire function for something
@@ -947,7 +974,7 @@ function captiveportal_allowedip_configure_entry($ipent) {
 	 */
 	if($ipent['hostname']) {
 		$ipaddress = gethostbyname($ipent['hostname']);
-		if(!is_ipaddr($ipaddress)) 
+		if(!is_ipaddr($ipaddress))
 			return;
 	}
 
@@ -1017,7 +1044,7 @@ function captiveportal_allowedip_configure_entry($ipent) {
 	return $rules;
 }
 
-/* 
+/*
 	Adds a dnsfilter entry and watches for hostname changes.
 	A change results in reloading the ruleset.
 */
@@ -1045,7 +1072,7 @@ function captiveportal_allowedhostname_configure() {
 	$rules = "\n# captiveportal_allowedhostname_configure()\n";
 	setup_dnsfilter_entries();
 	if (is_array($config['captiveportal']['allowedhostname'])) {
-		foreach ($config['captiveportal']['allowedhostname'] as $hostnameent) 
+		foreach ($config['captiveportal']['allowedhostname'] as $hostnameent)
 			$rules .= captiveportal_allowedip_configure_entry($hostnameent);
 	}
 	return $rules;
@@ -1056,7 +1083,7 @@ function captiveportal_allowedip_configure() {
 
 	$rules = "";
 	if (is_array($config['captiveportal']['allowedip'])) {
-		foreach ($config['captiveportal']['allowedip'] as $ipent) 
+		foreach ($config['captiveportal']['allowedip'] as $ipent)
 			$rules .= captiveportal_allowedip_configure_entry($ipent);
 	}
 
@@ -1126,7 +1153,7 @@ function captiveportal_get_radius_servers() {
 	$cprdsrvlck = lock('captiveportalradius');
 	if (file_exists("{$g['vardb_path']}/captiveportal_radius.db")) {
 		$radiusservers = array();
-		$cpradiusdb = file("{$g['vardb_path']}/captiveportal_radius.db", 
+		$cpradiusdb = file("{$g['vardb_path']}/captiveportal_radius.db",
 		FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 		if ($cpradiusdb) {
 			foreach($cpradiusdb as $cpradiusentry) {
@@ -1261,7 +1288,7 @@ function captiveportal_write_db($cpdb, $locked = false, $remove = false) {
 
 function captiveportal_write_elements() {
 	global $g, $config;
-	
+
 	/* delete any existing elements */
 	if (is_dir($g['captiveportal_element_path'])) {
 		$dh = opendir($g['captiveportal_element_path']);
@@ -1291,7 +1318,7 @@ function captiveportal_write_elements() {
 		}
 		conf_mount_ro();
 	}
-	
+
 	return 0;
 }
 
@@ -1320,9 +1347,9 @@ function captiveportal_get_next_ipfw_ruleno($rulenos_start = 2000, $rulenos_rang
 		$rules = unserialize(file_get_contents("{$g['vardb_path']}/captiveportal.rules"));
 		for ($ridx = 2; $ridx < ($rulenos_range_max - $rulenos_start); $ridx++) {
 			if ($rules[$ridx]) {
-				/* 
-				 * This allows our traffic shaping pipes to be the in pipe the same as ruleno 
-				 * and the out pipe ruleno + 1. This removes limitation that where present in 
+				/*
+				 * This allows our traffic shaping pipes to be the in pipe the same as ruleno
+				 * and the out pipe ruleno + 1. This removes limitation that where present in
 				 * previous version of the peruserbw.
 				 */
 				if (isset($config['captiveportal']['peruserbw']) || $usebw == true)
@@ -1455,7 +1482,7 @@ function getNasIP()
 		else
 			$nasIp = get_interface_ip($config['captiveportal']['radiussrcip_attribute']);
 	}
-		
+
 	if(!is_ipaddr($nasIp))
 		$nasIp = "0.0.0.0";
 
@@ -1474,9 +1501,9 @@ function portal_ip_from_client_ip($cliip) {
 	}
 
 	// doesn't match up to any particular interface
-	// so let's set the portal IP to what PHP says 
-	// the server IP issuing the request is. 
-	// allows same behavior as 1.2.x where IP isn't 
+	// so let's set the portal IP to what PHP says
+	// the server IP issuing the request is.
+	// allows same behavior as 1.2.x where IP isn't
 	// in the subnet of any CP interface (static routes, etc.)
 	// rather than forcing to DNS hostname resolution
 	$ip = $_SERVER['SERVER_ADDR'];
@@ -1525,7 +1552,7 @@ function portal_reply_page($redirurl, $type = null, $message = null, $clientmac 
 	$htmltext = str_replace("\$CLIENT_MAC\$", htmlspecialchars($clientmac), $htmltext);
 	$htmltext = str_replace("\$CLIENT_IP\$", htmlspecialchars($clientip), $htmltext);
 
-	// Special handling case for captive portal master page so that it can be ran 
+	// Special handling case for captive portal master page so that it can be ran
 	// through the PHP interpreter using the include method above.  We convert the
 	// $VARIABLE$ case to #VARIABLE# in /etc/inc/captiveportal.inc before writing out.
 	$htmltext = str_replace("#PORTAL_REDIRURL#", htmlspecialchars($redirurl), $htmltext);
@@ -1634,10 +1661,10 @@ function portal_allow($clientip,$clientmac,$username,$password = null, $attribut
 			break;
 		}
 		elseif (($attributes['voucher']) && ($username != 'unauthenticated') && ($cpentry[4] == $username)) {
-			// user logged in with an active voucher. Check for how long and calculate 
+			// user logged in with an active voucher. Check for how long and calculate
 			// how much time we can give him (voucher credit - used time)
 			$remaining_time = $cpentry[0] + $cpentry[7] - $allow_time;
-			if ($remaining_time < 0)    // just in case. 
+			if ($remaining_time < 0)    // just in case.
 				$remaining_time = 0;
 
 			/* This user was already logged in so we disconnect the old one */
