@@ -303,13 +303,13 @@ function webapi_backend($username, $passwd, $mac, $space, $token) {
     } else {
       return array(
         'success' => false,
-        'message' => 'Web API is currently unreachable.'
+        'message' => 'Error reaching Cobot (Status: ' . $request->status_code . ', Error: ' . $request->body . ').'
       );
     }
   } catch(Exception $e) {
     return array(
       'success' => false,
-      'message' => 'Web API is currently unreachable.'
+      'message' => 'Error reaching Cobot (' . $e . ')'
     );
   }
 }
