@@ -244,14 +244,14 @@ function enable_change(enable_change) {
     <span class="vexpl"><?=gettext("Select the interface(s) to enable for captive portal."); ?></span></td>
   </tr>
   <tr>
-    <td width="22%" valign="top" class="vncell"><?=gettext("Space name for Web API"); ?></td>
+    <td width="22%" valign="top" class="vncell"><?=gettext("Space subdomain (<subdomain>.cobot.me)"); ?></td>
     <td width="78%" class="vtable">
       <input name="webapi_space" type="text" class="formfld unknown" id="webapi_space" size="20" value="<?=htmlspecialchars($pconfig['webapi_space']);?>">
       <input type="hidden" name="auth_method" value="webapi" />
     </td>
   </tr>
   <tr>
-    <td width="22%" valign="top" class="vncell"><?=gettext("Web API Token"); ?></td>
+    <td width="22%" valign="top" class="vncell"><?=gettext("Access Token"); ?></td>
     <td width="78%" class="vtable">
       <input name="webapi_token" type="text" class="formfld unknown" id="webapi_token" size="20" value="<?=htmlspecialchars($pconfig['webapi_token']);?>">
     </td>
