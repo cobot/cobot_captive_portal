@@ -110,12 +110,12 @@ function get_default_captive_portal_error_html() {
       <div class="login">
         <h2 class="error">Sorry, we could not log you in</h2>
 				<p class="error" id="portal_message">\$PORTAL_MESSAGE\$</p>
-        <form method="post" action="\$PORTAL_ACTION\$" id="auth_form">
+        <form method="post" action="\$PORTAL_ACTION\$" id="auth_form" novalidate>
           <ul>
             <li>
               <p>
                  <label for="auth_user">Email address or guest login</label>
-                 <input name="auth_user" id="auth_user" type="text" />
+                 <input name="auth_user" id="auth_user" type="email" />
                  <span class="hint" id="email_hint">The same you use to log in on Cobot</span>
               </p>
             </li>
