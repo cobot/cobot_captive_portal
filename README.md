@@ -6,7 +6,7 @@ With this patch installed the captive portal will authenticate directly against 
 
 Note that this disables support for Radius/local captive portal authentication.
 
-***Currently this package supports version 2.1.0 of Pfsense.***
+***Currently this package supports version 2.0.1 of Pfsense.***
 
 ## Installation
 
