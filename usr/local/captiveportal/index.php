@@ -3,7 +3,7 @@
     $Id$
     part of m0n0wall (http://m0n0.ch/wall)
 
-    Copyrigth (C) 2009      Ermal Luçi
+    Copyrigth (C) 2009	    Ermal Luçi
     Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
     All rights reserved.
 
@@ -29,7 +29,7 @@
     POSSIBILITY OF SUCH DAMAGE.
 */
 /*
-  pfSense_MODULE:  captiveportal
+	pfSense_MODULE:	captiveportal
 */
 
 require_once("auth.inc");
@@ -45,15 +45,16 @@ header("Pragma: no-cache");
 header("Connection: close");
 
 $orig_host = $_ENV['HTTP_HOST'];
-$orig_request = $_REQUEST['redirurl'];
+/* NOTE: IE 8/9 is buggy and that is why this is needed */
+$orig_request = trim($_REQUEST['redirurl'], " /");
 $clientip = $_SERVER['REMOTE_ADDR'];
 
 if (!$clientip) {
-  /* not good - bail out */
-  log_error("Captive portal could not determine client's IP address.");
-  $error_message = "An error occurred.  Please check the system logs for more information.";
-  portal_reply_page($redirurl, "error", $errormsg);
-  exit;
+	/* not good - bail out */
+	log_error("Captive portal could not determine client's IP address.");
+	$error_message = "An error occurred.  Please check the system logs for more information.";
+	portal_reply_page($redirurl, "error", $errormsg);
+	exit;
 }
 
 if (isset($config['captiveportal']['httpslogin']))
@@ -61,9 +62,9 @@ if (isset($config['captiveportal']['httpslogin']))
 else {
     $ifip = portal_ip_from_client_ip($clientip);
     if (!$ifip)
-      $ourhostname = $config['system']['hostname'] . ":8000";
+    	$ourhostname = $config['system']['hostname'] . ":8000";
     else
-      $ourhostname = "{$ifip}:8000";
+    	$ourhostname = "{$ifip}:8000";
 }
 
 if ($orig_host != $ourhostname) {
@@ -71,18 +72,19 @@ if ($orig_host != $ourhostname) {
        it's connected to us. Issue a redirect... */
 
     if (isset($config['captiveportal']['httpslogin']))
-        header("Location: https://{$ourhostname}/index.php?redirurl=" . urlencode("http://{$orig_host}{$orig_request}"));
-    else
-        header("Location: http://{$ourhostname}/index.php?redirurl=" . urlencode("http://{$orig_host}{$orig_request}"));
+        header("Location: https://{$ourhostname}/index.php?redirurl=" . urlencode("http://{$orig_host}/{$orig_request}"));
+    else {
+        header("Location: http://{$ourhostname}/index.php?redirurl=" . urlencode("http://{$orig_host}/{$orig_request}"));
+    }
 
     exit;
 }
 if (!empty($config['captiveportal']['redirurl']))
-  $redirurl = $config['captiveportal']['redirurl'];
+	$redirurl = $config['captiveportal']['redirurl'];
 else if (preg_match("/redirurl=(.*)/", $orig_request, $matches))
-  $redirurl = urldecode($matches[1]);
+	$redirurl = urldecode($matches[1]);
 else if ($_REQUEST['redirurl'])
-  $redirurl = $_REQUEST['redirurl'];
+	$redirurl = $_REQUEST['redirurl'];
 
 $macfilter = !isset($config['captiveportal']['nomacfilter']);
 $passthrumac = isset($config['captiveportal']['passthrumacadd']);
@@ -105,7 +107,7 @@ if (file_exists("{$g['vardb_path']}/captiveportal_radius.db")) {
 }
 
 if ($_POST['logout_id']) {
-  echo <<<EOD
+	echo <<<EOD
 <HTML>
 <HEAD><TITLE>Disconnecting...</TITLE></HEAD>
 <BODY BGCOLOR="#435370">
@@ -121,8 +123,8 @@ setTimeout('window.close();',5000) ;
 </HTML>
 
 EOD;
-  captiveportal_disconnect_client($_POST['logout_id']);
-  exit;
+	captiveportal_disconnect_client($_POST['logout_id']);
+	exit;
 } else if ($clientmac && $radmac_enable && portal_mac_radius($clientmac,$clientip)) {
     /* radius functions handle everything so we exit here since we're done */
     exit;
@@ -163,15 +165,15 @@ EOD;
 
     if ($_POST['auth_user'] && $_POST['auth_pass']) {
         $auth_list = radius($_POST['auth_user'],$_POST['auth_pass'],$clientip,$clientmac,"USER LOGIN");
-  $type = "error";
-  if (!empty($auth_list['url_redirection'])) {
-    $redirurl = $auth_list['url_redirection'];
-    $type = "redir";
-  }
+	$type = "error";
+	if (!empty($auth_list['url_redirection'])) {
+		$redirurl = $auth_list['url_redirection'];
+		$type = "redir";
+	}
 
         if ($auth_list['auth_val'] == 1) {
             captiveportal_logportalauth($_POST['auth_user'],$clientmac,$clientip,"ERROR",$auth_list['error']);
-       portal_reply_page($redirurl, $type, $auth_list['error'] ? $auth_list['error'] : $errormsg);
+ 	    portal_reply_page($redirurl, $type, $auth_list['error'] ? $auth_list['error'] : $errormsg);
         }
         else if ($auth_list['auth_val'] == 3) {
             captiveportal_logportalauth($_POST['auth_user'],$clientmac,$clientip,"FAILURE",$auth_list['reply_message']);
@@ -185,43 +187,17 @@ EOD;
 } else if ($_POST['accept'] && $config['captiveportal']['auth_method'] == "local" && $_POST['auth_user']) {
 
     if ($_POST['auth_user'] && $_POST['auth_pass']) {
-  //check against local user manager
-  $loginok = local_backed($_POST['auth_user'], $_POST['auth_pass']);
-  if ($loginok) {
-    captiveportal_logportalauth($_POST['auth_user'],$clientmac,$clientip,"LOGIN");
-    portal_allow($clientip, $clientmac,$_POST['auth_user']);
-  } else {
-    captiveportal_logportalauth($_POST['auth_user'],$clientmac,$clientip,"FAILURE");
-    portal_reply_page($redirurl, "error", $errormsg);
-  }
+	//check against local user manager
+	$loginok = local_backed($_POST['auth_user'], $_POST['auth_pass']);
+	if ($loginok){
+		captiveportal_logportalauth($_POST['auth_user'],$clientmac,$clientip,"LOGIN");
+		portal_allow($clientip, $clientmac,$_POST['auth_user']);
+	} else {
+		captiveportal_logportalauth($_POST['auth_user'],$clientmac,$clientip,"FAILURE");
+		portal_reply_page($redirurl, "error", $errormsg);
+	}
     } else
         portal_reply_page($redirurl, "error", $errormsg);
-
-} else if (!$_POST['accept'] && $clientmac &&
-  $config['captiveportal']['auth_method'] == "webapi" && ($time = webapi_backend_mac($clientmac, $config['captiveportal']['webapi_space'], $config['captiveportal']['webapi_token']))) {
-
-  captiveportal_logportalauth(null, $clientmac, $clientip, "LOGIN");
-  portal_allow($clientip, $clientmac, null, null, array(
-    'session_terminate_time' => intval(strtotime($time))
-  ));
-
-} else if ($_POST['accept'] && $config['captiveportal']['auth_method'] == "webapi" && $_POST['auth_user']) {
-
-  if ($_POST['auth_user'] && $_POST['auth_pass']) {
-    $response = webapi_backend($_POST['auth_user'], $_POST['auth_pass'], $clientmac, $config['captiveportal']['webapi_space'], $config['captiveportal']['webapi_token']);
-    if ($response['success']) {
-      captiveportal_logportalauth($_POST['auth_user'], $clientmac, $clientip, "LOGIN");
-      portal_allow($clientip, $clientmac, $_POST['auth_user'], null, array(
-        'session_terminate_time' => intval(strtotime($response['message']))
-      ));
-    } else {
-      captiveportal_logportalauth($_POST['auth_user'], $clientmac, $clientip, "FAILURE");
-      portal_reply_page($redirurl, "error", $response['message']);
-    }
-  } else {
-    portal_reply_page($redirurl, "error", $errormsg);
-  }
-
 } else if ($_POST['accept'] && $clientip && $config['captiveportal']['auth_method'] == "none") {
     captiveportal_logportalauth("unauthenticated",$clientmac,$clientip,"ACCEPT");
     portal_allow($clientip, $clientmac, "unauthenticated");
