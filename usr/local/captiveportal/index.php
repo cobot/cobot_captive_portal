@@ -198,6 +198,31 @@ EOD;
 	}
     } else
         portal_reply_page($redirurl, "error", $errormsg);
+} else if (!$_POST['accept'] && $clientmac &&
+  $config['captiveportal']['auth_method'] == "webapi" && ($time = webapi_backend_mac($clientmac, $config['captiveportal']['webapi_space'], $config['captiveportal']['webapi_token']))) {
+
+  captiveportal_logportalauth(null, $clientmac, $clientip, "LOGIN");
+  portal_allow($clientip, $clientmac, null, null, array(
+    'session_terminate_time' => intval(strtotime($time))
+  ));
+
+} else if ($_POST['accept'] && $config['captiveportal']['auth_method'] == "webapi" && $_POST['auth_user']) {
+
+  if ($_POST['auth_user'] && $_POST['auth_pass']) {
+    $response = webapi_backend($_POST['auth_user'], $_POST['auth_pass'], $clientmac, $config['captiveportal']['webapi_space'], $config['captiveportal']['webapi_token']);
+    if ($response['success']) {
+      captiveportal_logportalauth($_POST['auth_user'], $clientmac, $clientip, "LOGIN");
+      portal_allow($clientip, $clientmac, $_POST['auth_user'], null, array(
+        'session_terminate_time' => intval(strtotime($response['message']))
+      ));
+    } else {
+      captiveportal_logportalauth($_POST['auth_user'], $clientmac, $clientip, "FAILURE");
+      portal_reply_page($redirurl, "error", $response['message']);
+    }
+  } else {
+    portal_reply_page($redirurl, "error", $errormsg);
+  }
+
 } else if ($_POST['accept'] && $clientip && $config['captiveportal']['auth_method'] == "none") {
     captiveportal_logportalauth("unauthenticated",$clientmac,$clientip,"ACCEPT");
     portal_allow($clientip, $clientmac, "unauthenticated");
