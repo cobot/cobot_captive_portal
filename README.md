@@ -6,7 +6,7 @@ With this patch installed the captive portal will authenticate directly against 
 
 Note that this disables support for Radius/local captive portal authentication.
 
-***Currently this package supports version 2.0.1 of Pfsense.***
+***Currently this package supports version 2.0.1 and 2.0.3 of Pfsense.***
 
 ## Installation
 
@@ -37,7 +37,12 @@ Go to the _System_ => _Patches_ page...
 
 ![Add Patch](https://raw.github.com/cobot/cobot_captive_portal/master/screenshots/add_patch.png)
 
-Enter "Cobot" in the description field and "https://github.com/cobot/cobot_captive_portal/commit/919c69b028109d2a6b208dbe8b102c8fd9c6b752" in the "URL/Commit ID" field. Click the _Save_ button.
+Enter "Cobot" in the description field and:
+
+* for Pfsense 2.0.1 enter "https://github.com/cobot/cobot_captive_portal/commit/919c69b028109d2a6b208dbe8b102c8fd9c6b752" in the "URL/Commit ID" field.
+* for Pfsense 2.0.3 enter "https://github.com/cobot/cobot_captive_portal/commit/a02ed23bdd1564b2d15a706aeae40d079ab3d057" in the "URL/Commit ID" field.
+
+Click the _Save_ button.
 
 ![Edit Patch](https://raw.github.com/cobot/cobot_captive_portal/master/screenshots/edit_patch.png)
 
