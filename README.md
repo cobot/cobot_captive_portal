@@ -40,7 +40,7 @@ Go to the _System_ => _Patches_ page...
 Enter "Cobot" in the description field and:
 
 * for Pfsense 2.0.1 enter "https://github.com/cobot/cobot_captive_portal/commit/919c69b028109d2a6b208dbe8b102c8fd9c6b752" in the "URL/Commit ID" field.
-* for Pfsense 2.0.3 enter "https://github.com/cobot/cobot_captive_portal/commit/a02ed23bdd1564b2d15a706aeae40d079ab3d057" in the "URL/Commit ID" field.
+* for Pfsense 2.0.3 enter "https://github.com/cobot/cobot_captive_portal/commit/55cdde908fb1d839551a180455ddd0dfe85e7ff1" in the "URL/Commit ID" field.
 
 Click the _Save_ button.
 
