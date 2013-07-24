@@ -12,7 +12,7 @@
   - let pfsense configure environment during installation of virtual machine
   - when set up, start console
     - dhclient em1
-    - use IP on em1 to configure default route in TEST MACHINE
+    - use IP on em1 to configure default route in TEST MACHINE (alternatively: configure static network for LAN, set up test machine to use dhcp)
   - cd /; tar cvfz pfsense.tgz *
   - scp pfsense.tgz me@mylocalmachine:/some/path/
 
