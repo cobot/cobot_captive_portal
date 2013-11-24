@@ -1,11 +1,15 @@
+/*jslint white: true, sloppy: true, vars: true, eqeq: true */
+/*jslint browser: true, devel: true */
+/*global show_hide_linkfields, jQuery, country_list */
 
 function update_select_list(new_options, select_list){
 	var option_array = new_options.split("|");
 	var i = 0;
+	var j;
 	select_list.length = 0;
-	for(var j=0; j < option_array.length-1; j++){
+	for(j=0; j < option_array.length-1; j++){
 		var option = option_array[j].split(",");
-		var selected = Boolean(parseInt(option[2]));
+		var selected = Boolean(parseInt(option[2], 10));
 		select_list[j] = new Option(option[0], option[1], false, selected);
 		//for testing and debugging
 		//select_list.options[option_array.length-1+j] = new Option(option[2].toString() +" "+ selected.toString());
@@ -16,83 +20,86 @@ function update_select_list(new_options, select_list){
 
 function show_advanced(hide){
 	var select_list = document.iform["interfaces[]"].options;
-	var adv_rows = parseInt($('adv_rows').innerHTML);
-	var adv_show = Boolean(parseInt($('adv_show').innerHTML));
-	var status = Boolean(parseInt(hide));
+	var adv_rows = parseInt(jQuery('#adv_rows').html(), 10);
+	var adv_show = Boolean(parseInt(jQuery('#adv_show').html(), 10));
+	var status = Boolean(parseInt(hide, 10));
+	var j, advanced;
 	if (status){
-		$('advanced_').hide();
-		for(var j=0; j < adv_rows; j++){
-			var advanced = "advanced_" + j.toString();
-			$(advanced).show();
+		jQuery('#advanced_').hide();
+		for(j=0; j < adv_rows; j++){
+			advanced = "#advanced_" + j.toString();
+			jQuery(advanced).show();
 		}
-		$('adv_show').innerHTML = "1";
+		jQuery('#adv_show').html = "1";
 		show_hide_linkfields(select_list);
 	} else {
-		$('advanced_').show();
-		for(var j=0; j < adv_rows; j++){
-			var advanced = "advanced_" + j.toString();
-			$(advanced).hide();
+		jQuery('#advanced_').show();
+		for(j=0; j < adv_rows; j++){
+			advanced = "#advanced_" + j.toString();
+			jQuery(advanced).hide();
 		}
-		$('adv_show').innerHTML = "0";
+		jQuery('#adv_show').html("0");
 		show_hide_linkfields(select_list);
 	}
 }
 
 function show_hide_linkfields(options){
 	var i = 0;
-	var port_count = parseInt($('port_count').innerHTML);
-	var adv_show = Boolean(parseInt($('adv_show').innerHTML));
-	for(var j=0; j < port_count; j++){
-		var count = j.toString();
-		var type = $('type').value;
-		var link = "link" + count;
-		var lnklabel = "linklabel" + count;
-		var bw = "bandwidth" + count;
-		var bwlabel = "bwlabel" + count;
-		var mtu = "mtu" + count;
-		var mru = "mru" + count;
-		var mrru = "mrru" + count;
-		var ipfields = "ip_fields" + count;
-		var gwfields = "gw_fields" + count;
-		var localip = "localip" + count;
-		var localiplabel = "localiplabel" + count;
-		var subnet = "subnet" + count;
-		var gateway = "gateway" + count;
-		var gatewaylabel = "gatewaylabel" + count;
+	var port_count = parseInt(jQuery('#port_count').html(), 10);
+	var adv_show = Boolean(parseInt(jQuery('#adv_show').html(), 10));
+	var j, count, type, link, lnklabel, bw, bwlabel, mtu, mru, mrru, ipfields, gwfields, localip,
+	    localiplabel, subnet, gateway, gatewaylabel;
+	for(j=0; j < port_count; j++){
+		count = j.toString();
+		type = jQuery('#type').val();
+		link = "#link" + count;
+		lnklabel = "#linklabel" + count;
+		bw = "#bandwidth" + count;
+		bwlabel = "#bwlabel" + count;
+		mtu = "#mtu" + count;
+		mru = "#mru" + count;
+		mrru = "#mrru" + count;
+		ipfields = "#ip_fields" + count;
+		gwfields = "#gw_fields" + count;
+		localip = "#localip" + count;
+		localiplabel = "#localiplabel" + count;
+		subnet = "#subnet" + count;
+		gateway = "#gateway" + count;
+		gatewaylabel = "#gatewaylabel" + count;
 		
-		$(ipfields, gwfields ,link).invoke('hide');
-		$(subnet).disabled = true;
+		jQuery(ipfields + ',' + gwfields + ',' + link).hide();
+		jQuery(subnet).prop('disabled',true);
 		
-		$(bw).name = "bandwidth[]";
-		$(mtu).name = "mtu[]";
-		$(mru).name = "mru[]";
-		$(mrru).name = "mrru[]";
-		$(localip).name = "localip[]";
-		$(subnet).name = "subnet[]";
-		$(gateway).name = "gateway[]";
+		jQuery(bw).attr("name","bandwidth[]");
+		jQuery(mtu).attr("name","mtu[]");
+		jQuery(mru).attr("name","mru[]");
+		jQuery(mrru).attr("name","mrru[]");
+		jQuery(localip).attr("name","localip[]");
+		jQuery(subnet).attr("name","subnet[]");
+		jQuery(gateway).attr("name","gateway[]");
 		
 		while(i < options.length){
 			if (options[i].selected ){
-				$(lnklabel).innerHTML = "Link Parameters (" + options[i].value + ")";
-				$(bwlabel).innerHTML = "Bandwidth (" + options[i].value + ")";
-				$(bw).name = "bandwidth[" + options[i].value + "]";
-				$(mtu).name = "mtu[" + options[i].value + "]";
-				$(mru).name = "mru[" + options[i].value + "]";
-				$(mrru).name = "mrru[" + options[i].value + "]";
-				$(localiplabel).innerHTML = "Local IP (" + options[i].value + ")";
-				$(gatewaylabel).innerHTML = "Gateway (" + options[i].value + ")";
-				$(localip).name = "localip[" + options[i].value + "]";
-				$(subnet).name = "subnet[" + options[i].value + "]";
-				$(gateway).name = "gateway[" + options[i].value + "]";
+				jQuery(lnklabel).html("Link Parameters (" + options[i].value + ")");
+				jQuery(bwlabel).html("Bandwidth (" + options[i].value + ")");
+				jQuery(bw).attr("name","bandwidth[" + options[i].value + "]");
+				jQuery(mtu).attr("name","mtu[" + options[i].value + "]");
+				jQuery(mru).attr("name","mru[" + options[i].value + "]");
+				jQuery(mrru).attr("name","mrru[" + options[i].value + "]");
+				jQuery(localiplabel).html("Local IP (" + options[i].value + ")");
+				jQuery(gatewaylabel).html("Gateway (" + options[i].value + ")");
+				jQuery(localip).attr("name","localip[" + options[i].value + "]");
+				jQuery(subnet).attr("name","subnet[" + options[i].value + "]");
+				jQuery(gateway).attr("name","gateway[" + options[i].value + "]");
 				if (type == 'ppp' && adv_show){
-					$(ipfields, gwfields).invoke('show');
+					jQuery(ipfields + ',' + gwfields).show();
 				}
 				if (type == 'pptp' || type == 'l2tp'){
-					$(subnet).disabled = false;
-					$(ipfields, gwfields).invoke('show');
+					jQuery(subnet).prop("disabled",false);
+					jQuery(ipfields + ',' + gwfields).show();
 				}
 				if (adv_show){
-					$(link).show();
+					jQuery(link).show();
 				}
 				i++;
 				break;
@@ -104,140 +111,143 @@ function show_hide_linkfields(options){
 
 
 function updateType(t){
-	var serialports = $('serialports').innerHTML;
-	var ports = $('ports').innerHTML;
+	var serialports = jQuery('#serialports').html();
+	var ports = jQuery('#ports').html();
 	var select_list = document.iform["interfaces[]"].options;
-	$('adv_show').innerHTML = "0";
+	jQuery('#adv_show').html("0");
 	show_advanced('0');
+	jQuery("#select").show();
 	switch(t) {
-		case "select": {
-			$('ppp','pppoe','ppp_provider','phone_num','apn_').invoke('hide');
+		case "select":
+			jQuery('#ppp,#pppoe,#ppp_provider,#phone_num,#apn_').hide();
 			select_list.length = 0;
 			select_list[0] = new Option("Select Link Type First","");
 			break;
-		}
-		case "ppp": {
+		case "ppp":
 			update_select_list(serialports, select_list);
-			$('select','pppoe').invoke('hide');
-			$('ppp_provider','phone_num','apn_').invoke('show');
+			jQuery('#select,#pppoe').hide();
+			jQuery('#ppp_provider,#phone_num,#apn_').show();
 			country_list();
 			break;
-		}
-		case "pppoe": {
+		case "pppoe":
 			update_select_list(ports, select_list);
-			$('select','ppp','ppp_provider','phone_num','apn_').invoke('hide');
+			jQuery('#select,#ppp,#ppp_provider,#phone_num,#apn_').hide();
 			break;
-		}
 		case "l2tp":
-		case "pptp": {
+		case "pptp":
 			update_select_list(ports, select_list);
-			$('select','ppp','pppoe','ppp_provider','phone_num','apn_').invoke('hide');
+			jQuery('#select,#ppp,#pppoe,#ppp_provider,#phone_num,#apn_').hide();
 			break;
-		}
 		default:
 			select_list.length = 0;
 			select_list[0] = new Option("Select Link Type First","");
 			break;
 	}
 	if (t == "pppoe" || t == "ppp"){
-		$(t).show();
+		jQuery("#" + t).show();
 	}
 }
 
 function show_reset_settings(reset_type) {
 	if (reset_type == 'preset') { 
-		Effect.Appear('pppoepresetwrap', { duration: 0.0 });
-		Effect.Fade('pppoecustomwrap', { duration: 0.0 }); 
+		jQuery('#pppoepresetwrap').show(0);
+		jQuery('#pppoecustomwrap').hide(0);
 	} 
 	else if (reset_type == 'custom') { 
-		Effect.Appear('pppoecustomwrap', { duration: 0.0 });
-		Effect.Fade('pppoepresetwrap', { duration: 0.0 });
+		jQuery('#pppoecustomwrap').show(0);
+		jQuery('#pppoepresetwrap').hide(0);
 	} else {
-		Effect.Fade('pppoecustomwrap', { duration: 0.0 });
-		Effect.Fade('pppoepresetwrap', { duration: 0.0 });
+		jQuery('#pppoecustomwrap').hide(0);
+		jQuery('#pppoepresetwrap').hide(0);
 	}
 }
 
 function country_list() {
-	$('country').childElements().each(function(node) { node.remove(); });
-	$('provider').childElements().each(function(node) { node.remove(); });
-	$('providerplan').childElements().each(function(node) { node.remove(); });
-	new Ajax.Request("getserviceproviders.php",{
-		onSuccess: function(response) {
-			var responseTextArr = response.responseText.split("\n");
+	jQuery('#country option').remove();
+	jQuery('#provider option').remove();
+	jQuery('#providerplan option').remove();
+	jQuery('#country').append(new Option('', ''));
+	jQuery.ajax("getserviceproviders.php",{
+		success: function(responseText) {
+			var responseTextArr = responseText.split("\n");
+			var value, i, country;
 			responseTextArr.sort();
-			responseTextArr.each( function(value) {
-				var option = new Element('option');
-				country = value.split(":");
-				option.text = country[0];
-				option.value = country[1];
-				$('country').insert({ bottom : option });
-			});
+			for (i = 0; i < responseTextArr.length; i += 1) {
+				value = responseTextArr[i];
+				if (/\S/.test(value)) {
+					country = value.split(":");
+					jQuery('#country').append(new Option(country[0],country[1]));
+				}
+			}
 		}
 	});
-	$('trcountry').setStyle({display : "table-row"});
+	jQuery('#trcountry').css("display","table-row");
 }
 
 function providers_list() {
-	$('provider').childElements().each(function(node) { node.remove(); });
-	$('providerplan').childElements().each(function(node) { node.remove(); });
-	new Ajax.Request("getserviceproviders.php",{
-		parameters: {country : $F('country')},
-		onSuccess: function(response) {
-			var responseTextArr = response.responseText.split("\n");
+	jQuery('#provider option').remove();
+	jQuery('#providerplan option').remove();
+	jQuery('#provider').append(new Option('', ''));
+	jQuery.ajax("getserviceproviders.php",{
+		type: 'POST',
+		data: {country : jQuery('#country').val()},
+		success: function(responseText) {
+			var responseTextArr = responseText.split("\n");
+			var value, i;
 			responseTextArr.sort();
-			responseTextArr.each( function(value) {
-				var option = new Element('option');
-				option.text = value;
-				option.value = value;
-				$('provider').insert({ bottom : option });
-			});
+			for (i = 0; i < responseTextArr.length; i += 1) {
+				value = responseTextArr[i];
+				if (/\S/.test(value)) {
+					jQuery('#provider').append(new Option(value, value));
+				}
+			}
 		}
 	});
-	$('trprovider').setStyle({display : "table-row"});
-	$('trproviderplan').setStyle({display : "none"});
+	jQuery('#trprovider').css("display","table-row");
+	jQuery('#trproviderplan').css("display","none");
 }
 
 function providerplan_list() {
-	$('providerplan').childElements().each(function(node) { node.remove(); });
-	$('providerplan').insert( new Element('option') );
-	new Ajax.Request("getserviceproviders.php",{
-		parameters: {country : $F('country'), provider : $F('provider')},
-		onSuccess: function(response) {
-			var responseTextArr = response.responseText.split("\n");
+	jQuery('#providerplan option').remove();
+	jQuery('#providerplan').append( new Option('','') );
+	jQuery.ajax("getserviceproviders.php",{
+		type: 'POST',
+		data: {country : jQuery('#country').val(), provider : jQuery('#provider').val()},
+		success: function(responseText) {
+			var responseTextArr = responseText.split("\n");
+			var value, providerplan, i;
 			responseTextArr.sort();
-			responseTextArr.each( function(value) {
-				if(value != "") {
+			for (i = 0; i < responseTextArr.length; i += 1) {
+				value = responseTextArr[i];
+				if (/\S/.test(value)) {
 					providerplan = value.split(":");
-
-					var option = new Element('option');
-					option.text = providerplan[0] + " - " + providerplan[1];
-					option.value = providerplan[1];
-					$('providerplan').insert({ bottom : option });
+					jQuery('#providerplan').append(new Option(providerplan[0] + " - " + providerplan[1],
+										  providerplan[1]));
 				}
-			});
+			}
 		}
 	});
-	$('trproviderplan').setStyle({display : "table-row"});
+	jQuery('#trproviderplan').css("display","table-row");
 }
 
 function prefill_provider() {
-	new Ajax.Request("getserviceproviders.php",{
-		parameters: {country : $F('country'), provider : $F('provider'), plan : $F('providerplan')},
-		onSuccess: function(response) {
-			var xmldoc = response.responseXML;
+	jQuery.ajax("getserviceproviders.php",{
+		type: "POST",
+		data: {country : jQuery('#country').val(), provider : jQuery('#provider').val(), plan : jQuery('#providerplan').val()},
+		success: function(responseXML) {
+			var xmldoc = responseXML;
 			var provider = xmldoc.getElementsByTagName('connection')[0];
-			$('username').setValue('');
-			$('password').setValue('');
+			jQuery('#username').val('');
+			jQuery('#password').val('');
 			if(provider.getElementsByTagName('apn')[0].firstChild.data == "CDMA") {
-				$('phone').setValue('#777');
-				$('apn').setValue('');
+				jQuery('#phone').val('#777');
+				jQuery('#apn').val('');
 			} else {
-				$('phone').setValue('*99#');
-				$('apn').setValue(provider.getElementsByTagName('apn')[0].firstChild.data);
+				jQuery('#phone').val('*99#');
+				jQuery('#apn').val(provider.getElementsByTagName('apn')[0].firstChild.data);
 			}
-			$('username').setValue(provider.getElementsByTagName('username')[0].firstChild.data);
-			$('password').setValue(provider.getElementsByTagName('password')[0].firstChild.data);
+			jQuery('#username').val(provider.getElementsByTagName('username')[0].firstChild.data);
+			jQuery('#password').val(provider.getElementsByTagName('password')[0].firstChild.data);
 		}
 	});
 }

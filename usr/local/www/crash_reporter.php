@@ -65,9 +65,8 @@ function upload_crash_report($files) {
 }
 
 function output_crash_reporter_html($crash_reports) {
-	echo "<strong>" . gettext("Unfortunately we have detected a kernel crash (panic).") . "</strong></p>";
-	echo "If you are unfamiliar with kernel panics wikipedia has information <a target='_new' href='http://en.wikipedia.org/wiki/Kernel_panic'>here</a>.<p/>"; 
-	echo gettext("Would you like to submit the crash debug logs to the pfSense developers for inspection?") . "</p>";
+	echo "<strong>" . gettext("Unfortunately we have detected a programming bug.") . "</strong></p>";
+	echo gettext("Would you like to submit the programming debug logs to the pfSense developers for inspection?") . "</p>";
 	echo "<p>";
 	echo "<i>" . gettext("Please double check the contents to ensure you are comfortable sending this information before clicking Yes.") . "</i><br/>";
 	echo "<p>";
@@ -89,6 +88,8 @@ $crash_report_header .= php_uname("r") . "\n";
 $crash_report_header .= php_uname("v") . "\n";
 $crash_report_header .= "\nCrash report details:\n";
 
+exec("/usr/bin/grep -vi warning /tmp/PHP_errors.log", $php_errors);
+
 ?>
 
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
@@ -100,10 +101,12 @@ $crash_report_header .= "\nCrash report details:\n";
 <?php
 	if (gettext($_POST['Submit']) == "Yes") {
 		echo gettext("Processing...");
-		file_put_contents("/var/crash/crashreport_header.txt", $crash_report_header);
-		exec("/usr/bin/gzip /var/crash/*");
+		if (!is_dir("/var/crash"))
+			mwexec("/bin/mkdir -p /var/crash");
+		@file_put_contents("/var/crash/crashreport_header.txt", $crash_report_header);
 		if(file_exists("/tmp/PHP_errors.log"))
 			exec("cp /tmp/PHP_errors.log /var/crash/");
+		exec("/usr/bin/gzip /var/crash/*");
 		$files_to_upload = glob("/var/crash/*");
 		echo "<p/>";
 		echo gettext("Uploading...");
@@ -112,6 +115,8 @@ $crash_report_header .= "\nCrash report details:\n";
 		if(is_array($files_to_upload)) {
 			$resp = upload_crash_report($files_to_upload);
 			exec("rm /var/crash/*");
+			// Erase the contents of the PHP error log
+			fclose(fopen("/tmp/PHP_errors.log", 'w'));
 			echo "<p/>";
 			print_r($resp);
 			echo "<p/><a href='/'>" . gettext("Continue") . "</a>" . gettext(" and delete crash report files from local disk.");
@@ -120,11 +125,17 @@ $crash_report_header .= "\nCrash report details:\n";
 		}
 	} else if(gettext($_POST['Submit']) == "No") {
 		exec("rm /var/crash/*");
+		// Erase the contents of the PHP error log
+		fclose(fopen("/tmp/PHP_errors.log", 'w'));
 		Header("Location: /");
 		exit;
 	} else {
 		$crash_files = glob("/var/crash/*");
 		$crash_reports = $crash_report_header;
+		if (count($php_errors) > 0) {
+			$crash_reports .= "\nPHP Errors:\n";
+			$crash_reports .= implode("\n", $php_errors) . "\n\n";
+		}
 		if(is_array($crash_files))	{
 			foreach($crash_files as $cf) {
 				if(filesize($cf) < FILE_SIZE) {

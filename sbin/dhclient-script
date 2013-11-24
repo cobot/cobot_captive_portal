@@ -58,6 +58,34 @@ arp_flush() {
 		/bin/sh >/dev/null 2>&1
 }
 
+delete_old_states() {
+	$LOGGER "Starting delete_old_states()"
+	# If the IP changed, remove states from the old one
+	if [ -f /var/db/${interface}_ip ]; then
+		OLD_IP = `cat /var/db/${interface}_ip`
+		$LOGGER "Comparing IPs: Old: ${OLD_IP} New: ${new_ip_address}"
+		if [ -n "${OLD_IP}" ] && [ "${OLD_IP}" != "${new_ip_address}" ]; then
+			$LOGGER "Removing states from old IP '${OLD_IP}' (new IP '${new_ip_address}')"
+			/sbin/pfctl -i $interface -Fs
+			pfctl -K ${OLD_IP}/32
+		fi
+	fi
+	# Delete states through old gateway if it's not the same
+	if [ -n "${old_routers}" ]; then
+		OLD_ROUTER = $old_routers
+	fi
+	if [ -z "${OLD_ROUTER}" ] && [ -f /tmp/${interface}_router ]; then
+		OLD_ROUTER = `cat /tmp/${interface}_router`
+	fi
+	if [ -n "${OLD_ROUTER}" ]; then
+		$LOGGER "Comparing Routers: Old: ${OLD_ROUTER} New: ${new_routers}"
+		if [ "${OLD_ROUTER}" != "${new_routers}" ]; then
+			$LOGGER "Removing states through old gateway '${OLD_ROUTER}' (new gateway '${new_routers}')"
+			/sbin/pfctl -i $interface -Fs -G ${OLD_ROUTER}
+		fi
+	fi
+}
+
 delete_old_address() {
 	/bin/rm -f /var/db/${interface}_ip
 	$IFCONFIG $interface inet -alias $old_ip_address $medium
@@ -74,15 +102,16 @@ add_new_address() {
 		netmask $new_subnet_mask \
 		broadcast $new_broadcast_address \
 		$medium
+	$IFCONFIG $interface setfirst $new_ip_address
 
-		$LOGGER "New IP Address ($interface): $new_ip_address"
-		$LOGGER "New Subnet Mask ($interface): $new_subnet_mask"
-		$LOGGER "New Broadcast Address ($interface): $new_broadcast_address"
-		$LOGGER "New Routers ($interface): $new_routers"
+	$LOGGER "New IP Address ($interface): $new_ip_address"
+	$LOGGER "New Subnet Mask ($interface): $new_subnet_mask"
+	$LOGGER "New Broadcast Address ($interface): $new_broadcast_address"
+	$LOGGER "New Routers ($interface): $new_routers"
 
 
 	# This is necessary otherwise apinger will try to ping all 1s address
-	if [ "$new_routers" != "255.255.255.255" ]; then
+	if [ -n "$new_routers" ] && [ "$new_routers" != "255.255.255.255" ]; then
 		echo $new_routers > /tmp/${interface}_router
 	fi
 	echo $new_ip_address > /var/db/${interface}_ip
@@ -290,6 +319,7 @@ MEDIUM)
 PREINIT)
 	delete_old_alias
 	$IFCONFIG $interface inet 0.0.0.0 netmask 0.0.0.0 broadcast 255.255.255.255 up
+	delete_old_states
 	/bin/rm -f /tmp/${interface}_router
 	;;
 
@@ -299,6 +329,9 @@ ARPCHECK|ARPSEND)
 BOUND|RENEW|REBIND|REBOOT)
 	check_hostname
 	changes="no"
+	if [ "$old_ip_address" != "$new_ip_address" ]; then
+		delete_old_states
+	fi
 	if [ -n "$old_ip_address" ]; then
 		if [ -n "$alias_ip_address" ] && \
 		   [ "$old_ip_address" != "$alias_ip_address" ]; then
@@ -332,6 +365,7 @@ BOUND|RENEW|REBIND|REBOOT)
 
 EXPIRE|FAIL)
 	delete_old_alias
+	delete_old_states
 	if [ -n "$old_ip_address" ]; then
 		delete_old_address
 		delete_old_routes
@@ -356,6 +390,7 @@ TIMEOUT)
 		fi
 	fi
 	$IFCONFIG $interface inet -alias $new_ip_address $medium
+	delete_old_states
 	delete_old_routes
 	;;
 esac

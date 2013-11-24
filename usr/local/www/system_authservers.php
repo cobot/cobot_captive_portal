@@ -2,7 +2,7 @@
 /*
     system_authservers.php
 
-    Copyright (C) 2010 Ermal Luçi
+    Copyright (C) 2010 Ermal LuÃ§i
     Copyright (C) 2008 Shrew Soft Inc.
     All rights reserved.
 
@@ -42,6 +42,7 @@ require("guiconfig.inc");
 require_once("auth.inc");
 
 $pgtitle = array(gettext("System"), gettext("Authentication Servers"));
+$shortcut_section = "authentication";
 
 $id = $_GET['id'];
 if (isset($_POST['id']))
@@ -99,11 +100,15 @@ if ($act == "edit") {
 			$pconfig['ldap_scope'] = $a_server[$id]['ldap_scope'];
 			$pconfig['ldap_basedn'] = $a_server[$id]['ldap_basedn'];
 			$pconfig['ldap_authcn'] = $a_server[$id]['ldap_authcn'];
+			$pconfig['ldap_extended_enabled'] = $a_server[$id]['ldap_extended_enabled'];
+			$pconfig['ldap_extended_query'] = $a_server[$id]['ldap_extended_query'];
 			$pconfig['ldap_binddn'] = $a_server[$id]['ldap_binddn'];
 			$pconfig['ldap_bindpw'] = $a_server[$id]['ldap_bindpw'];
 			$pconfig['ldap_attr_user'] = $a_server[$id]['ldap_attr_user'];
 			$pconfig['ldap_attr_group'] = $a_server[$id]['ldap_attr_group'];
 			$pconfig['ldap_attr_member'] = $a_server[$id]['ldap_attr_member'];
+			$pconfig['ldap_utf8'] = isset($a_server[$id]['ldap_utf8']);
+			$pconfig['ldap_nostrip_at'] = isset($a_server[$id]['ldap_nostrip_at']);
 
 			if (!$pconfig['ldap_binddn'] || !$pconfig['ldap_bindpw'])
 				$pconfig['ldap_anon'] = true;
@@ -114,6 +119,7 @@ if ($act == "edit") {
 			$pconfig['radius_auth_port'] = $a_server[$id]['radius_auth_port'];
 			$pconfig['radius_acct_port'] = $a_server[$id]['radius_acct_port'];
 			$pconfig['radius_secret'] = $a_server[$id]['radius_secret'];
+			$pconfig['radius_timeout'] = $a_server[$id]['radius_timeout'];
 
 			if ($pconfig['radius_auth_port'] &&
 				$pconfig['radius_acct_port'] ) {
@@ -209,6 +215,9 @@ if ($_POST) {
 	if (auth_get_authserver($pconfig['name']) && !isset($id))
 		$input_errors[] = gettext("An authentication server with the same name already exists.");
 
+	if (($pconfig['type'] == "radius") && isset($_POST['radius_timeout']) && (!is_numeric($_POST['radius_timeout']) || (is_numeric($_POST['radius_timeout']) && ($_POST['radius_timeout'] <= 0))))
+		$input_errors[] = gettext("RADIUS Timeout value must be numeric and positive.");
+
 	/* if this is an AJAX caller then handle via JSON */
 	if (isAjax() && is_array($input_errors)) {
 		input_errors2Ajax($input_errors);
@@ -235,9 +244,20 @@ if ($_POST) {
 			$server['ldap_scope'] = $pconfig['ldap_scope'];
 			$server['ldap_basedn'] = $pconfig['ldap_basedn'];
 			$server['ldap_authcn'] = $pconfig['ldapauthcontainers'];
+			$server['ldap_extended_enabled'] = $pconfig['ldap_extended_enabled'];
+			$server['ldap_extended_query'] = $pconfig['ldap_extended_query'];
 			$server['ldap_attr_user'] = $pconfig['ldap_attr_user'];
 			$server['ldap_attr_group'] = $pconfig['ldap_attr_group'];
 			$server['ldap_attr_member'] = $pconfig['ldap_attr_member'];
+			if ($pconfig['ldap_utf8'] == "yes")
+				$server['ldap_utf8'] = true;
+			else
+				unset($server['ldap_utf8']);
+			if ($pconfig['ldap_nostrip_at'] == "yes")
+				$server['ldap_nostrip_at'] = true;
+			else
+				unset($server['ldap_nostrip_at']);
+
 
 			if (!$pconfig['ldap_anon']) {
 				$server['ldap_binddn'] = $pconfig['ldap_binddn'];
@@ -254,6 +274,9 @@ if ($_POST) {
 
 			if ($pconfig['radius_secret'])
 				$server['radius_secret'] = $pconfig['radius_secret'];
+
+			if ($pconfig['radius_timeout'])
+				$server['radius_timeout'] = $pconfig['radius_timeout'];
 
 			if ($pconfig['radius_srvcs'] == "both") {
 				$server['radius_auth_port'] = $pconfig['radius_auth_port'];
@@ -288,7 +311,7 @@ include("head.inc");
 <body link="#000000" vlink="#000000" alink="#000000" onload="<?= $jsevents["body"]["onload"] ?>">
 <?php include("fbegin.inc"); ?>
 <script type="text/javascript">
-<!--
+//<![CDATA[
 
 function server_typechange(typ) {
 
@@ -395,13 +418,17 @@ function select_clicked() {
         url += '&urltype=' + document.getElementById("ldap_urltype").value;
         url += '&proto=' + document.getElementById("ldap_protver").value;
 	url += '&authcn=' + document.getElementById("ldapauthcontainers").value;
-	url += '&cert=' + document.getElementById("ldap_caref").value;
+	<?php if (count($a_ca) > 0): ?>
+		url += '&cert=' + document.getElementById("ldap_caref").value;
+	<?php else: ?>
+		url += '&cert=';
+	<?php endif; ?>
 
         var oWin = window.open(url,"pfSensePop","width=620,height=400,top=150,left=150");
         if (oWin==null || typeof(oWin)=="undefined")
 			alert("<?=gettext('Popup blocker detected.  Action aborted.');?>");
 }
-//-->
+//]]>
 </script>
 <?php
 	if ($input_errors)
@@ -409,7 +436,7 @@ function select_clicked() {
 	if ($savemsg)
 		print_info_box($savemsg);
 ?>
-<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="auth servers">
 	<tr>
 		<td>
 		<?php
@@ -429,7 +456,7 @@ function select_clicked() {
 				<?php if ($act == "new" || $act == "edit" || $input_errors): ?>
 
 				<form action="system_authservers.php" method="post" name="iform" id="iform">
-					<table width="100%" border="0" cellpadding="6" cellspacing="0">
+					<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="main area">
 						<tr>
 							<td width="22%" valign="top" class="vncellreq"><?=gettext("Descriptive name");?></td>
 							<td width="78%" class="vtable">
@@ -450,7 +477,7 @@ function select_clicked() {
 									foreach ($auth_server_types as $typename => $typedesc ):
 										$selected = "";
 										if ($pconfig['type'] == $typename)
-											$selected = "selected";
+											$selected = "selected=\"selected\"";
 								?>
 									<option value="<?=$typename;?>" <?=$selected;?>><?=$typedesc;?></option>
 								<?php endforeach; ?>
@@ -463,7 +490,7 @@ function select_clicked() {
 						</tr>
 					</table>
 
-					<table width="100%" border="0" cellpadding="6" cellspacing="0" id="ldap" style="display:none">
+					<table width="100%" border="0" cellpadding="6" cellspacing="0" id="ldap" style="display:none" summary="">
 						<tr>
 							<td colspan="2" class="list" height="12"></td>
 						</tr>
@@ -474,6 +501,7 @@ function select_clicked() {
 							<td width="22%" valign="top" class="vncellreq"><?=gettext("Hostname or IP address");?></td>
 							<td width="78%" class="vtable">
 								<input name="ldap_host" type="text" class="formfld unknown" id="ldap_host" size="20" value="<?=htmlspecialchars($pconfig['ldap_host']);?>"/>
+								<br /><?= gettext("NOTE: When using SSL, this hostname MUST match the Common Name (CN) of the LDAP server's SSL Certificate."); ?>
 							</td>
 						</tr>
 						<tr>
@@ -490,7 +518,7 @@ function select_clicked() {
 									foreach ($ldap_urltypes as $urltype => $urlport):
 										$selected = "";
 										if ($pconfig['ldap_urltype'] == $urltype)
-											$selected = "selected";
+											$selected = "selected=\"selected\"";
 								?>
 									<option value="<?=$urltype;?>" <?=$selected;?>><?=$urltype;?></option>
 								<?php endforeach; ?>
@@ -506,7 +534,7 @@ function select_clicked() {
                                                                 foreach ($a_ca as $ca):
                                                                         $selected = "";
                                                                         if ($pconfig['ldap_caref'] == $ca['refid'])
-                                                                                $selected = "selected";
+                                                                                $selected = "selected=\"selected\"";
                                                         ?>
 									<option value="<?=$ca['refid'];?>" <?=$selected;?>><?=$ca['descr'];?></option>
                                                         <?php	endforeach; ?>
@@ -526,7 +554,7 @@ function select_clicked() {
 									foreach ($ldap_protvers as $version):
 										$selected = "";
 										if ($pconfig['ldap_protver'] == $version)
-											$selected = "selected";
+											$selected = "selected=\"selected\"";
 								?>
 									<option value="<?=$version;?>" <?=$selected;?>><?=$version;?></option>
 								<?php endforeach; ?>
@@ -536,7 +564,7 @@ function select_clicked() {
 						<tr>
 							<td width="22%" valign="top" class="vncell"><?=gettext("Search scope");?></td>
 							<td width="78%" class="vtable">
-								<table border="0" cellspacing="0" cellpadding="2">
+								<table border="0" cellspacing="0" cellpadding="2" summary="search scope">
 									<tr>
 										<td><?=gettext("Level:");?> &nbsp;</td>
 										<td>
@@ -545,7 +573,7 @@ function select_clicked() {
 												foreach ($ldap_scopes as $scopename => $scopedesc):
 													$selected = "";
 													if ($pconfig['ldap_scope'] == $scopename)
-														$selected = "selected";
+														$selected = "selected=\"selected\"";
 											?>
 												<option value="<?=$scopename;?>" <?=$selected;?>><?=$scopedesc;?></option>
 											<?php endforeach; ?>
@@ -565,12 +593,12 @@ function select_clicked() {
 						<tr>
 							<td width="22%" valign="top" class="vncellreq"><?=gettext("Authentication containers");?></td>
 							<td width="78%" class="vtable">
-								<table border="0" cellspacing="0" cellpadding="2">
+								<table border="0" cellspacing="0" cellpadding="2" summary="auth containers">
 									<tr>
 										<td><?=gettext("Containers:");?> &nbsp;</td>
 										<td>
 											<input name="ldapauthcontainers" type="text" class="formfld unknown" id="ldapauthcontainers" size="40" value="<?=htmlspecialchars($pconfig['ldap_authcn']);?>"/>
-											<input type="button" onClick="select_clicked();" value="<?=gettext("Select");?>">
+											<input type="button" onclick="select_clicked();" value="<?=gettext("Select");?>" />
 											<br /><?=gettext("Note: Semi-Colon separated. This will be prepended to the search base dn above or you can specify full container path.");?>
 											<br /><?=gettext("Example: CN=Users;DC=example");?>
 											<br /><?=gettext("Example: CN=Users,DC=example,DC=com;OU=OtherUsers,DC=example,DC=com ");?>
@@ -580,19 +608,36 @@ function select_clicked() {
 							</td>
 						</tr>
 						<tr>
-							<td width="22%" valign="top" class="vncell"><?=gettext("Bind credentials");?></td>
+							<td width="22%" valign="top" class="vncell"><?=gettext("Extended Query");?></td>
 							<td width="78%" class="vtable">
-								<table border="0" cellspacing="0" cellpadding="2">
+								<table border="0" cellspacing="0" cellpadding="2" summary="query">
 									<tr>
 										<td>
-											<input name="ldap_anon" type="checkbox" id="ldap_anon" value="yes" <?php if ($pconfig['ldap_anon']) echo "checked"; ?> onClick="ldap_bindchange()">
+											<input name="ldap_extended_enabled" type="checkbox" id="ldap_extended_enabled" value="no" <?php if ($pconfig['ldap_extended_enabled']) echo "checked=\"checked\""; ?> />
+										</td>
+										<td>
+
+											<input name="ldap_extended_query" type="text" class="formfld unknown" id="ldap_extended_query" size="40" value="<?=htmlspecialchars($pconfig['ldap_extended_query']);?>"/>
+											<br /><?=gettext("Example: CN=Groupname,OU=MyGroups,DC=example,DC=com;OU=OtherUsers,DC=example,DC=com ");?>
+										</td>
+									</tr>
+								</table>
+							</td>
+						</tr>
+						<tr>
+							<td width="22%" valign="top" class="vncell"><?=gettext("Bind credentials");?></td>
+							<td width="78%" class="vtable">
+								<table border="0" cellspacing="0" cellpadding="2" summary="bind credentials">
+									<tr>
+										<td>
+											<input name="ldap_anon" type="checkbox" id="ldap_anon" value="yes" <?php if ($pconfig['ldap_anon']) echo "checked=\"checked\""; ?> onclick="ldap_bindchange()" />
 										</td>
 										<td>
 											<?=gettext("Use anonymous binds to resolve distinguished names");?>
 										</td>
 									</tr>
 								</table>
-								<table border="0" cellspacing="0" cellpadding="2" id="ldap_bind">
+								<table border="0" cellspacing="0" cellpadding="2" id="ldap_bind" summary="bind">
 									<tr>
 										<td colspan="2"></td>
 									</tr>
@@ -620,7 +665,7 @@ function select_clicked() {
 									foreach ($ldap_templates as $tmplname => $tmpldata):
 										$selected = "";
 										if ($pconfig['ldap_template'] == $tmplname)
-											$selected = "selected";
+											$selected = "selected=\"selected\"";
 								?>
 									<option value="<?=$tmplname;?>" <?=$selected;?>><?=$tmpldata['desc'];?></option>
 								<?php endforeach; ?>
@@ -646,9 +691,39 @@ function select_clicked() {
 								<input name="ldap_attr_member" type="text" class="formfld unknown" id="ldap_attr_member" size="20" value="<?=htmlspecialchars($pconfig['ldap_attr_member']);?>"/>
 							</td>
 						</tr>
+						<tr>
+							<td width="22%" valign="top" class="vncell"><?=gettext("UTF8 Encode");?></td>
+							<td width="78%" class="vtable">
+								<table border="0" cellspacing="0" cellpadding="2" summary="utf8 encoding">
+									<tr>
+										<td>
+											<input name="ldap_utf8" type="checkbox" id="ldap_utf8" value="yes" <?php if ($pconfig['ldap_utf8']) echo "checked=\"checked\""; ?> />
+										</td>
+										<td>
+											<?=gettext("UTF8 encode LDAP parameters before sending them to the server. Required to support international characters, but may not be supported by every LDAP server.");?>
+										</td>
+									</tr>
+								</table>
+							</td>
+						</tr>
+						<tr>
+							<td width="22%" valign="top" class="vncell"><?=gettext("Username Alterations");?></td>
+							<td width="78%" class="vtable">
+								<table border="0" cellspacing="0" cellpadding="2" summary="username alterations">
+									<tr>
+										<td>
+											<input name="ldap_nostrip_at" type="checkbox" id="ldap_nostrip_at" value="yes" <?php if ($pconfig['ldap_nostrip_at']) echo "checked=\"checked\""; ?> />
+										</td>
+										<td>
+											<?=gettext("Do not strip away parts of the username after the @ symbol, e.g. user@host becomes user when unchecked.");?>
+										</td>
+									</tr>
+								</table>
+							</td>
+						</tr>
 					</table>
 
-					<table width="100%" border="0" cellpadding="6" cellspacing="0" id="radius" style="display:none">
+					<table width="100%" border="0" cellpadding="6" cellspacing="0" id="radius" style="display:none" summary="">
 						<tr>
 							<td colspan="2" class="list" height="12"></td>
 						</tr>
@@ -675,7 +750,7 @@ function select_clicked() {
 									foreach ($radius_srvcs as $srvcname => $srvcdesc):
 										$selected = "";
 										if ($pconfig['radius_srvcs'] == $srvcname)
-											$selected = "selected";
+											$selected = "selected=\"selected\"";
 								?>
 									<option value="<?=$srvcname;?>" <?=$selected;?>><?=$srvcdesc;?></option>
 								<?php endforeach; ?>
@@ -694,9 +769,18 @@ function select_clicked() {
 								<input name="radius_acct_port" type="text" class="formfld unknown" id="radius_acct_port" size="5" value="<?=htmlspecialchars($pconfig['radius_acct_port']);?>"/>
 							</td>
 						</tr>
+						<tr>
+							<td width="22%" valign="top" class="vncellreq"><?=gettext("Authentication Timeout");?></td>
+							<td width="78%" class="vtable">
+								<input name="radius_timeout" type="text" class="formfld unknown" id="radius_timeout" size="20" value="<?=htmlspecialchars($pconfig['radius_timeout']);?>"/>
+								<br /><?= gettext("This value controls how long, in seconds, that the RADIUS server may take to respond to an authentication request.") ?>
+								<br /><?= gettext("If left blank, the default value is 5 seconds.") ?>
+								<br /><br /><?= gettext("NOTE: If you are using an interactive two-factor authentication system, increase this timeout to account for how long it will take the user to receive and enter a token.") ?>
+							</td>
+						</tr>
 					</table>
 
-					<table width="100%" border="0" cellpadding="6" cellspacing="0">
+					<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="">
 						<tr>
 							<td width="22%" valign="top">&nbsp;</td>
 							<td width="78%">
@@ -711,54 +795,60 @@ function select_clicked() {
 
 				<?php else: ?>
 
-				<table width="100%" border="0" cellpadding="0" cellspacing="0">
-					<tr>
-						<td width="25%" class="listhdrr"><?=gettext("Server Name");?></td>
-						<td width="25%" class="listhdrr"><?=gettext("Type");?></td>
-						<td width="35%" class="listhdrr"><?=gettext("Host Name");?></td>
-						<td width="10%" class="list"></td>
-					</tr>
-					<?php
-						$i = 0;
-						foreach($a_server as $server):
-							$name = htmlspecialchars($server['name']);
-							$type = htmlspecialchars($auth_server_types[$server['type']]);
-							$host = htmlspecialchars($server['host']);
-					?>
-					<tr <?php if ($i < (count($a_server) - 1)): ?> ondblclick="document.location='system_authservers.php?act=edit&id=<?=$i;?>'" <?php endif; ?>>
-						<td class="listlr"><?=$name?>&nbsp;</td>
-						<td class="listr"><?=$type;?>&nbsp;</td>
-						<td class="listr"><?=$host;?>&nbsp;</td>
-						<td valign="middle" nowrap class="list">
-						<?php if ($i < (count($a_server) - 1)): ?>
-							<a href="system_authservers.php?act=edit&id=<?=$i;?>">
-								<img src="/themes/<?= $g['theme'];?>/images/icons/icon_e.gif" title="<?=gettext("edit server");?>" alt="<?=gettext("edit server");?>" width="17" height="17" border="0" />
-							</a>
-							&nbsp;
-							<a href="system_authservers.php?act=del&id=<?=$i;?>" onclick="return confirm('<?=gettext("Do you really want to delete this Server?");?>')">
-								<img src="/themes/<?= $g['theme'];?>/images/icons/icon_x.gif" title="<?=gettext("delete server");?>" alt="<?=gettext("delete server");?>" width="17" height="17" border="0" />
-							</a>
-						<?php endif; ?>
-						</td>
-					</tr>
-					<?php
-						$i++; endforeach;
-					?>
-					<tr>
-						<td class="list" colspan="3"></td>
-						<td class="list">
-							<a href="system_authservers.php?act=new">
-								<img src="/themes/<?= $g['theme'];?>/images/icons/icon_plus.gif" title="<?=gettext("add server");?>" alt="<?=gettext("add server");?>" width="17" height="17" border="0" />
-							</a>
-						</td>
-					</tr>
-					<tr>
-						<td colspan="3">
-							<p>
-								<?=gettext("Additional authentication servers can be added here.");?>
-							</p>
-						</td>
-					</tr>
+				<table class="sortable" width="100%" border="0" cellpadding="0" cellspacing="0" summary="">
+					<thead>
+						<tr>
+							<th width="25%" class="listhdrr"><?=gettext("Server Name");?></th>
+							<th width="25%" class="listhdrr"><?=gettext("Type");?></th>
+							<th width="35%" class="listhdrr"><?=gettext("Host Name");?></th>
+							<th width="10%" class="list"></th>
+						</tr>
+					</thead>
+					<tfoot>
+						<tr>
+							<td class="list" colspan="3"></td>
+							<td class="list">
+								<a href="system_authservers.php?act=new">
+									<img src="/themes/<?= $g['theme'];?>/images/icons/icon_plus.gif" title="<?=gettext("add server");?>" alt="<?=gettext("add server");?>" width="17" height="17" border="0" />
+								</a>
+							</td>
+						</tr>
+						<tr>
+							<td colspan="3">
+								<p>
+									<?=gettext("Additional authentication servers can be added here.");?>
+								</p>
+							</td>
+						</tr>
+					</tfoot>
+					<tbody>
+						<?php
+							$i = 0;
+							foreach($a_server as $server):
+								$name = htmlspecialchars($server['name']);
+								$type = htmlspecialchars($auth_server_types[$server['type']]);
+								$host = htmlspecialchars($server['host']);
+						?>
+						<tr <?php if ($i < (count($a_server) - 1)): ?> ondblclick="document.location='system_authservers.php?act=edit&amp;id=<?=$i;?>'" <?php endif; ?>>
+							<td class="listlr"><?=$name?>&nbsp;</td>
+							<td class="listr"><?=$type;?>&nbsp;</td>
+							<td class="listr"><?=$host;?>&nbsp;</td>
+							<td valign="middle" class="list nowrap">
+							<?php if ($i < (count($a_server) - 1)): ?>
+								<a href="system_authservers.php?act=edit&amp;id=<?=$i;?>">
+									<img src="/themes/<?= $g['theme'];?>/images/icons/icon_e.gif" title="<?=gettext("edit server");?>" alt="<?=gettext("edit server");?>" width="17" height="17" border="0" />
+								</a>
+								&nbsp;
+								<a href="system_authservers.php?act=del&amp;id=<?=$i;?>" onclick="return confirm('<?=gettext("Do you really want to delete this Server?");?>')">
+									<img src="/themes/<?= $g['theme'];?>/images/icons/icon_x.gif" title="<?=gettext("delete server");?>" alt="<?=gettext("delete server");?>" width="17" height="17" border="0" />
+								</a>
+							<?php endif; ?>
+							</td>
+						</tr>
+						<?php
+							$i++; endforeach;
+						?>
+					</tbody>
 				</table>
 
 				<?php endif; ?>
@@ -769,7 +859,7 @@ function select_clicked() {
 </table>
 <?php include("fend.inc"); ?>
 <script type="text/javascript">
-<!--
+//<![CDATA[
 server_typechange('<?=htmlspecialchars($pconfig['type']);?>');
 <?php if (!isset($id) || $pconfig['type'] == "ldap"): ?>
 ldap_bindchange();
@@ -782,6 +872,7 @@ ldap_tmplchange();
 <?php if (!isset($id) || $pconfig['type'] == "radius"): ?>
 radius_srvcschange();
 <?php endif; ?>
-//-->
+//]]>
 </script>
 </body>
+</html>

@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# $FreeBSD: src/etc/rc.d/sdpd,v 1.6.2.2.2.2 2012/11/17 08:24:38 svnexp Exp $
+#
+
+# PROVIDE: sdpd
+# REQUIRE: DAEMON
+# BEFORE: LOGIN
+# KEYWORD: nojail shutdown
+
+. /etc/rc.subr
+
+name="sdpd"
+command="/usr/sbin/${name}"
+rcvar="sdpd_enable"
+required_modules="ng_btsocket"
+
+load_rc_config $name
+control="${sdpd_control:-/var/run/sdp}"
+group="${sdpd_groupname:-nobody}"
+user="${sdpd_username:-nobody}"
+command_args="-c ${control} -g ${group} -u ${user}"
+
+run_rc_command "$1"

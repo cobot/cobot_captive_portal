@@ -19,18 +19,44 @@ $listedIPs = "";
 
 //get interface IP and break up into an array
 $interface = $_GET['if'];
-$real_interface = convert_friendly_interface_to_real_interface_name($interface);
+$real_interface = get_real_interface($interface);
+if (!does_interface_exist($real_interface)) {
+	echo gettext("Wrong Interface");
+	return;
+}
 $intip = find_interface_ip($real_interface);
-$intip = explode (".", $intip);
+//get interface subnet
+$netmask = find_interface_subnet($real_interface);
+$intsubnet = gen_subnet($intip, $netmask) . "/$netmask";
+//get the sort method
+$sort = $_GET['sort'];
+if ($sort == "out") 
+	{$sort_method = "-T";}
+else
+	{$sort_method = "-R";}
 
-//use class A subnet to make sure we capture all traffic on specified interface
-$intsubnet = $intip[0] . ".0.0.0/8";
+$filter = $_GET['filter'];
 
-exec("/usr/local/bin/rate -i {$real_interface} -nlq 1 -Aba 20 -c {$intsubnet} | tr \"|\" \" \" | awk '{ printf \"%s:%s:%s:%s:%s\\n\", $1,  $2,  $4,  $6,  $8 }'", $listedIPs);
+// get the desired format for displaying the host name or IP
+$hostipformat = $_GET['hostipformat'];
+$iplookup = array();
+// If hostname display is requested and the DNS forwarder does not already have DHCP static names registered,
+// then load the DHCP static mappings into an array keyed by IP address.
+if (($hostipformat != "") && (!isset($config['dnsmasq']['enable']) || !isset($config['dnsmasq']['regdhcpstatic']))) {
+	if (is_array($config['dhcpd'])) {
+		foreach ($config['dhcpd'] as $ifdata) {
+			if (is_array($ifdata['staticmap'])) {
+				foreach ($ifdata['staticmap'] as $hostent) {
+					if (($hostent['ipaddr'] != "") && ($hostent['hostname'] != "")) {
+						$iplookup[$hostent['ipaddr']] = $hostent['hostname'];
+					}
+				}
+			}
+		}
+	}
+}
 
-unset($bandwidthinfo);
-unset($receivebytesarray);
-unset($transmitbytesarray);
+$_grb = exec("/usr/local/bin/rate -i {$real_interface} -nlq 1 -Aba 20 {$sort_method} -c {$intsubnet} | tr \"|\" \" \" | awk '{ printf \"%s:%s:%s:%s:%s\\n\", $1,  $2,  $4,  $6,  $8 }'", $listedIPs);
 
 $someinfo = false;
 for ($x=2; $x<12; $x++){
@@ -41,13 +67,36 @@ for ($x=2; $x<12; $x++){
     $emptyinfocounter = 1;
     if ($bandwidthinfo != "") {
         $infoarray = explode (":",$bandwidthinfo);
-        //print IP of host;
-        echo $infoarray[0] . ";" . $infoarray[1] . ";" . $infoarray[2] . "|";
+		if (($filter == "") ||
+			(($filter == "local") && (ip_in_subnet($infoarray[0], $intsubnet))) ||
+			(($filter == "remote") && (!ip_in_subnet($infoarray[0], $intsubnet)))) {
+			if ($hostipformat == "") {
+				$addrdata = $infoarray[0];
+			} else {
+				// $hostipformat is "hostname" or "fqdn"
+				$addrdata = gethostbyaddr($infoarray[0]);
+				if ($addrdata == $infoarray[0]) {
+					// gethostbyaddr() gave us back the IP address, so try the static mapping array
+					if ($iplookup[$infoarray[0]] != "")
+						$addrdata = $iplookup[$infoarray[0]];
+				} else {
+					if ($hostipformat == "hostname") {
+						// Only pass back the first part of the name, not the FQDN.
+						$name_array = explode(".", $addrdata);
+						$addrdata = $name_array[0];
+					}
+				}
+			}
+			//print host information;
+			echo $addrdata . ";" . $infoarray[1] . ";" . $infoarray[2] . "|";
 
-        //mark that we collected information
-        $someinfo = true;
+			//mark that we collected information
+			$someinfo = true;
+		}
     }
 }
+unset($bandwidthinfo, $_grb);
+unset($listedIPs);
 
 //no bandwidth usage found
 if ($someinfo == false)

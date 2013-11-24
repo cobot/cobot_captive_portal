@@ -61,6 +61,7 @@ if (count($a_client)) {
 	$pconfig['net_list'] = $a_client['net_list'];
 	$pconfig['save_passwd'] = $a_client['save_passwd'];
 	$pconfig['dns_domain'] = $a_client['dns_domain'];
+	$pconfig['dns_split'] = $a_client['dns_split'];
 	$pconfig['dns_server1'] = $a_client['dns_server1'];
 	$pconfig['dns_server2'] = $a_client['dns_server2'];
 	$pconfig['dns_server3'] = $a_client['dns_server3'];
@@ -87,6 +88,9 @@ if (count($a_client)) {
 	if ($pconfig['dns_domain'])
 		$pconfig['dns_domain_enable'] = true;
 
+	if ($pconfig['dns_split'])
+		$pconfig['dns_split_enable'] = true;
+
 	if ($pconfig['dns_server1']||$pconfig['dns_server2']||$pconfig['dns_server3']||$pconfig['dns_server4'])
 		$pconfig['dns_server_enable'] = true;
 
@@ -108,7 +112,7 @@ if ($_POST['apply']) {
 	$retval = 0;
 	$retval = vpn_ipsec_configure();
 	$savemsg = get_std_save_message($retval);
-	if ($retval == 0)
+	if ($retval >= 0)
 		if (is_subsystem_dirty('ipsec'))
 			clear_subsystem_dirty('ipsec');
 }
@@ -136,6 +140,18 @@ if ($_POST['submit']) {
 	if ($pconfig['dns_domain_enable'])
 		if (!is_domain($pconfig['dns_domain']))
 			$input_errors[] = gettext("A valid value for 'DNS Default Domain' must be specified.");
+
+	if ($pconfig['dns_split_enable']) {
+		if (!empty($pconfig['dns_split'])) {
+			$domain_array=preg_split("/[ ,]+/",$pconfig['dns_split']);
+			foreach ($domain_array as $curdomain) {
+				if (!is_domain($curdomain)) {
+					$input_errors[] = gettext("A valid split DNS domain list must be specified.");
+					break;
+				}
+			}
+		}
+	}
 
 	if ($pconfig['dns_server_enable']) {
 		if (!$pconfig['dns_server1'] && !$pconfig['dns_server2'] &&
@@ -170,7 +186,8 @@ if ($_POST['submit']) {
 		if ($pconfig['enable'])
 			$client['enable'] = true;
 
-		$client['user_source'] = $pconfig['user_source'];
+		if (!empty($pconfig['user_source']))
+			$client['user_source'] = implode(",", $pconfig['user_source']);
 		$client['group_source'] = $pconfig['group_source'];
 
 		if ($pconfig['pool_enable']) {
@@ -186,6 +203,9 @@ if ($_POST['submit']) {
 
 		if ($pconfig['dns_domain_enable'])
 			$client['dns_domain'] = $pconfig['dns_domain'];
+
+		if ($pconfig['dns_split_enable'])
+			$client['dns_split'] = $pconfig['dns_split'];
 
 		if ($pconfig['dns_server_enable']) {
 			$client['dns_server1'] = $pconfig['dns_server1'];
@@ -218,8 +238,7 @@ if ($_POST['submit']) {
 }
 
 $pgtitle = array(gettext("VPN"),gettext("IPsec"),gettext("Mobile"));
-$statusurl = "diag_ipsec.php";
-$logurl = "diag_logs_ipsec.php";
+$shortcut_section = "ipsec";
 
 include("head.inc");
 ?>
@@ -247,6 +266,14 @@ function dns_domain_change() {
 		document.iform.dns_domain.disabled = 0;
 	else
 		document.iform.dns_domain.disabled = 1;
+}
+
+function dns_split_change() {
+
+	if (document.iform.dns_split_enable.checked)
+		document.iform.dns_split.disabled = 0;
+	else
+		document.iform.dns_split.disabled = 1;
 }
 
 function dns_server_change() {
@@ -317,7 +344,7 @@ function login_banner_change() {
 				$tab_array = array();
 				$tab_array[0] = array(gettext("Tunnels"), false, "vpn_ipsec.php");
 				$tab_array[1] = array(gettext("Mobile clients"), true, "vpn_ipsec_mobile.php");
-				$tab_array[2] = array(gettext("Pre-shared keys"), false, "vpn_ipsec_keys.php");
+				$tab_array[2] = array(gettext("Pre-Shared Key"), false, "vpn_ipsec_keys.php");
 				display_top_tabs($tab_array);
 			?>
 		</td>
@@ -354,8 +381,17 @@ function login_banner_change() {
 						<td width="22%" valign="top" class="vncellreq"><?=gettext("User Authentication"); ?></td>
 						<td width="78%" class="vtable">
 							<?=gettext("Source"); ?>:&nbsp;&nbsp;
-							<select name="user_source" class="formselect" id="user_source">
-								<option value="system"><?=gettext("system"); ?></option>
+							<select name="user_source[]" class="formselect" id="user_source"  multiple="true" size="3">
+							<?php
+								$authmodes = explode(",", $pconfig['user_source']);
+								$auth_servers = auth_get_authserver_list();
+								foreach ($auth_servers as $auth_server) {
+									$selected = "";
+									if (in_array($auth_server['name'], $authmodes))
+										$selected = "selected";
+									echo "<option value='{$auth_server['name']}' {$selected}>{$auth_server['name']}</option>\n";
+								}
+							?>
 							</select>
 						</td>
 					</tr>
@@ -364,7 +400,8 @@ function login_banner_change() {
 						<td width="78%" class="vtable">
 							<?=gettext("Source"); ?>:&nbsp;&nbsp;
 							<select name="group_source" class="formselect" id="group_source">
-								<option value="system"><?=gettext("system"); ?></option>
+								<option value="none"><?=gettext("none"); ?></option>
+								<option value="system" <?php if ($pconfig['group_source'] == "system") echo "selected"; ?> ><?=gettext("system"); ?></option>
 							</select>
 						</td>
 					</tr>
@@ -459,6 +496,30 @@ function login_banner_change() {
 								<tr>
 									<td>
 										<input name="dns_domain" type="text" class="formfld unknown" id="dns_domain" size="30" value="<?=htmlspecialchars($pconfig['dns_domain']);?>">
+									</td>
+								</tr>
+							</table>
+						</td>
+					</tr>
+					<tr>
+						<td width="22%" valign="top" class="vncell"><?=gettext("Split DNS"); ?></td>
+						<td width="78%" class="vtable">
+							<table border="0" cellspacing="2" cellpadding="0">
+								<tr>
+									<td>
+										<?php set_checked($pconfig['dns_split_enable'],$chk); ?>
+										<input name="dns_split_enable" type="checkbox" id="dns_split_enable" value="yes" <?=$chk;?> onClick="dns_split_change()">
+									</td>
+									<td>
+										<?=gettext("Provide a list of split DNS domain names to clients. Enter a comma separated list."); ?><br>
+										<?=gettext("NOTE: If left blank, and a default domain is set, it will be used for this value."); ?>
+									</td>
+								</tr>
+							</table>
+							<table border="0" cellspacing="2" cellpadding="0">
+								<tr>
+									<td>
+										<input name="dns_split" type="text" class="formfld unknown" id="dns_split" size="30" value="<?=htmlspecialchars($pconfig['dns_split']);?>">
 									</td>
 								</tr>
 							</table>
@@ -605,6 +666,7 @@ function login_banner_change() {
 <script language="JavaScript">
 pool_change();
 dns_domain_change();
+dns_split_change();
 dns_server_change();
 wins_server_change();
 pfs_group_change();

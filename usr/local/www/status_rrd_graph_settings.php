@@ -64,7 +64,8 @@ $periods = array("absolute" => gettext("Absolute Timespans"),
 
 if ($_POST['ResetRRD']) {
 	mwexec('/bin/rm /var/db/rrd/*');
-	$retval = enable_rrd_graphing();
+	enable_rrd_graphing();
+	setup_gateways_monitor();
 	$savemsg = "RRD data has been cleared. New RRD files have been generated.";
 } elseif ($_POST) {
 	unset($input_errors);
@@ -105,7 +106,7 @@ foreach($databases as $database) {
 	if(stristr($database, "-vpnusers")) {
 		$vpnusers = true;
 	}
-	if(stristr($database, "captiveportal-") && isset($config['captiveportal']['enable'])) {
+	if(stristr($database, "captiveportal-") && is_array($config['captiveportal'])) {
 		$captiveportal = true;
 	}
 }

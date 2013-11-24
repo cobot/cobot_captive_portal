@@ -13,6 +13,7 @@
 #  Field 5:  Script to run once service is restored
 #  Field 6:  Ping time threshold
 #  Field 7:  Wan ping time threshold
+#  Field 8:  Address family
 
 # Read in ipsec ping hosts and check the CARP status
 if [ -f /var/db/ipsecpinghosts ]; then
@@ -66,9 +67,15 @@ for TOPING in $PINGHOSTS ; do
 	SERVICERESTOREDSCRIPT=`echo $TOPING | cut -d"|" -f5`
 	THRESHOLD=`echo $TOPING | cut -d"|" -f6`
 	WANTHRESHOLD=`echo $TOPING | cut -d"|" -f7`
+	AF=`echo $TOPING | cut -d"|" -f8`
+	if [ "$AF" == "inet6" ]; then
+		PINGCMD=ping6
+	else
+		PINGCMD=ping
+	fi
 	echo Processing $DSTIP
 	# Look for a service being down
-	ping -c $COUNT -S $SRCIP $DSTIP
+	$PINGCMD -c $COUNT -S $SRCIP $DSTIP
 	if [ $? -eq 0 ]; then
 		# Host is up
 		# Read in previous status
@@ -78,10 +85,10 @@ for TOPING in $PINGHOSTS ; do
 			if [ "$SERVICERESTOREDSCRIPT" != "" ]; then
 				echo "$DSTIP is UP, previous state was DOWN .. Running $SERVICERESTOREDSCRIPT"
 				echo "$DSTIP is UP, previous state was DOWN .. Running $SERVICERESTOREDSCRIPT" | logger -p daemon.info -i -t PingMonitor
+				echo "UP" > /var/db/pingstatus/$DSTIP
 				sh -c $SERVICERESTOREDSCRIPT
 			fi
 		fi
-		echo "UP" > /var/db/pingstatus/$DSTIP
 	else
 		# Host is down
 		PREVIOUSSTATUS=`cat /var/db/pingstatus/$DSTIP`
@@ -90,14 +97,14 @@ for TOPING in $PINGHOSTS ; do
 			if [ "$FAILURESCRIPT" != "" ]; then
 				echo "$DSTIP is DOWN, previous state was UP ..  Running $FAILURESCRIPT"
 				echo "$DSTIP is DOWN, previous state was UP ..  Running $FAILURESCRIPT" | logger -p daemon.info -i -t PingMonitor
+				echo "DOWN" > /var/db/pingstatus/$DSTIP
 				sh -c $FAILURESCRIPT
 			fi
 		fi
-		echo "DOWN" > /var/db/pingstatus/$DSTIP
 	fi
 	echo "Checking ping time $DSTIP"
 	# Look at ping values themselves
-	PINGTIME=`ping -c 1 -S $SRCIP $DSTIP | awk '{ print $7 }' | grep time | cut -d "=" -f2`
+	PINGTIME=`$PINGCMD -c 1 -S $SRCIP $DSTIP | awk '{ print $7 }' | grep time | cut -d "=" -f2`
 	echo "Ping returned $?"
 	echo $PINGTIME > /var/db/pingmsstatus/$DSTIP
 	if [ "$THRESHOLD" != "" ]; then

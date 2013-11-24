@@ -34,45 +34,48 @@
 ##|*NAME=Diagnostics: Edit FIle
 ##|*DESCR=Allow access to the 'Diagnostics: Edit File' page.
 ##|*MATCH=edit.php*
+##|*MATCH=browser.php*
+##|*MATCH=filebrowser/browser.php*
 ##|-PRIV
 
 $pgtitle = array(gettext("Diagnostics"), gettext("Edit file"));
 require("guiconfig.inc");
 
-if($_REQUEST['action']) {
-	switch($_REQUEST['action']) {
+if($_POST['action']) {
+	switch($_POST['action']) {
 		case 'load':
-			if(strlen($_REQUEST['file']) < 1) {
+			if(strlen($_POST['file']) < 1) {
 				echo "|5|" . gettext("No file name specified") . ".|";
-			} elseif(is_dir($_REQUEST['file'])) {
+			} elseif(is_dir($_POST['file'])) {
 				echo "|4|" . gettext("Loading a directory is not supported") . ".|";
-			} elseif(! is_file($_REQUEST['file'])) {
+			} elseif(! is_file($_POST['file'])) {
 				echo "|3|" . gettext("File does not exist or is not a regular file") . ".|";
 			} else {
-				$data = file_get_contents(urldecode($_REQUEST['file']));
+				$data = file_get_contents(urldecode($_POST['file']));
 				if($data === false) {
 					echo "|1|" . gettext("Failed to read file") . ".|";
 				} else {
-					echo "|0|{$_REQUEST['file']}|{$data}|";	
+					$data = base64_encode($data);
+					echo "|0|{$_POST['file']}|{$data}|";	
 				}
 			}
 			exit;
 		case 'save':
-			if(strlen($_REQUEST['file']) < 1) {
+			if(strlen($_POST['file']) < 1) {
 				echo "|" . gettext("No file name specified") . ".|";
 			} else {
 				conf_mount_rw();
-				$_REQUEST['data'] = str_replace("\r", "", base64_decode($_REQUEST['data']));
-				$ret = file_put_contents($_REQUEST['file'], $_REQUEST['data']);
+				$_POST['data'] = str_replace("\r", "", base64_decode($_POST['data']));
+				$ret = file_put_contents($_POST['file'], $_POST['data']);
 				conf_mount_ro();
-				if($_REQUEST['file'] == "/conf/config.xml" || $_REQUEST['file'] == "/cf/conf/config.xml") {
+				if($_POST['file'] == "/conf/config.xml" || $_POST['file'] == "/cf/conf/config.xml") {
 					if(file_exists("/tmp/config.cache"))
 						unlink("/tmp/config.cache");
 					disable_security_checks();
 				}
 				if($ret === false) {
 					echo "|" . gettext("Failed to write file") . ".|";
-				} elseif($ret <> strlen($_REQUEST['data'])) {
+				} elseif($ret <> strlen($_POST['data'])) {
 					echo "|" . gettext("Error while writing file") . ".|";
 				} else {
 					echo "|" . gettext("File successfully saved") . ".|";
@@ -95,27 +98,28 @@ outputJavaScriptFileInline("javascript/base64.js");
 
 <script type="text/javascript">	
 	function loadFile() {
-		$("fileStatus").innerHTML = "<?=gettext("Loading file"); ?> ...";
-		Effect.Appear("fileStatusBox", { duration: 0.5 });
+		jQuery("#fileStatus").html("<?=gettext("Loading file"); ?> ...");
+		jQuery("#fileStatusBox").show(500);
 
-		new Ajax.Request(
+		jQuery.ajax(
 			"<?=$_SERVER['SCRIPT_NAME'];?>", {
-				method:     "post",
-				postBody:   "action=load&file=" + $("fbTarget").value,
-				onComplete: loadComplete
+				type: "post",
+				data: "action=load&file=" + jQuery("#fbTarget").val(),
+				complete: loadComplete
 			}
 		);
 	}
 
 	function loadComplete(req) {
-		Element.show("fileContent")
+		jQuery("#fileContent").show(1000);
 		var values = req.responseText.split("|");
 		values.shift(); values.pop();
 
 		if(values.shift() == "0") {
 			var file = values.shift();
-			$("fileStatus").innerHTML = "<?=gettext("File successfully loaded"); ?>.";
-			$("fileContent").value    = values.join("|");
+			var fileContent = Base64.decode(values.join("|"));
+			jQuery("#fileStatus").html("<?=gettext("File successfully loaded"); ?>.");
+			jQuery("#fileContent").val(fileContent);
 
 			var lang = "none";
 				 if(file.indexOf(".php") > 0) lang = "php";
@@ -124,33 +128,33 @@ outputJavaScriptFileInline("javascript/base64.js");
 			else if(file.indexOf(".js" ) > 0) lang = "js";
 			else if(file.indexOf(".css") > 0) lang = "css";
 
-			if($("highlight").checked && lang != "none") {
-				$("fileContent").className = lang + ":showcolumns";
+			if(jQuery("#highlight").checked && lang != "none") {
+				jQuery("fileContent").prop("className",lang + ":showcolumns");
 				dp.SyntaxHighlighter.HighlightAll("fileContent", true, false);
 			}
 		}
 		else {
-			$("fileStatus").innerHTML = values[0];
-			$("fileContent").value = "";
+			jQuery("#fileStatus").html(values[0]);
+			jQuery("#fileContent").val("");
 		}
-		new Effect.Appear("fileContent");
+		jQuery("#fileContent").show(1000);
 	}
 
 	function saveFile(file) {
-		$("fileStatus").innerHTML = "<?=gettext("Saving file"); ?> ...";
-		Effect.Appear("fileStatusBox", { duration: 0.5 });
+		jQuery("#fileStatus").html("<?=gettext("Saving file"); ?> ...");
+		jQuery("#fileStatusBox").show(500);
 		
-		var fileContent = Base64.encode($("fileContent").value);
+		var fileContent = Base64.encode(jQuery("#fileContent").val());
 		fileContent = fileContent.replace(/\+/g,"%2B");
 		
-		new Ajax.Request(
+		jQuery.ajax(
 			"<?=$_SERVER['SCRIPT_NAME'];?>", {
-				method:     "post",
-				postBody:   "action=save&file=" + $("fbTarget").value +
+				type: "post",
+				data: "action=save&file=" + jQuery("#fbTarget").val() +
 							"&data=" + fileContent,
-				onComplete: function(req) {
+				complete: function(req) {
 					var values = req.responseText.split("|");
-					$("fileStatus").innerHTML = values[1];
+					jQuery("#fileStatus").html(values[1]);
 				}
 			}
 		);
@@ -213,10 +217,9 @@ outputJavaScriptFileInline("javascript/base64.js");
 <script type="text/javascript" src="/code-syntax-highlighter/shBrushPhp.js"></script>
 <script type="text/javascript" src="/code-syntax-highlighter/shBrushXml.js"></script>
 <script type="text/javascript">
-	Event.observe(
-		window, "load",
+	jQuery(window).load(
 		function() {
-			$("fbTarget").focus();
+			jQuery("#fbTarget").focus();
 
 			NiftyCheck();
 			Rounded("div#fileStatusBox", "all", "#ffffff", "#eeeeee", "smooth");
@@ -224,10 +227,9 @@ outputJavaScriptFileInline("javascript/base64.js");
 	);
 
 	<?php if($_GET['action'] == "load"): ?>
-		Event.observe(
-			window, "load",
+		jQuery(window).load(
 			function() {
-				$("fbTarget").value = "<?=$_GET['path'];?>";
+				jQuery("#fbTarget").val("<?=$_GET['path'];?>");
 				loadFile();
 			}
 		);

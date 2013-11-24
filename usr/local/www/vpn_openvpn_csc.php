@@ -38,8 +38,7 @@ require("guiconfig.inc");
 require_once("openvpn.inc");
 
 $pgtitle = array(gettext("OpenVPN"), gettext("Client Specific Override"));
-$statusurl = "status_openvpn.php";
-$logurl = "diag_logs_openvpn.php";
+$shortcut_section = "openvpn";
 
 if (!is_array($config['openvpn']['openvpn-csc']))
 	$config['openvpn']['openvpn-csc'] = array();
@@ -211,11 +210,14 @@ if ($_POST) {
 				$csc['nbdd_server1'] = $pconfig['nbdd_server1'];
 		}
 	
-		if (isset($id) && $a_csc[$id])
+		if (isset($id) && $a_csc[$id]) {
+			$old_csc_cn = $a_csc[$id]['common_name'];
 			$a_csc[$id] = $csc;
-		else
+		} else
 			$a_csc[] = $csc;
 
+		if (!empty($old_csc_cn))
+			openvpn_cleanup_csc($old_csc_cn);
 		openvpn_resync_csc($csc);
 		write_config();
 		
@@ -558,7 +560,7 @@ function netbios_change() {
 									</td>
 								</tr>
 							</table>
-							<?=gettext("If this option is not set, all NetBIOS-over-TCP/IP options (includeing WINS) will be disabled"); ?>.
+							<?=gettext("If this option is not set, all NetBIOS-over-TCP/IP options (including WINS) will be disabled"); ?>.
 							<br/>
 							<table border="0" cellpadding="2" cellspacing="0" id="netbios_data">
 								<tr>
@@ -681,7 +683,7 @@ function netbios_change() {
 						if (isset($csc['disable']))
 							$disabled = "YES";
 				?>
-				<tr>
+				<tr ondblclick="document.location='vpn_openvpn_csc.php?act=edit&id=<?=$i;?>'">
 					<td class="listlr">
 						<?=$disabled;?>
 					</td>

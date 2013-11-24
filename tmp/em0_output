@@ -1,0 +1,7 @@
+dhclient: PREINIT
+dhclient: Starting delete_old_states()
+DHCPDISCOVER on em0 to 255.255.255.255 port 67 interval 2
+DHCPOFFER from 192.168.2.1
+DHCPREQUEST on em0 to 255.255.255.255 port 67
+DHCPACK from 192.168.2.1
+bound to 192.168.2.103 -- renewal in 762178668 seconds.

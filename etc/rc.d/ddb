@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# $FreeBSD: src/etc/rc.d/ddb,v 1.1.4.3.2.2 2012/11/17 08:24:38 svnexp Exp $
+#
+
+# PROVIDE: ddb
+# REQUIRE: dumpon
+# BEFORE: disks
+# KEYWORD: nojail
+
+. /etc/rc.subr
+
+name="ddb"
+rcvar="ddb_enable"
+command="/sbin/${name}"
+start_precmd="ddb_prestart"
+stop_cmd=":"
+
+ddb_prestart()
+{
+	# Silently exit if ddb is not enabled
+	if [ -z "`sysctl -Nq debug.ddb.scripting.scripts`" ]; then
+		return 1
+	fi
+}
+
+load_rc_config $name
+
+required_files="${ddb_config}"
+command_args="${ddb_config}"
+
+run_rc_command "$1"

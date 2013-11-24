@@ -183,10 +183,9 @@ if ($_POST) {
 			$a_schedules[] = $schedule;
 		}
 		schedule_sort();
-		write_config();
-		
-		filter_configure();
-			
+		if (write_config())
+			filter_configure();
+
 		header("Location: firewall_schedule.php");
 		exit;
 		
@@ -210,7 +209,7 @@ include("head.inc");
 /* using some of the $pfSenseHead function calls */
 $jscriptstr = <<<EOD
 <script type="text/javascript">
-
+//<![CDATA[
 var daysSelected = "";
 var month_array = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 var day_array = ['Mon','Tues','Wed','Thur','Fri','Sat','Sun'];
@@ -235,7 +234,7 @@ function repeatExistingDays(){
 		tempstr = 'w' + week + 'p' + daypos;
 		daycell = eval('document.getElementById(tempstr)');
 		if (daydone == "-1"){
-			if (daycell.style.backgroundColor == "lightcoral")
+			if (daycell.style.backgroundColor == "#F08080")  // lightcoral
 				daytogglerepeating(week,daypos,true);
 			else
 				daytogglerepeating(week,daypos,false);
@@ -258,11 +257,11 @@ function daytogglerepeating(week,daypos,bExists){
 		if (daycell != null)
 		{
 			if (bExists){	
-				daycell.style.backgroundColor = "WHITE";
+				daycell.style.backgroundColor = "#FFFFFF";  // white
 			}
 			else
 			{
-				daycell.style.backgroundColor = "lightcoral";		
+				daycell.style.backgroundColor = "#F08080";  // lightcoral		
 			}	
 	
 			if (dayoriginalpos != "-1")
@@ -303,12 +302,12 @@ function daytoggle(id) {
 		var daycell = document.getElementById(idmod);		
 	
 		if (daycell != null){
-			if (daycell.style.backgroundColor == "RED"){
-				daycell.style.backgroundColor = "WHITE";
+			if (daycell.style.backgroundColor == "#FF0000"){  // red
+				daycell.style.backgroundColor = "#FFFFFF";  // white
 				str = id + ",";
 				daysSelected = daysSelected.replace(str, "");
 			}
-			else if (daycell.style.backgroundColor == "lightcoral")
+			else if (daycell.style.backgroundColor == "#F08080")  // lightcoral
 			{
 				daytogglerepeating(week,daypos,true);
 			}
@@ -316,11 +315,11 @@ function daytoggle(id) {
 			{
 				if (!runrepeat)
 				{
-					daycell.style.backgroundColor = "RED";
+					daycell.style.backgroundColor = "#FF0000";  // red
 				}
 				else
 				{
-					daycell.style.backgroundColor = "lightcoral";
+					daycell.style.backgroundColor = "#F08080";  // lightcoral
 					daytogglerepeating(week,daypos,false);								
 				}
 				daysSelected += id + ",";
@@ -606,31 +605,31 @@ function insertElements(tempFriendlyTime, starttimehour, starttimemin, stoptimeh
 		tbody = d.getElementById("scheduletable").getElementsByTagName("tbody").item(0);
 		tr = d.createElement("tr");
 		td = d.createElement("td");
-		td.innerHTML= "<span class='vexpl'>" + tempFriendlyTime + "</span>";
+		td.innerHTML= "<span class='vexpl'>" + tempFriendlyTime + "<\/span>";
 		tr.appendChild(td);	
 			
 		td = d.createElement("td");
-		td.innerHTML="<input type='text' readonly class='vexpl' name='starttime" + schCounter + "' id='starttime" + schCounter + "' style=' word-wrap:break-word; width:100%; border:0px solid;' value='" + starttimehour + ":" + starttimemin + "'>";
+		td.innerHTML="<input type='text' readonly class='vexpl' name='starttime" + schCounter + "' id='starttime" + schCounter + "' style=' word-wrap:break-word; width:100%; border:0px solid;' value='" + starttimehour + ":" + starttimemin + "' />";
 		tr.appendChild(td);
 		
 		td = d.createElement("td");
-		td.innerHTML="<input type='text' readonly class='vexpl' name='stoptime" + schCounter + "' id='stoptime" + schCounter + "' style=' word-wrap:break-word; width:100%; border:0px solid;' value='" + stoptimehour + ":" + stoptimemin + "'>";
+		td.innerHTML="<input type='text' readonly class='vexpl' name='stoptime" + schCounter + "' id='stoptime" + schCounter + "' style=' word-wrap:break-word; width:100%; border:0px solid;' value='" + stoptimehour + ":" + stoptimemin + "' />";
 		tr.appendChild(td);
 		
 		td = d.createElement("td");
-		td.innerHTML="<input type='text' readonly class='vexpl' name='timedescr" + schCounter + "' id='timedescr" + schCounter + "' style=' word-wrap:break-word; width:100%; border:0px solid;' value='" + tempdescr + "'>";
+		td.innerHTML="<input type='text' readonly class='vexpl' name='timedescr" + schCounter + "' id='timedescr" + schCounter + "' style=' word-wrap:break-word; width:100%; border:0px solid;' value='" + tempdescr + "' />";
 		tr.appendChild(td);
 		
 		td = d.createElement("td");
-		td.innerHTML = "<a onclick='editRow(\"" + tempTime + "\",this); return false;' href='#'><img border='0' src='/themes/" + theme + "/images/icons/icon_e.gif' /></a>";
+		td.innerHTML = "<a onclick='editRow(\"" + tempTime + "\",this); return false;' href='#'><img border='0' src='/themes/" + theme + "/images/icons/icon_e.gif' alt='edit' /></\a>";
 		tr.appendChild(td);
 			
 		td = d.createElement("td");
-		td.innerHTML = "<a onclick='removeRow(this); return false;' href='#'><img border='0' src='/themes/" + theme + "/images/icons/icon_x.gif' /></a>";
+		td.innerHTML = "<a onclick='removeRow(this); return false;' href='#'><img border='0' src='/themes/" + theme + "/images/icons/icon_x.gif' alt='remove' /></\a>";
 		tr.appendChild(td);
 		
 		td = d.createElement("td");		
-		td.innerHTML="<input type='hidden' id='schedule" + schCounter + "' name='schedule" + schCounter + "' value='" + tempID + "'>";		
+		td.innerHTML="<input type='hidden' id='schedule" + schCounter + "' name='schedule" + schCounter + "' value='" + tempID + "' />";		
 		tr.appendChild(td);
 		tbody.appendChild(tr);
 		
@@ -655,7 +654,7 @@ function clearCalendar(){
 			tempstr = 'w' + j + 'p' + k;
 			daycell = eval('document.getElementById(tempstr)');
 			if (daycell != null){
-				daycell.style.backgroundColor = "WHITE";	
+				daycell.style.backgroundColor = "#FFFFFF";  // white	
 			}	
 		}
 	}	
@@ -752,7 +751,7 @@ function removeRow(el) {
 	    }
 	}
 }
-
+//]]>
 </script>
 EOD;
 ?>
@@ -765,13 +764,13 @@ EOD;
 <div id="inputerrors"></div>
 
 <form action="firewall_schedule_edit.php" method="post" name="iform" id="iform">
-	<table width="100%" border="0" cellpadding="0" cellspacing="0">
+	<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="firewall schedule">
 		<tr>
 			<td colspan="2" valign="top" class="listtopic"><?=gettext("Schedule information");?></td>
 		</tr>	
         <tr>
           <td>
-			  <table width="100%" border="0" cellpadding="6" cellspacing="0">
+			  <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="main area">
                	<tr>
 				  <td width="15%" valign="top" class="vncellreq"><?=gettext("Schedule Name");?></td>
 				  <td width="85%" class="vtable">
@@ -782,7 +781,7 @@ EOD;
 						        <span class="vexpl"><?=gettext("NOTE: This schedule is in use so the name may not be modified!");?></span>
 						      </p>
 				<?php else: ?>
-				  <input name="name" type="text" id="name" size="40" maxlength="40" class="formfld unknown" value="<?=htmlspecialchars($pconfig['name']);?>"><br>
+				  <input name="name" type="text" id="name" size="40" maxlength="40" class="formfld unknown" value="<?=htmlspecialchars($pconfig['name']);?>" /><br/>
 				      	<span class="vexpl">
      					   <?=gettext("The name of the alias may only consist of the characters a-z, A-Z and 0-9");?>
       					</span>
@@ -791,15 +790,15 @@ EOD;
 				</tr>
 				<tr>
 					<td width="15%" valign="top" class="vncell"><?=gettext("Description");?></td>
-					<td width="85%" class="vtable"><input name="descr" type="text" id="descr" size="40" maxlength="40" class="formfld unknown" value="<?=htmlspecialchars($pconfig['descr']);?>"><br>
+					<td width="85%" class="vtable"><input name="descr" type="text" id="descr" size="40" maxlength="40" class="formfld unknown" value="<?=htmlspecialchars($pconfig['descr']);?>" /><br/>
  						<span class="vexpl">
 				        	<?=gettext("You may enter a description here for your reference (not parsed).");?>
 				      	</span>
 				  
 					</td>
 				</tr>
-				<tr>
-				</tr>
+				<!-- tr>
+				</tr -->
 			    <tr>
 				  <td width="15%" valign="top" class="vncellreq"><?=gettext("Month");?></td>
 				  <td width="85%" class="vtable">
@@ -809,7 +808,7 @@ EOD;
                     	$monthlimit = $monthcounter + 12;
                     	$yearcounter = date("Y");
                     	for ($k=0; $k<12; $k++){?>	             
-                    		<option value="<?php echo $monthcounter;?>"><?php echo date("F y", mktime(0, 0, 0, date($monthcounter), 1, date($yearcounter)));?></option>
+                    		<option value="<?php echo $monthcounter;?>"><?php echo date("F_y", mktime(0, 0, 0, date($monthcounter), 1, date($yearcounter)));?></option>
                           <?php        	
                           if ($monthcounter == 12)
 							{
@@ -821,7 +820,7 @@ EOD;
 								$monthcounter++;
 							}	
 						} ?>      	
-                    </select><br><br>
+                    </select><br/><br/>
             		<?php
             		$firstmonth = TRUE;
             		$monthcounter = date("n");
@@ -838,19 +837,19 @@ EOD;
 						$lasttr = FALSE;
 						$positioncounter = 1;//7 for Sun, 1 for Mon, 2 for Tues, etc						
 						?>	
-	                        <div id="<?php echo date("F y",mktime(0, 0, 0, date($monthcounter), 1, date($yearcounter)));?>" z-index:-1000; style="position:relative; display:<?php if($firstmonth)echo "block";else echo "none";?>">    	
-		                   	<TABLE BORDER=1 CELLSPACING=1 CELLPADDING=1 id="calTable" class="tabcont">
-								<TR><TD COLSPAN="7" ALIGN=center class="listbg"><B><?php echo date("F Y", mktime(0, 0, 0, date($monthcounter), 1, date($yearcounter)));?></B></TD>
-								</TR>							
-								<TR>																
-									<TD ALIGN=center class="listhdrr" style="cursor: pointer;" onClick="daytoggle('w1p1');"><u><b><?=gettext("Mon");?></b></u></TD>
-									<TD ALIGN=center class="listhdrr" style="cursor: pointer;" onClick="daytoggle('w1p2');"><u><b><?=gettext("Tue");?></b></u></TD>
-									<TD ALIGN=center class="listhdrr" style="cursor: pointer;" onClick="daytoggle('w1p3');"><u><b><?=gettext("Wed");?></b></u></TD>
-									<TD ALIGN=center class="listhdrr" style="cursor: pointer;" onClick="daytoggle('w1p4');"><u><b><?=gettext("Thu");?></b></u></TD>
-									<TD ALIGN=center class="listhdrr" style="cursor: pointer;" onClick="daytoggle('w1p5');"><u><b><?=gettext("Fri");?></b></u></TD>
-									<TD ALIGN=center class="listhdrr" style="cursor: pointer;" onClick="daytoggle('w1p6');"><u><b><?=gettext("Sat");?></b></u></TD>
-									<TD ALIGN=center class="listhdrr" style="cursor: pointer;" onClick="daytoggle('w1p7');"><u><b><?=gettext("Sun");?></b></u></TD>
-								</TR>
+	                        <div id="<?php echo date("F_y",mktime(0, 0, 0, date($monthcounter), 1, date($yearcounter)));?>" style=" position:relative; display:<?php if($firstmonth)echo "block";else echo "none";?>">    	
+		                   	<table border="1" cellspacing="1" cellpadding="1" id="calTable<?=$monthcounter . $yearcounter;?>" class="tabcont" summary="month">
+								<tr><td colspan="7" align="center" class="listbg"><b><?php echo date("F_Y", mktime(0, 0, 0, date($monthcounter), 1, date($yearcounter)));?></b></td>
+								</tr>
+								<tr>	
+									<td align="center" class="listhdrr" style="cursor: pointer;" onclick="daytoggle('w1p1');"><u><b><?=gettext("Mon");?></b></u></td>
+									<td align="center" class="listhdrr" style="cursor: pointer;" onclick="daytoggle('w1p2');"><u><b><?=gettext("Tue");?></b></u></td>
+									<td align="center" class="listhdrr" style="cursor: pointer;" onclick="daytoggle('w1p3');"><u><b><?=gettext("Wed");?></b></u></td>
+									<td align="center" class="listhdrr" style="cursor: pointer;" onclick="daytoggle('w1p4');"><u><b><?=gettext("Thu");?></b></u></td>
+									<td align="center" class="listhdrr" style="cursor: pointer;" onclick="daytoggle('w1p5');"><u><b><?=gettext("Fri");?></b></u></td>
+									<td align="center" class="listhdrr" style="cursor: pointer;" onclick="daytoggle('w1p6');"><u><b><?=gettext("Sat");?></b></u></td>
+									<td align="center" class="listhdrr" style="cursor: pointer;" onclick="daytoggle('w1p7');"><u><b><?=gettext("Sun");?></b></u></td>
+								</tr>
 								<?php			
 								$firstmonth = FALSE;				
 								while ($daycounter<=$numberofdays){
@@ -861,24 +860,24 @@ EOD;
 										echo "<tr>";
 									}											
 									if ($firstdayofmonth == $positioncounter){?>
-										<TD ALIGN=center style="cursor: pointer;" class="listr" id="w<?=$weekcounter;?>p<?=$positioncounter;?>" onClick="daytoggle('w<?=$weekcounter;?>p<?=$positioncounter;?>-m<?=$monthcounter;?>d<?=$daycounter;?>');">
+										<td align="center" style="cursor: pointer;" class="listr" id="w<?=$weekcounter;?>p<?=$positioncounter;?>" onclick="daytoggle('w<?=$weekcounter;?>p<?=$positioncounter;?>-m<?=$monthcounter;?>d<?=$daycounter;?>');">
 										<?php echo $daycounter;
 										$daycounter++;
 										$firstdayprinted = TRUE;
 										echo "</td>";
 									}
 									elseif ($firstdayprinted == TRUE && $daycounter <= $numberofdays){?>
-										<TD ALIGN=center style="cursor: pointer;" class="listr" id="w<?=$weekcounter;?>p<?=$positioncounter;?>" onClick="daytoggle('w<?=$weekcounter;?>p<?=$positioncounter;?>-m<?=$monthcounter;?>d<?=$daycounter;?>');">
+										<td align="center" style="cursor: pointer;" class="listr" id="w<?=$weekcounter;?>p<?=$positioncounter;?>" onclick="daytoggle('w<?=$weekcounter;?>p<?=$positioncounter;?>-m<?=$monthcounter;?>d<?=$daycounter;?>');">
 										<?php echo $daycounter;
 										$daycounter++;
 										echo "</td>";
 									}
 									else
 									{
-										echo "<td align=center class=\"listr\"></td>";
+										echo "<td align=\"center\" class=\"listr\"></td>";
 									}
 									
-									if ($positioncounter ==7){
+									if ($positioncounter == 7 || $daycounter > $numberofdays){
 										$positioncounter = 1;
 										echo "</tr>";
 									}
@@ -887,7 +886,7 @@ EOD;
 									}
 								
 								}//end while loop?>	
-							</TABLE>
+							</table>
 							</div>
 					<?php 
 						
@@ -909,7 +908,7 @@ EOD;
 				<tr>
 				  <td width="15%" valign="top" class="vncellreq"><?=gettext("Time");?></td>
 				  <td width="85%" class="vtable">
-				  	<table cellspacing=2 class="tabcont">
+				  	<table cellspacing="2" class="tabcont" summary="time">
 				  		<tr>
 				  			<td class="listhdrr" align="center"><?=gettext("Start Time");?></td><td></td><td class="listhdrr" align="center"><?=gettext("Stop Time");?></td>
 				  		</tr>
@@ -940,7 +939,7 @@ EOD;
 				  						for ($i=0; $i<24; $i++)
 				  						{
 				  							if ($i==23)
-				  								$selected = "SELECTED";
+				  								$selected = "selected=\"selected\"";
 				  							else
 				  								$selected = "";
 				  								
@@ -955,17 +954,17 @@ EOD;
 				  					<option value="15">15</option>
 				  					<option value="30">30</option>
 				  					<option value="45">45</option>
-				  					<option value="59" SELECTED>59</option>
+				  					<option value="59" selected="selected">59</option>
 				  				</select>&nbsp;<?=gettext("Min");?>
 				  			</td>
 				  		</tr>
-				  	</table><br>
+				  	</table><br/>
                    <?=gettext("Select the time range for the day(s) selected on the Month(s) above. A full day is 0:00-23:59.")?>
 					</td>
 				</tr>
 				<tr>
 					<td width="15%" valign="top" class="vncell"><?=gettext("Time Range Description")?></td>
-					<td width="85%" class="vtable"><input name="timerangedescr" type="text" class="formfld unknown" id="timerangedescr" size="40" maxlength="40"><br>
+					<td width="85%" class="vtable"><input name="timerangedescr" type="text" class="formfld unknown" id="timerangedescr" size="40" maxlength="40" /><br/>
  						<span class="vexpl">
 				        	<?=gettext("You may enter a description here for your reference (not parsed).")?>
 				      	</span>     
@@ -974,8 +973,8 @@ EOD;
 				<tr>
 				  <td width="22%" valign="top">&nbsp;</td>
 				  <td width="78%">
-				  	<input type="button" value="<?=gettext("Add Time");?>"  class="formbtn"  onclick="javascript:processEntries();">&nbsp;&nbsp;&nbsp;
-				  	<input type="button" value="<?=gettext("Clear Selection");?>" class="formbtn" onclick="javascript:clearCalendar(); clearTime(); clearDescr();">
+				  	<input type="button" value="<?=gettext("Add Time");?>"  class="formbtn"  onclick="javascript:processEntries();" />&nbsp;&nbsp;&nbsp;
+				  	<input type="button" value="<?=gettext("Clear Selection");?>" class="formbtn" onclick="javascript:clearCalendar(); clearTime(); clearDescr();" />
                     </td>
 				</tr>
 				<tr>
@@ -989,13 +988,13 @@ EOD;
 				<tr>
 					<td width="15%" valign="top" class="vncellreq"><?=gettext("Configured Ranges");?></td>
 					<td width="85%">
-						<table id="scheduletable">
+						<table id="scheduletable" summary="range">
 							<tbody>
 								<tr>
-									<TD ALIGN="center" class="listbg" width="35%"><?=gettext("Day(s)");?></td>
-									<TD ALIGN="center" class="listbg" width="12%"><?=gettext("Start Time");?></td>
-									<TD ALIGN="center" class="listbg" width="11%"><?=gettext("Stop Time");?></td>
-									<TD ALIGN="center" class="listbg" width="42%"><?=gettext("Description");?></td>
+									<td align="center" class="listbg" width="35%"><?=gettext("Day(s)");?></td>
+									<td align="center" class="listbg" width="12%"><?=gettext("Start Time");?></td>
+									<td align="center" class="listbg" width="11%"><?=gettext("Stop Time");?></td>
+									<td align="center" class="listbg" width="42%"><?=gettext("Description");?></td>
 								</tr>
 								<?php
 								if ($getSchedule){
@@ -1119,25 +1118,25 @@ EOD;
 									?>
 						          <tr>
 						          	<td>
-						          		<span class="vexpl"><?php echo $tempFriendlyTime; ?><span>
+						          		<span class="vexpl"><?php echo $tempFriendlyTime; ?></span>
 						          	</td>
 									<td>
-						              <input type='text' readonly class='vexpl' name='starttime<?php echo $counter; ?>' id='starttime<?php echo $counter; ?>' style=' word-wrap:break-word; width:100%; border:0px solid;' value='<?php echo $starttime; ?>'>
+						              <input type='text' readonly='readonly' class='vexpl' name='starttime<?php echo $counter; ?>' id='starttime<?php echo $counter; ?>' style=' word-wrap:break-word; width:100%; border:0px solid;' value='<?php echo $starttime; ?>' />
 							        </td>
 						            <td>
-						              <input type='text' readonly class='vexpl' name='stoptime<?php echo $counter; ?>' id='stoptime<?php echo $counter; ?>' style=' word-wrap:break-word; width:100%; border:0px solid;' value='<?php echo $stoptime; ?>'> 
+						              <input type='text' readonly='readonly' class='vexpl' name='stoptime<?php echo $counter; ?>' id='stoptime<?php echo $counter; ?>' style=' word-wrap:break-word; width:100%; border:0px solid;' value='<?php echo $stoptime; ?>' /> 
 							        </td>
 							        <td>
-							        	<input type='text' readonly class='vexpl' name='timedescr<?php echo $counter; ?>' id='timedescr<?php echo $counter; ?>' style=' word-wrap:break-word; width:100%; border:0px solid;' value='<?php echo $timedescr; ?>'>
+							        	<input type='text' readonly='readonly' class='vexpl' name='timedescr<?php echo $counter; ?>' id='timedescr<?php echo $counter; ?>' style=' word-wrap:break-word; width:100%; border:0px solid;' value='<?php echo $timedescr; ?>' />
 							        </td>
 							        <td>
-							        	<a onclick='editRow("<?php echo $tempTime; ?>",this); return false;' href='#'><img border='0' src='/themes/<?php echo $g['theme']; ?>/images/icons/icon_e.gif' /></a>
+							        	<a onclick='editRow("<?php echo $tempTime; ?>",this); return false;' href='#'><img border='0' src='/themes/<?php echo $g['theme']; ?>/images/icons/icon_e.gif' alt='edit' /></a>
 							        </td>
 							        <td>
-							        	<a onclick='removeRow(this); return false;' href='#'><img border='0' src='/themes/<?php echo $g['theme']; ?>/images/icons/icon_x.gif' /></a>
+							        	<a onclick='removeRow(this); return false;' href='#'><img border='0' src='/themes/<?php echo $g['theme']; ?>/images/icons/icon_x.gif' alt='remove' /></a>
 							        </td>
 							        <td>
-							        	<input type='hidden' id='schedule<?php echo $counter; ?>' name='schedule<?php echo $counter; ?>' value='<?php echo $tempID; ?>'>
+							        	<input type='hidden' id='schedule<?php echo $counter; ?>' name='schedule<?php echo $counter; ?>' value='<?php echo $tempID; ?>' />
 							        </td>
 						          </tr>
 									<?php
@@ -1146,7 +1145,7 @@ EOD;
 						        } // end foreach	
 								}//end if							
 								?>
-							</tdody>	
+							</tbody>	
 						</table>				
 					</td>
 				</tr>

@@ -61,10 +61,6 @@ if($_POST['disablecarp'] <> "") {
                                        		interface_vip_bring_down($vip);
                                        		sleep(1);
                                        	break;
-                                       	case "carpdev-dhcp":
-                                       		interface_vip_bring_down($vip);
-                                       		sleep(1);
-                                       	break;
                                	}
                 	}
         	}
@@ -79,12 +75,8 @@ if($_POST['disablecarp'] <> "") {
 						interface_carp_configure($vip);
 						sleep(1);
 					break;
-					case "carpdev-dhcp":
-						interface_carpdev_configure($vip);
-						sleep(1);
-					break;
 					case "ipalias":
-						if (substr($vip['interface'], 0, 3) == "vip")
+						if (strstr($vip['interface'], "_vip"))
 							interface_ipalias_configure($vip);
 					break;
                                 }
@@ -98,6 +90,7 @@ if($_POST['disablecarp'] <> "") {
 $status = get_carp_status();
 
 $pgtitle = array(gettext("Status"),gettext("CARP"));
+$shortcut_section = "carp";
 include("head.inc");
 
 ?>
@@ -159,7 +152,7 @@ include("head.inc");
 						$vhid = $carp['vhid'];
 						$advskew = $carp['advskew'];
 						$advbase = $carp['advbase'];
-						$carp_int = "vip{$vhid}";
+						$carp_int = "{$carp['interface']}_vip{$vhid}";
 						$status = get_carp_interface_status($carp_int);
 						echo "<tr>";
 						$align = "valign='middle'";
@@ -193,7 +186,7 @@ include("head.inc");
 <span class="vexpl">
 <span class="red"><strong><?=gettext("Note"); ?>:</strong></span>
 <br />
-<?=gettext("You can configure CARP settings"); ?> <a href="pkg_edit.php?xml=carp_settings.xml&id=0"><?=gettext("here"); ?></a>.
+<?=gettext("You can configure high availability sync settings"); ?> <a href="system_hasync.php"><?=gettext("here"); ?></a>.
 </span>
 
 <p/>

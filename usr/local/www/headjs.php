@@ -46,43 +46,46 @@ function getHeadJS() {
 
   $headjs = "
     var input_errors = '';
-    Event.observe(window, 'load', init, false);
+    jQuery(document).ready(init);
   ";
+  if (!session_id())
+	session_start();
   $_SESSION['NO_AJAX'] == "True" ? $noajax = "var noAjaxOnSubmit = true;" : $noajax = "var noAjaxOnSubmit = false;";
+  session_commit();
 
   $headjs .= "
     {$noajax}
 
     function init() {
-      if($('submit') && ! noAjaxOnSubmit) {
+      if(jQuery('#submit') && ! noAjaxOnSubmit) {
         // debugging helper
         //alert('adding observe event for submit button');
         
-        Event.observe(\"submit\", \"click\", submit_form, false);
-        $('submit').onclick = function() {return false;};
-        var to_insert = \"<div style='visibility:hidden' id='loading' name='loading'><img src='{$loader_gif}' \/><\/div>\";
-        new Insertion.Before('submit', to_insert);
+        jQuery(\"#submit\").click(submit_form);
+        jQuery('#submit').click(function() {return false;});
+        var to_insert = \"<div style='visibility:hidden' id='loading' name='loading'><img src='{$loader_gif}' alt='loader' \/><\/div>\";
+        jQuery('#submit').before(to_insert);
       }
     }
     
     function submit_form(e){
       // debugging helper
       //alert(Form.serialize($('iform')));
-      
-      if($('inputerrors'))
-        $('inputerrors').innerHTML = '<center><b><i>Loading...</i></b></center>';
+
+      if(jQuery('#inputerrors'))
+        jQuery('#inputerrors').html('<center><b><i>Loading...<\/i><\/b><\/center>');
         
       /* dsh: Introduced because pkg_edit tries to set some hidden fields
        *      if executing submit's onclick event. The click gets deleted
        *      by Ajax. Hence using onkeydown instead.
        */
-      if($('submit') && $('submit').onkeydown)
-        $('submit').onkeydown();
-      if($('submit'))
-        $('submit').style.visibility = 'hidden';
-      if($('cancelbutton'))
-        $('cancelbutton').style.visibility = 'hidden';
-      $('loading').style.visibility = 'visible';
+      if(jQuery('#submit').prop('keydown')) {
+        jQuery('#submit').keydown();
+        jQuery('#submit').css('visibility','hidden');
+      }
+      if(jQuery('#cancelbutton'))
+        jQuery('#cancelbutton').css('visibility','hidden');
+      jQuery('#loading').css('visibility','visible');
       // submit the form using Ajax
     }
    
@@ -104,12 +107,12 @@ function getHeadJS() {
     /* this function will be called if an HTTP error will be triggered */
     function formFailure(resp) {
 	    showajaxmessage(resp.responseText);
-		if($('submit'))
-		  $('submit').style.visibility = 'visible';
-		if($('cancelbutton'))
-		  $('cancelbutton').style.visibility = 'visible';
-		if($('loading'))
-		  $('loading').style.visibility = 'hidden';
+		if(jQuery('#submit'))
+		  jQuery('#submit').css('visibility','visible');
+		if(jQuery('#cancelbutton'))
+		  jQuery('#cancelbutton').css('visibility','visible');
+		if(jQuery('#loading'))
+		  jQuery('#loading').css('visibility','hidden');
 
     }
     
@@ -121,20 +124,20 @@ function getHeadJS() {
         Rounded(\"div#redbox\",\"all\",\"#FFF\",\"#990000\",\"smooth\");
         Rounded(\"td#blackbox\",\"all\",\"#FFF\",\"#000000\",\"smooth\");
 
-        if($('submit'))
-          $('submit').style.visibility = 'visible';
-        if($('cancelbutton'))
-          $('cancelbutton').style.visibility = 'visible';
-        if($('loading'))
-          $('loading').style.visibility = 'hidden';
+        if(jQuery('#submit'))
+          jQuery('#submit').css('visibility','visible');
+        if(jQuery('#cancelbutton'))
+          jQuery('#cancelbutton').css('visibility','visible');
+        if(jQuery('#loading'))
+          jQuery('#loading').css('visibility','hidden');
 
         return;
       }
 
-      message_html = '<table height=\"32\" width=\"100%\"><tr><td>';
+      message_html = '<table height=\"32\" width=\"100%\" summary=\"redbox\"><tr><td>';
       message_html += '<div style=\"background-color:#990000\" id=\"redbox\">';
-      message_html += '<table width=\"100%\"><tr><td width=\"8%\">';
-      message_html += '<img style=\"vertical-align:center\" src=\"/themes/{$g['theme']}/images/icons/icon_exclam.gif\" width=\"28\" height=\"32\" \/>';
+      message_html += '<table width=\"100%\" summary=\"message\"><tr><td width=\"8%\">';
+      message_html += '<img style=\"vertical-align:center\" src=\"/themes/{$g['theme']}/images/icons/icon_exclam.gif\" width=\"28\" height=\"32\" alt=\"exclamation\" \/>';
       message_html += '<\/td><td width=\"70%\"><font color=\"white\">';
       message_html += '<b>' + message + '<\/b><\/font><\/td>';
 
@@ -145,19 +148,19 @@ function getHeadJS() {
       }
 
       message_html += '<\/tr><\/table><\/div><\/td><\/table><br \/>';
-      $('inputerrors').innerHTML = message_html;
+      jQuery('#inputerrors').html(message_html);
 
       NiftyCheck();
       Rounded(\"div#redbox\",\"all\",\"#FFF\",\"#990000\",\"smooth\");
       Rounded(\"td#blackbox\",\"all\",\"#FFF\",\"#000000\",\"smooth\");
 
-      if($('submit'))
-        $('submit').style.visibility = 'visible';
-      if($('cancelbutton'))
-        $('cancelbutton').style.visibility = 'visible';
-      if($('loading'))
-        $('loading').style.visibility = 'hidden';
-      if($('inputerrors'))
+      if(jQuery('#submit'))
+        jQuery('#submit').css('visibility','visible');
+      if(jQuery('#cancelbutton'))
+        jQuery('#cancelbutton').css('visibility','visible');
+      if(jQuery('#loading'))
+        jQuery('#loading').css('visibility','hidden');
+      if(jQuery('#inputerrors'))
         window.scrollTo(0, 0);
     }
   ";

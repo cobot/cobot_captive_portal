@@ -31,13 +31,15 @@
         POSSIBILITY OF SUCH DAMAGE.
 */
 
-$nocsrf = true;
-
 require_once("functions.inc");
 require_once("guiconfig.inc");
 require_once('notices.inc');
+include_once("includes/functions.inc.php");
 
 if($_REQUEST['getupdatestatus']) {
+	if(isset($config['system']['firmware']['disablecheck'])) {
+		exit;
+	}
 	if(isset($config['system']['firmware']['alturl']['enable']))
 		$updater_url = "{$config['system']['firmware']['alturl']['firmwareurl']}";
 	else 
@@ -45,7 +47,11 @@ if($_REQUEST['getupdatestatus']) {
 
 	$nanosize = "";
 	if ($g['platform'] == "nanobsd") {
-		$nanosize = "-nanobsd-" . strtolower(trim(file_get_contents("/etc/nanosize.txt")));
+		if (file_exists("/etc/nano_use_vga.txt"))
+			$nanosize = "-nanobsd-vga-";
+		else
+			$nanosize = "-nanobsd-";
+		$nanosize .= strtolower(trim(file_get_contents("/etc/nanosize.txt")));
 	}
 
 	@unlink("/tmp/{$g['product_name']}_version");
@@ -66,7 +72,8 @@ if($_REQUEST['getupdatestatus']) {
 			if (pfs_version_compare($current_installed_buildtime, $current_installed_version, $remote_version) == -1) {
 				echo "<br/><span class=\"red\" id=\"updatealert\"><b>Update available. </b></span><a href=\"/system_firmware_check.php\">Click Here</a> to view update.";
 				echo "<script type=\"text/javascript\">";
-				echo "Effect.Pulsate('updatealert', { pulses: 30, duration: 10});";
+				echo "jQuery('#updatealert').effect('pulsate',{times: 30},10000);";
+
 				echo "</script>";
 			} else
 				echo "<br />You are on the latest version.";
@@ -78,8 +85,8 @@ if($_REQUEST['getupdatestatus']) {
 $curcfg = $config['system']['firmware'];
 
 ?>
-</script>
-<table width="100%" border="0" cellspacing="0" cellpadding="0">
+
+<table width="100%" border="0" cellspacing="0" cellpadding="0" summary="system information">
 	<tbody>
 		<tr>
 			<td width="25%" class="vncellt">Name</td>
@@ -92,9 +99,13 @@ $curcfg = $config['system']['firmware'];
 				(<?php echo php_uname("m"); ?>)
 				<br />
 				built on <?php readfile("/etc/version.buildtime"); ?>
-                <br />
-                <div name="uname" id="uname"><a href="#" onClick='swapuname(); return false;'><?php echo php_uname("s") . " " . php_uname("r"); ?></a></div>
-                <div id='updatestatus'><br/>Obtaining update status...</div>
+		<?php if(!$g['hideuname']): ?>
+		<br />
+		<div id="uname"><a href="#" onclick='swapuname(); return false;'><?php echo php_uname("s") . " " . php_uname("r"); ?></a></div>
+		<?php endif; ?>
+		<?php if(!isset($config['system']['firmware']['disablecheck'])): ?>
+		<div id='updatestatus'><br/><?php echo gettext("Obtaining update status"); ?> ...</div>
+		<?php endif; ?>
 			</td>
 		</tr>
 		<?php if(!$g['hideplatform']): ?>
@@ -114,11 +125,12 @@ $curcfg = $config['system']['firmware'];
 			global $GLABEL_SLICE, $UFS_ID, $OLD_UFS_ID, $BOOTFLASH;
 			global $BOOT_DEVICE, $REAL_BOOT_DEVICE, $BOOT_DRIVE, $ACTIVE_SLICE;
 			nanobsd_detect_slice_info();
+			$rw = is_writable("/") ? "(rw)" : "(ro)";
 			?>
 		<tr>
 			<td width="25%" class="vncellt">NanoBSD Boot Slice</td>
 			<td width="75%" class="listr">
-				<?=htmlspecialchars(nanobsd_friendly_slice_name($BOOT_DEVICE));?> / <?=htmlspecialchars($BOOTFLASH);?>
+				<?=htmlspecialchars(nanobsd_friendly_slice_name($BOOT_DEVICE));?> / <?=htmlspecialchars($BOOTFLASH);?> <?php echo $rw; ?>
 				<?php if ($BOOTFLASH != $ACTIVE_SLICE): ?>
 				<br/><br/>Next Boot:<br/>
 				<?=htmlspecialchars(nanobsd_friendly_slice_name($GLABEL_SLICE));?> / <?=htmlspecialchars($ACTIVE_SLICE);?>
@@ -134,18 +146,13 @@ $curcfg = $config['system']['firmware'];
 				exec("/sbin/sysctl -n hw.model", $cpumodel);
 				$cpumodel = implode(" ", $cpumodel);
 				echo (htmlspecialchars($cpumodel));
-
-				$cpufreqs = "";
-				exec("/sbin/sysctl -n dev.cpu.0.freq_levels", $cpufreqs);
-				$cpufreqs = explode(" ", trim($cpufreqs[0]));
-				$maxfreq = explode("/", $cpufreqs[0]);
-				$maxfreq = $maxfreq[0];
-				$curfreq = "";
-				exec("/sbin/sysctl -n dev.cpu.0.freq", $curfreq);
-				$curfreq = trim($curfreq[0]);
-				if ($curfreq != $maxfreq)
-					echo "<br/>Current: {$curfreq} MHz, Max: {$maxfreq} MHz";
 			?>
+			<div id="cpufreq"><?= get_cpufreq(); ?></div>
+		<?php	$cpucount = get_cpu_count();
+			if ($cpucount > 1): ?>
+			<div id="cpucount">
+				<?= htmlspecialchars($cpucount) ?> CPUs: <?= htmlspecialchars(get_cpu_count(true)); ?></div>
+		<?php	endif; ?>
 			</td>
 		</tr>
 		<?php if ($hwcrypto): ?>
@@ -156,7 +163,7 @@ $curcfg = $config['system']['firmware'];
 		<?php endif; ?>
 		<tr>
 			<td width="25%" class="vncellt">Uptime</td>
-			<td width="75%" class="listr"><input style="border: 0px solid white;" size="30" name="uptime" id="uptime" value="<?= htmlspecialchars(get_uptime()); ?>" /></td>
+			<td width="75%" class="listr" id="uptime"><?= htmlspecialchars(get_uptime()); ?></td>
 		</tr>
         <tr>
             <td width="25%" class="vncellt"><?=gettext("Current date/time");?></td>
@@ -170,7 +177,7 @@ $curcfg = $config['system']['firmware'];
 					<?php
 						$dns_servers = get_dns_servers();
 						foreach($dns_servers as $dns) {
-							echo "{$dns}<br>";
+							echo "{$dns}<br/>";
 						}
 					?>
 			</td>
@@ -184,7 +191,11 @@ $curcfg = $config['system']['firmware'];
 		<tr>
 			<td width="25%" class="vncellt">State table size</td>
 			<td width="75%" class="listr">
-				<input style="border: 0px solid white;" size="30" name="pfstate" id="pfstate" value="<?= htmlspecialchars(get_pfstate()); ?>" />
+				<?php	$pfstatetext = get_pfstate();
+					$pfstateusage = get_pfstate(true);
+				?>
+				<img src="./themes/<?= $g['theme']; ?>/images/misc/bar_left.gif" height="15" width="4" border="0" align="middle" alt="left bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_blue.gif" height="15" name="pfstatewidtha" id="pfstatewidtha" width="<?= round($pfstateusage); ?>" border="0" align="middle" alt="red bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_gray.gif" height="15" name="pfstatewidthb" id="pfstatewidthb" width="<?= (100 - $pfstateusage); ?>" border="0" align="middle" alt="gray bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_right.gif" height="15" width="5" border="0" align="middle" alt="right bar" />
+				<br/><span id="pfstateusagemeter"><?= $pfstateusage.'%'; ?></span> (<span id="pfstate"><?= htmlspecialchars($pfstatetext); ?></span>)
 		    	<br />
 		    	<a href="diag_dump_states.php">Show states</a>
 			</td>
@@ -193,10 +204,28 @@ $curcfg = $config['system']['firmware'];
 			<td width="25%" class="vncellt">MBUF Usage</td>
 			<td width="75%" class="listr">
 				<?php
-					$mbufs_output=`netstat -mb | grep "mbuf clusters in use" | awk '{ print $1 }'`;
-					list( $mbufs_current, $mbufs_cache, $mbufs_total, $mbufs_max ) = explode( "/", $mbufs_output);
+					$mbufstext = get_mbuf();
+					$mbufusage = get_mbuf(true);
 				?>
-				<?= $mbufs_total ?>/<?= $mbufs_max ?>
+				<img src="./themes/<?= $g['theme']; ?>/images/misc/bar_left.gif" height="15" width="4" border="0" align="middle" alt="left bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_blue.gif" height="15" name="mbufwidtha" id="mbufwidtha" width="<?= round($mbufusage); ?>" border="0" align="middle" alt="red bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_gray.gif" height="15" name="mbufwidthb" id="mbufwidthb" width="<?= (100 - $mbufusage); ?>" border="0" align="middle" alt="gray bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_right.gif" height="15" width="5" border="0" align="middle" alt="right bar" />
+				<br/><span id="mbufusagemeter"><?= $mbufusage.'%'; ?></span> (<span id="mbuf"><?= $mbufstext ?></span>)
+			</td>
+		</tr>
+                <?php if (get_temp() != ""): ?>
+                <tr>
+                        <td width="25%" class="vncellt">Temperature</td>
+			<td width="75%" class="listr">
+				<?php $TempMeter = $temp = get_temp(); ?>
+				<img src="./themes/<?= $g['theme']; ?>/images/misc/bar_left.gif" height="15" width="4" border="0" align="middle" alt="left bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_blue.gif" height="15" name="tempwidtha" id="tempwidtha" width="<?= round($TempMeter); ?>" border="0" align="middle" alt="red bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_gray.gif" height="15" name="tempwidthb" id="tempwidthb" width="<?= (100 - $TempMeter); ?>" border="0" align="middle" alt="gray bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_right.gif" height="15" width="5" border="0" align="middle" alt="right bar" />
+				&nbsp;
+				<span id="tempmeter"><?= $temp."&#176;C"; ?></span>
+			</td>
+                </tr>
+                <?php endif; ?>
+		<tr>
+			<td width="25%" class="vncellt">Load average</td>
+			<td width="75%" class="listr">
+			<div id="load_average" title="Last 1, 5 and 15 minutes"><?= get_load_average(); ?></div>
 			</td>
 		</tr>
 		<tr>
@@ -205,7 +234,7 @@ $curcfg = $config['system']['firmware'];
 				<?php $cpuUsage = "0"; ?>
 				<img src="./themes/<?= $g['theme']; ?>/images/misc/bar_left.gif" height="15" width="4" border="0" align="middle" alt="left bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_blue.gif" height="15" name="cpuwidtha" id="cpuwidtha" width="<?= $cpuUsage; ?>" border="0" align="middle" alt="red bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_gray.gif" height="15" name="cpuwidthb" id="cpuwidthb" width="<?= (100 - $cpuUsage); ?>" border="0" align="middle" alt="gray bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_right.gif" height="15" width="5" border="0" align="middle" alt="right bar" />
 				&nbsp;
-				<input style="border: 0px solid white;" size="30" name="cpumeter" id="cpumeter" value="(Updating in 10 seconds)" />
+				<br/><span id="cpumeter">(Updating in 10 seconds)</span>
 			</td>
 		</tr>
 		<tr>
@@ -214,7 +243,7 @@ $curcfg = $config['system']['firmware'];
 				<?php $memUsage = mem_usage(); ?>
 				<img src="./themes/<?= $g['theme']; ?>/images/misc/bar_left.gif" height="15" width="4" border="0" align="middle" alt="left bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_blue.gif" height="15" name="memwidtha" id="memwidtha" width="<?= $memUsage; ?>" border="0" align="middle" alt="red bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_gray.gif" height="15" name="memwidthb" id="memwidthb" width="<?= (100 - $memUsage); ?>" border="0" align="middle" alt="gray bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_right.gif" height="15" width="5" border="0" align="middle" alt="right bar" />
 				&nbsp;
-				<input style="border: 0px solid white;" size="30" name="memusagemeter" id="memusagemeter" value="<?= $memUsage.'%'; ?>" />
+				<br/><span id="memusagemeter"><?= $memUsage.'%'; ?></span> of <?= sprintf("%.0f", `/sbin/sysctl -n hw.physmem` / (1024*1024)) ?> MB
 			</td>
 		</tr>
 		<?php if($showswap == true): ?>
@@ -224,20 +253,7 @@ $curcfg = $config['system']['firmware'];
 				<?php $swapusage = swap_usage(); ?>
 				<img src="./themes/<?= $g['theme']; ?>/images/misc/bar_left.gif" height="15" width="4" border="0" align="middle" alt="left bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_blue.gif" height="15" width="<?= $swapusage; ?>" border="0" align="middle" alt="red bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_gray.gif" height="15" width="<?= (100 - $swapusage); ?>" border="0" align="middle" alt="gray bar" /><img src="./themes/<?= $g['theme']; ?>/images/misc/bar_right.gif" height="15" width="5" border="0" align="middle" alt="right bar" />
 				&nbsp;
-				<input style="border: 0px solid white;" size="30" name="swapusagemeter" id="swapusagemeter" value="<?= $swapusage.'%'; ?>" />
-			</td>
-		</tr>
-		<?php endif; ?>
-<?php
-		if(has_temp()):
-?>
-		<tr>
-			<td width='25%' class='vncellt'>Temperature</td>
-			<td width='75%' class='listr'>
-				<?php $temp = get_temp(); ?>
-				<img src="./themes/<?= $g["theme"]; ?>/images/misc/bar_left.gif" height="15" width="4" border="0" align="middle" alt="left bar" /><img src="./themes/<?= $g["theme"]; ?>/images/misc/bar_blue.gif" height="15" name="tempwidtha" id="tempwidtha" width="<?= $temp; ?>" border="0" align="middle" alt="red bar" /><img src="./themes/<?= $g["theme"]; ?>/images/misc/bar_gray.gif" height="15" name="tempwidthb" id="tempwidthb" width="<?= (100 - $temp); ?>" border="0" align="middle" alt="gray bar" /><img src="./themes/<?= $g["theme"]; ?>/images/misc/bar_right.gif" height="15" width="5" border="0" align="middle" alt="right bar" />
-				&nbsp;
-				<input style="border: 0px solid white;" size="30" name="tempmeter" id="tempmeter" value="<?= $temp."C"; ?>" />
+				<br/><span id="swapusagemeter"><?= $swapusage.'%'; ?></span> of <?= sprintf("%.0f", `/usr/sbin/swapinfo -m | /usr/bin/grep -v Device | /usr/bin/awk '{ print $2;}'`) ?> MB
 			</td>
 		</tr>
 		<?php endif; ?>
@@ -247,29 +263,35 @@ $curcfg = $config['system']['firmware'];
 				<?php $diskusage = disk_usage(); ?>
 				<img src="./themes/<?= $g["theme"]; ?>/images/misc/bar_left.gif" height="15" width="4" border="0" align="middle" alt="left bar" /><img src="./themes/<?= $g["theme"]; ?>/images/misc/bar_blue.gif" height="15" width="<?= $diskusage; ?>" border="0" align="middle" alt="red bar" /><img src="./themes/<?= $g["theme"]; ?>/images/misc/bar_gray.gif" height="15" width="<?= (100 - $diskusage); ?>" border="0" align="middle" alt="gray bar" /><img src="./themes/<?= $g["theme"]; ?>/images/misc/bar_right.gif" height="15" width="5" border="0" align="middle" alt="right bar" />
 				&nbsp;
-				<input style="border: 0px solid white;" size="30" name="diskusagemeter" id="diskusagemeter" value="<?= $diskusage.'%'; ?>" />
+				<br/><span id="diskusagemeter"><?= $diskusage.'%'; ?></span> of <?= `/bin/df -h / | /usr/bin/grep -v 'Size' | /usr/bin/awk '{ print $2 }'` ?>
 			</td>
 		</tr>
 	</tbody>
 </table>
 <script type="text/javascript">
+//<![CDATA[
+	function swapuname() {
+		jQuery('#uname').html("<?php echo php_uname("a"); ?>");
+	}
+	<?php if(!isset($config['system']['firmware']['disablecheck'])): ?>
 	function getstatus() {
 		scroll(0,0);
 		var url = "/widgets/widgets/system_information.widget.php";
 		var pars = 'getupdatestatus=yes';
-		var myAjax = new Ajax.Request(
+		jQuery.ajax(
 			url,
 			{
-				method: 'get',
-				parameters: pars,
-				onComplete: activitycallback
+				type: 'get',
+				data: pars,
+				complete: activitycallback
 			});
 	}
 	function activitycallback(transport) {
-		$('updatestatus').innerHTML = transport.responseText;
-	}
-	function swapuname() {
-		$('uname').innerHTML="<?php echo php_uname("a"); ?>";
+		// .html() method process all script tags contained in responseText,
+		// to avoid this we set the innerHTML property
+		jQuery('#updatestatus').prop('innerHTML',transport.responseText);
 	}
 	setTimeout('getstatus()', 4000);
+	<?php endif; ?>
+//]]>
 </script>

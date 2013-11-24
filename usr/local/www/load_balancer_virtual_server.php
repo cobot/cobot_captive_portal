@@ -58,14 +58,17 @@ if ($_POST) {
 		$retval |= filter_configure();
 		$retval |= relayd_configure();
 		$savemsg = get_std_save_message($retval);
+		/* Wipe out old relayd anchors no longer in use. */
+		cleanup_lb_marked();
 		clear_subsystem_dirty('loadbalancer');
 	}
 }
 
 if ($_GET['act'] == "del") {
-	if ($a_vs[$_GET['id']]) {
+	if (array_key_exists($_GET['id'], $a_vs)) {
 
 		if (!$input_errors) {
+			cleanup_lb_mark_anchor($a_vs[$_GET['id']]['name']);
 			unset($a_vs[$_GET['id']]);
 			write_config();
 			mark_subsystem_dirty('loadbalancer');
@@ -82,7 +85,7 @@ for ($i = 0; isset($config['load_balancer']['lbpool'][$i]); $i++) {
 }
 for ($i = 0; isset($config['load_balancer']['virtual_server'][$i]); $i++) {
 	if($a_vs[$i]) {
-		$a_vs[$i]['pool'] = "<a href=\"/load_balancer_pool_edit.php?id={$poodex[$a_vs[$i]['pool']]}\">{$a_vs[$i]['pool']}</a>";
+		$a_vs[$i]['poolname'] = "<a href=\"/load_balancer_pool_edit.php?id={$poodex[$a_vs[$i]['poolname']]}\">{$a_vs[$i]['poolname']}</a>";
 		if ($a_vs[$i]['sitedown'] != '') {
 			$a_vs[$i]['sitedown'] = "<a href=\"/load_balancer_pool_edit.php?id={$poodex[$a_vs[$i]['sitedown']]}\">{$a_vs[$i]['sitedown']}</a>";
 		} else {
@@ -92,9 +95,7 @@ for ($i = 0; isset($config['load_balancer']['virtual_server'][$i]); $i++) {
 }
 
 $pgtitle = array(gettext("Services"),gettext("Load Balancer"),gettext("Virtual Servers"));
-$statusurl = "status_lb_vs.php";
-#$statusurl = "status_lb_pool.php";
-$logurl = "diag_logs_relayd.php";
+$shortcut_section = "relayd-virtualservers";
 
 include("head.inc");
 
@@ -115,6 +116,7 @@ include("head.inc");
         $tab_array[] = array(gettext("Pools"), false, "load_balancer_pool.php");
         $tab_array[] = array(gettext("Virtual Servers"), true, "load_balancer_virtual_server.php");
         $tab_array[] = array(gettext("Monitors"), false, "load_balancer_monitor.php");
+        $tab_array[] = array(gettext("Settings"), false, "load_balancer_setting.php");
         display_top_tabs($tab_array);
   ?>
   </td></tr>
@@ -129,7 +131,7 @@ include("head.inc");
 			$t->add_column(gettext('Protocol'),'relay_protocol',10);
 			$t->add_column(gettext('IP Address'),'ipaddr',15);
 			$t->add_column(gettext('Port'),'port',10);
-			$t->add_column(gettext('Pool'),'pool',15);
+			$t->add_column(gettext('Pool'),'poolname',15);
 			$t->add_column(gettext('Fall Back Pool'),'sitedown',15);
 			$t->add_column(gettext('Description'),'descr',30);
 			$t->add_button('edit');

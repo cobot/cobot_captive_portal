@@ -64,10 +64,10 @@ if ($_POST) {
 }
 
 if ($_GET['act'] == "del") {
-	if ($a_monitor[$_GET['id']]) {
+	if (array_key_exists($_GET['id'], $a_monitor)) {
 		/* make sure no pools reference this entry */
 		if (is_array($config['load_balancer']['lbpool'])) {
-			foreach ($config['load_balancer']['pool'] as $pool) {
+			foreach ($config['load_balancer']['lbpool'] as $pool) {
 				if ($pool['monitor'] == $a_monitor[$_GET['id']]['name']) {
 					$input_errors[] = gettext("This entry cannot be deleted because it is still referenced by at least one pool.");
 					break;
@@ -86,9 +86,7 @@ if ($_GET['act'] == "del") {
 }
 
 $pgtitle = array(gettext("Services"),gettext("Load Balancer"),gettext("Monitor"));
-#$statusurl = "status_lb_vs.php";
-$statusurl = "status_lb_pool.php";
-$logurl = "diag_logs_relayd.php";
+$shortcut_section = "relayd";
 
 include("head.inc");
 
@@ -109,6 +107,7 @@ include("head.inc");
         $tab_array[] = array(gettext("Pools"), false, "load_balancer_pool.php");
         $tab_array[] = array(gettext("Virtual Servers"), false, "load_balancer_virtual_server.php");
         $tab_array[] = array(gettext("Monitors"), true, "load_balancer_monitor.php");
+        $tab_array[] = array(gettext("Settings"), false, "load_balancer_setting.php");
         display_top_tabs($tab_array);
   ?>
   </td></tr>

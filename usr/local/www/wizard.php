@@ -1,31 +1,31 @@
 <?php
 /* $Id$ */
 /*
-    wizard.php
-    Copyright (C) 2004 Scott Ullrich
-    Copyright (C) 2010 Ermal Luçi
-    All rights reserved.
+	wizard.php
+	Copyright (C) 2004 Scott Ullrich
+	Copyright (C) 2010 Ermal LuÃ§i
+	All rights reserved.
 
-    Redistribution and use in source and binary forms, with or without
-    modification, are permitted provided that the following conditions are met:
+	Redistribution and use in source and binary forms, with or without
+	modification, are permitted provided that the following conditions are met:
 
-    1. Redistributions of source code must retain the above copyright notice,
-       this list of conditions and the following disclaimer.
+	1. Redistributions of source code must retain the above copyright notice,
+	   this list of conditions and the following disclaimer.
 
-    2. Redistributions in binary form must reproduce the above copyright
-       notice, this list of conditions and the following disclaimer in the
-       documentation and/or other materials provided with the distribution.
+	2. Redistributions in binary form must reproduce the above copyright
+	   notice, this list of conditions and the following disclaimer in the
+	   documentation and/or other materials provided with the distribution.
 
-    THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
-    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
-    AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-    AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
-    OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-    INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-    CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-    POSSIBILITY OF SUCH DAMAGE.
+	THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
+	INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+	AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+	AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+	OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+	SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+	INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+	CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+	ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+	POSSIBILITY OF SUCH DAMAGE.
 */
 
 ##|+PRIV
@@ -39,7 +39,7 @@
 require("globals.inc");
 require("guiconfig.inc");
 require("functions.inc");
-require("filter.inc");
+require_once("filter.inc");
 require("shaper.inc");
 require("rrd.inc");
 
@@ -52,7 +52,7 @@ global $g;
 
 $stepid = htmlspecialchars($_GET['stepid']);
 if (isset($_POST['stepid']))
-    $stepid = htmlspecialchars($_POST['stepid']);
+	$stepid = htmlspecialchars($_POST['stepid']);
 if (!$stepid)
 	$stepid = "0";
 
@@ -83,7 +83,7 @@ $description = preg_replace("/pfSense/i", $g['product_name'], $pkg['step'][$step
 $totalsteps  = $pkg['totalsteps'];
 
 if ($pkg['includefile'])
-        require_once($pkg['includefile']);
+	require_once($pkg['includefile']);
 
 if ($pkg['step'][$stepid]['includefile'])
 	require_once($pkg['step'][$stepid]['includefile']);
@@ -93,39 +93,39 @@ if($pkg['step'][$stepid]['stepsubmitbeforesave']) {
 }
 
 if ($_POST && !$input_errors) {
-    foreach ($pkg['step'][$stepid]['fields']['field'] as $field) {
-        if(!empty($field['bindstofield']) and $field['type'] <> "submit") {
-		$fieldname = $field['name'];
-		$fieldname = str_replace(" ", "", $fieldname);
-		$fieldname = strtolower($fieldname);
-		// update field with posted values.
-                if($field['unsetfield'] <> "")
-			$unset_fields = "yes";
-		else
-			$unset_fields = "";
-		if($field['arraynum'] <> "")
-			$arraynum = $field['arraynum'];
-		else
-			$arraynum = "";
+	foreach ($pkg['step'][$stepid]['fields']['field'] as $field) {
+		if(!empty($field['bindstofield']) and $field['type'] <> "submit") {
+			$fieldname = $field['name'];
+			$fieldname = str_replace(" ", "", $fieldname);
+			$fieldname = strtolower($fieldname);
+			// update field with posted values.
+			if($field['unsetfield'] <> "")
+				$unset_fields = "yes";
+			else
+				$unset_fields = "";
+			if($field['arraynum'] <> "")
+				$arraynum = $field['arraynum'];
+			else
+				$arraynum = "";
 
-		update_config_field( $field['bindstofield'], $_POST[$fieldname], $unset_fields, $arraynum, $field['type']);
-        }
+			update_config_field( $field['bindstofield'], $_POST[$fieldname], $unset_fields, $arraynum, $field['type']);
+		}
 
-    }
-    // run custom php code embedded in xml config.
-    if($pkg['step'][$stepid]['stepsubmitphpaction'] <> "") {
+	}
+	// run custom php code embedded in xml config.
+	if($pkg['step'][$stepid]['stepsubmitphpaction'] <> "") {
 		eval($pkg['step'][$stepid]['stepsubmitphpaction']);
-    }
+	}
 	if (!$input_errors)
 		write_config();
-    $stepid++;
-    if($stepid > $totalsteps)
-	$stepid = $totalsteps;
+	$stepid++;
+	if($stepid > $totalsteps)
+		$stepid = $totalsteps;
 }
 
 function update_config_field($field, $updatetext, $unset, $arraynum, $field_type) {
 	global $config;
-	$field_split = split("->",$field);
+	$field_split = explode("->",$field);
 	foreach ($field_split as $f)
 		$field_conv .= "['" . $f . "']";
 	if($field_conv == "")
@@ -136,7 +136,7 @@ function update_config_field($field, $updatetext, $unset, $arraynum, $field_type
 		/*
 		 * item is a checkbox, it should have the value "on"
 		 * if it was checked
-                 */
+		 */
 		$var = "\$config{$field_conv}";
 		$text = "if (isset({$var})) unset({$var});";
 		eval($text);
@@ -169,22 +169,21 @@ do {
 		eval($pkg['step'][$stepid]['stepbeforeformdisplay']);
 } while ($oldstepid != $stepid);
 
+$closehead = false;
 $pgtitle = array($title);
 include("head.inc");
 
+if(file_exists("/usr/local/www/themes/{$g['theme']}/wizard.css"))
+	echo "<link type=\"text/css\" rel=\"stylesheet\" href=\"/themes/{$g['theme']}/wizard.css\" media=\"all\" />\n";
+else
+	echo "<link type=\"text/css\" rel=\"stylesheet\" href=\"/themes/{$g['theme']}/all.css\" media=\"all\" />";
 ?>
+</head>
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC" >
-<?php
-
-	if(file_exists("/usr/local/www/themes/{$g['theme']}/wizard.css")) 
-		echo "<link rel=\"stylesheet\" href=\"/themes/{$g['theme']}/wizard.css\" media=\"all\" />\n";
-	else 
-		echo "<link rel=\"stylesheet\" href=\"/themes/{$g['theme']}/all.css\" media=\"all\" />";
-?>
 
 <?php if($pkg['step'][$stepid]['fields']['field'] <> "") { ?>
 <script type="text/javascript">
-<!--
+//<![CDATA[
 
 function  FieldValidate(userinput,  regexp,  message)
 {
@@ -194,122 +193,122 @@ function  FieldValidate(userinput,  regexp,  message)
 
 function enablechange() {
 <?php
-        foreach($pkg['step'][$stepid]['fields']['field'] as $field) {
-                if(isset($field['enablefields']) or isset($field['checkenablefields'])) {
-                        print "\t" . 'if (document.iform.' . strtolower($field['name']) . '.checked) {' . "\n";
-                        if(isset($field['enablefields'])) {
-                                $enablefields = explode(',', $field['enablefields']);
-                                foreach($enablefields as $enablefield) {
-                                        $enablefield = strtolower($enablefield);
-                                        print "\t\t" . 'document.iform.' . $enablefield . '.disabled = 0;' . "\n";
-                                }
-                        }
-                        if(isset($field['checkenablefields'])) {
-                                $checkenablefields = explode(',', $field['checkenablefields']);
-                                foreach($checkenablefields as $checkenablefield) {
-                                        $checkenablefield = strtolower($checkenablefield);
-                                        print "\t\t" . 'document.iform.' . $checkenablefield . '.checked = 0;' . "\n";
-                                }
-                        }
-                        print "\t" . '} else {' . "\n";
-                        if(isset($field['enablefields'])) {
-                                $enablefields = explode(',', $field['enablefields']);
-                                foreach($enablefields as $enablefield) {
-                                        $enablefield = strtolower($enablefield);
-                                        print "\t\t" . 'document.iform.' . $enablefield . '.disabled = 1;' . "\n";
-                                }
-                        }
-                        if(isset($field['checkenablefields'])) {
-                                $checkenablefields = explode(',', $field['checkenablefields']);
-                                foreach($checkenablefields as $checkenablefield) {
-                                        $checkenablefield = strtolower($checkenablefield);
-                                        print "\t\t" . 'document.iform.' . $checkenablefield . '.checked = 1;' . "\n";
-                                }
-                        }
-                        print "\t" . '}' . "\n";
-                }
-        }
+	foreach($pkg['step'][$stepid]['fields']['field'] as $field) {
+		if(isset($field['enablefields']) or isset($field['checkenablefields'])) {
+			print "\t" . 'if (document.iform.' . strtolower($field['name']) . '.checked) {' . "\n";
+			if(isset($field['enablefields'])) {
+				$enablefields = explode(',', $field['enablefields']);
+				foreach($enablefields as $enablefield) {
+					$enablefield = strtolower($enablefield);
+					print "\t\t" . 'document.iform.' . $enablefield . '.disabled = 0;' . "\n";
+				}
+			}
+			if(isset($field['checkenablefields'])) {
+				$checkenablefields = explode(',', $field['checkenablefields']);
+				foreach($checkenablefields as $checkenablefield) {
+					$checkenablefield = strtolower($checkenablefield);
+					print "\t\t" . 'document.iform.' . $checkenablefield . '.checked = 0;' . "\n";
+				}
+			}
+			print "\t" . '} else {' . "\n";
+			if(isset($field['enablefields'])) {
+				$enablefields = explode(',', $field['enablefields']);
+				foreach($enablefields as $enablefield) {
+					$enablefield = strtolower($enablefield);
+					print "\t\t" . 'document.iform.' . $enablefield . '.disabled = 1;' . "\n";
+				}
+			}
+			if(isset($field['checkenablefields'])) {
+				$checkenablefields = explode(',', $field['checkenablefields']);
+				foreach($checkenablefields as $checkenablefield) {
+					$checkenablefield = strtolower($checkenablefield);
+					print "\t\t" . 'document.iform.' . $checkenablefield . '.checked = 1;' . "\n";
+				}
+			}
+			print "\t" . '}' . "\n";
+		}
+	}
 ?>
 }
 
 function disablechange() {
 <?php
-        foreach($pkg['step'][$stepid]['fields']['field'] as $field) {
-                if(isset($field['disablefields']) or isset($field['checkdisablefields'])) {
-                        print "\t" . 'if (document.iform.' . strtolower($field['name']) . '.checked) {' . "\n";
-                        if(isset($field['disablefields'])) {
-                                $enablefields = explode(',', $field['disablefields']);
-                                foreach($enablefields as $enablefield) {
-                                        $enablefield = strtolower($enablefield);
-                                        print "\t\t" . 'document.iform.' . $enablefield . '.disabled = 1;' . "\n";
-                                }
-                        }
-                        if(isset($field['checkdisablefields'])) {
-                                $checkenablefields = explode(',', $field['checkdisablefields']);
-                                foreach($checkenablefields as $checkenablefield) {
-                                        $checkenablefield = strtolower($checkenablefield);
-                                        print "\t\t" . 'document.iform.' . $checkenablefield . '.checked = 1;' . "\n";
-                                }
-                        }
-                        print "\t" . '} else {' . "\n";
-                        if(isset($field['disablefields'])) {
-                                $enablefields = explode(',', $field['disablefields']);
-                                foreach($enablefields as $enablefield) {
-                                        $enablefield = strtolower($enablefield);
-                                        print "\t\t" . 'document.iform.' . $enablefield . '.disabled = 0;' . "\n";
-                                }
-                        }
-                        if(isset($field['checkdisablefields'])) {
-                                $checkenablefields = explode(',', $field['checkdisablefields']);
-                                foreach($checkenablefields as $checkenablefield) {
-                                        $checkenablefield = strtolower($checkenablefield);
-                                        print "\t\t" . 'document.iform.' . $checkenablefield . '.checked = 0;' . "\n";
-                                }
-                        }
-                        print "\t" . '}' . "\n";
-                }
-        }
+	foreach($pkg['step'][$stepid]['fields']['field'] as $field) {
+		if(isset($field['disablefields']) or isset($field['checkdisablefields'])) {
+			print "\t" . 'if (document.iform.' . strtolower($field['name']) . '.checked) {' . "\n";
+			if(isset($field['disablefields'])) {
+				$enablefields = explode(',', $field['disablefields']);
+				foreach($enablefields as $enablefield) {
+					$enablefield = strtolower($enablefield);
+					print "\t\t" . 'document.iform.' . $enablefield . '.disabled = 1;' . "\n";
+				}
+			}
+			if(isset($field['checkdisablefields'])) {
+				$checkenablefields = explode(',', $field['checkdisablefields']);
+				foreach($checkenablefields as $checkenablefield) {
+					$checkenablefield = strtolower($checkenablefield);
+					print "\t\t" . 'document.iform.' . $checkenablefield . '.checked = 1;' . "\n";
+				}
+			}
+			print "\t" . '} else {' . "\n";
+			if(isset($field['disablefields'])) {
+				$enablefields = explode(',', $field['disablefields']);
+				foreach($enablefields as $enablefield) {
+					$enablefield = strtolower($enablefield);
+					print "\t\t" . 'document.iform.' . $enablefield . '.disabled = 0;' . "\n";
+				}
+			}
+			if(isset($field['checkdisablefields'])) {
+				$checkenablefields = explode(',', $field['checkdisablefields']);
+				foreach($checkenablefields as $checkenablefield) {
+					$checkenablefield = strtolower($checkenablefield);
+					print "\t\t" . 'document.iform.' . $checkenablefield . '.checked = 0;' . "\n";
+				}
+			}
+			print "\t" . '}' . "\n";
+		}
+	}
 ?>
 }
 
 function showchange() {
 <?php
-        foreach($pkg['step'][$stepid]['fields']['field'] as $field) {
-                if(isset($field['showfields'])) {
-                        print "\t" . 'if (document.iform.' . strtolower($field['name']) . '.checked == false) {' . "\n";
-                        if(isset($field['showfields'])) {
-                                $showfields = explode(',', $field['showfields']);
-                                foreach($showfields as $showfield) {
-                                        $showfield = strtolower($showfield);
-                                        //print "\t\t" . 'document.iform.' . $showfield . ".display =\"none\";\n";
-					print "\t\t \$('". $showfield . "').hide();";
-                                }
-                        }
-                        print "\t" . '} else {' . "\n";
-                        if(isset($field['showfields'])) {
-                                $showfields = explode(',', $field['showfields']);
-                                foreach($showfields as $showfield) {
-                                        $showfield = strtolower($showfield);
-                                        #print "\t\t" . 'document.iform.' . $showfield . ".display =\"\";\n";
-					print "\t\t \$('". $showfield . "').show();";
-                                }
-                        }
-                        print "\t" . '}' . "\n";
-                }
+	foreach($pkg['step'][$stepid]['fields']['field'] as $field) {
+		if(isset($field['showfields'])) {
+			print "\t" . 'if (document.iform.' . strtolower($field['name']) . '.checked == false) {' . "\n";
+			if(isset($field['showfields'])) {
+				$showfields = explode(',', $field['showfields']);
+				foreach($showfields as $showfield) {
+					$showfield = strtolower($showfield);
+					//print "\t\t" . 'document.iform.' . $showfield . ".display =\"none\";\n";
+					print "\t\t jQuery('#". $showfield . "').hide();";
+				}
+			}
+			print "\t" . '} else {' . "\n";
+			if(isset($field['showfields'])) {
+				$showfields = explode(',', $field['showfields']);
+				foreach($showfields as $showfield) {
+					$showfield = strtolower($showfield);
+					#print "\t\t" . 'document.iform.' . $showfield . ".display =\"\";\n";
+					print "\t\t jQuery('#". $showfield . "').show();";
+				}
+			}
+			print "\t" . '}' . "\n";
+		}
 	}
 ?>
 }
-//-->
+//]]>
 </script>
 <?php } ?>
 
 <form action="wizard.php" method="post" name="iform" id="iform">
-<input type="hidden" name="xml" value="<?= $xml ?>">
-<input type="hidden" name="stepid" value="<?= $stepid ?>">
+<input type="hidden" name="xml" value="<?= htmlspecialchars($xml) ?>" />
+<input type="hidden" name="stepid" value="<?= htmlspecialchars($stepid) ?>" />
 
 <center>
 
-&nbsp;<br>
+&nbsp;<br/>
 
 <?php
 	if($title == "Reload in progress") {
@@ -319,8 +318,8 @@ function showchange() {
 	}
 	echo "<a href='$ip'>";
 ?>
-<img border="0" src="./themes/<?= $g['theme']; ?>/images/logo.gif"></a>
-<p>
+<img border="0" src="./themes/<?= $g['theme']; ?>/images/logo.gif" alt="logo" /></a>
+<p>&nbsp;</p>
 <div style="width:800px;background-color:#ffffff" id="roundme">
 <?php
 	if ($input_errors)
@@ -332,34 +331,34 @@ function showchange() {
 	if ($_POST['message'] != "")
 		print_info_box(htmlspecialchars($_POST['message']));
 ?>
-<table bgcolor="#ffffff" width="95%" border="0" cellspacing="0" cellpadding="2">
-    <!-- wizard goes here -->
-    <tr><td>&nbsp;</td></tr>
- <tr>
-	<td class="tabcont">
-	<table width="100%" border="0" cellpadding="6" cellspacing="0">
+<table bgcolor="#ffffff" width="95%" border="0" cellspacing="0" cellpadding="2" summary="wizard">
+	<!-- wizard goes here -->
+	<tr><td>&nbsp;</td></tr>
+	<tr>
+		<td class="tabcont">
+			<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="main area">
 
-    <tr><td colspan='2'><center><font size="2"><b><?= fixup_string($description) ?></b></font></center></td></tr><tr><td>&nbsp;</td></tr>
-    <?php
+				<tr><td colspan="2" align="center"><font size="2"><b><?= fixup_string($description) ?></b></font></td></tr><tr><td>&nbsp;</td></tr>
+<?php
 	if(!$pkg['step'][$stepid]['disableheader'])
 		echo "<tr><td colspan=\"2\" class=\"listtopic\">" . fixup_string($title) . "</td></tr>";
-    ?>
+?>
 
-    <?php
+<?php
 	$inputaliases = array();
 	if($pkg['step'][$stepid]['fields']['field'] <> "") {
 		foreach ($pkg['step'][$stepid]['fields']['field'] as $field) {
 
-		    $value = $field['value'];
-		    $name  = $field['name'];
+			$value = $field['value'];
+			$name  = $field['name'];
 
-		    $name = ereg_replace(" ", "", $name);
-		    $name = strtolower($name);
+			$name = preg_replace("/\s+/", "", $name);
+			$name = strtolower($name);
 
-		    if($field['bindstofield'] <> "") {
+			if($field['bindstofield'] <> "") {
 				$arraynum = "";
 				$field_conv = "";
-				$field_split = split("->", $field['bindstofield']);
+				$field_split = explode("->", $field['bindstofield']);
 				// arraynum is used in cases where there is an array of the same field
 				// name such as dnsserver (2 of them)
 				if($field['arraynum'] <> "")
@@ -371,412 +370,414 @@ function showchange() {
 				else
 					$toeval = "if (isset(\$config" . $field_conv . $arraynum . ")) \$value = \$config" . $field_conv . $arraynum . ";";
 				eval($toeval);
-		    }
-
-		    if(!$field['combinefieldsend'])
-			echo "<tr>";
-
-		    switch ($field['type']) {
-		    case "input":
-			if ($field['displayname']) {
-				echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-				echo $field['displayname'];
-				echo ":</td>\n";
-			} else if(!$field['dontdisplayname']) {
-				echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-				echo fixup_string($field['name']);
-				echo ":</td>\n";
 			}
-			if(!$field['dontcombinecells'])
-				echo "<td class=\"vtable\">\n";
 
-			echo "<input class='formfld unknown' id='" . $name . "' name='" . $name . "' value='" . $value . "'";
-			if($field['size'])
-				echo " size='" . $field['size'] . "' ";
-			if($field['validate'])
-				echo " onChange='FieldValidate(this.value, \"{$field['validate']}\", \"{$field['message']}\");'";
-			echo ">\n";
+			if(!$field['combinefieldsend'])
+				echo "<tr>";
 
-			if($field['description'] <> "") {
-				echo "<br /> " . $field['description'];
-		    	}
-			break;
-		    case "text":
-			echo "<td colspan=\"2\" align=\"center\" class=\"vncell\">\n";
-			if($field['description'] <> "") {
-                                echo "<center><br /> " . $field['description'] . "</center>";
-                        }
-			break;
-		    case "inputalias":
-			if ($field['displayname']) {
-                                echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-                                echo $field['displayname'];
-                                echo ":</td>\n";
-			} else if(!$field['dontdisplayname']) {
-				echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-				echo fixup_string($field['name']);
-				echo ":</td>\n";
-			}
-			if(!$field['dontcombinecells'])
-				echo "<td class=\"vtable\">\n";
-
-			$inputaliases[] = $name;
-			echo "<input class='formfldalias' autocomplete='off' class='formfldalias' id='" . $name . "' name='" . $name . "' value='" . $value . "'";
-			if($field['size'])
-				echo " size='" . $field['size'] . "' ";
-			if($field['validate'])
-				echo " onChange='FieldValidate(this.value, \"{$field['validate']}\", \"{$field['message']}\");'";
-			echo ">\n";
-
-			if($field['description'] <> "") {
-				echo "<br /> " . $field['description'];
-		    	}
-			break;
-		    case "interfaces_selection":
-		    case "interface_select":
-			$size = "";
-			$multiple = "";
-			$name = strtolower($name);
-			echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-			echo fixup_string($field['displayname'] ? $field['displayname'] : $field['name']) . ":\n";
-			echo "</td>";
-			echo "<td class=\"vtable\">\n";
-			if($field['size'] <> "") $size = "size=\"{$field['size']}\"";
-			if($field['multiple'] <> "" and $field['multiple'] <> "0") {
-			  $multiple = "multiple=\"multiple\"";
-			  $name .= "[]";
-			}
-			echo "<select class='formselect' id='{$name}' name='{$name}' {$size} {$multiple}>\n";
-			if($field['add_to_interfaces_selection'] <> "") {
-				$SELECTED = "";
-				if($field['add_to_interfaces_selection'] == $value) $SELECTED = " SELECTED";
-				echo "<option value='" . $field['add_to_interfaces_selection'] . "'" . $SELECTED . ">" . $field['add_to_interfaces_selection'] . "</option>\n";
-			}
-			if($field['type'] == "interface_select")
-				$interfaces = get_interface_list();
-			else
-				$interfaces = get_configured_interface_with_descr();
-			foreach ($interfaces as $ifname => $iface) {
-				if ($field['type'] == "interface_select") {
-					$iface = $ifname;
-					if ($iface['mac'])
-						$iface .= " ({$iface['mac']})";	
+			switch ($field['type']) {
+			case "input":
+				if ($field['displayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo $field['displayname'];
+					echo ":</td>\n";
+				} else if(!$field['dontdisplayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo fixup_string($field['name']);
+					echo ":</td>\n";
 				}
-			  $SELECTED = "";
-			  if ($value == $ifname) $SELECTED = " SELECTED";
-			  $to_echo = "<option value='" . $ifname . "'" . $SELECTED . ">" . $iface . "</option>\n";
-			  $to_echo .= "<!-- {$value} -->";
-			  $canecho = 0;
-			  if($field['interface_filter'] <> "") {
-				if(stristr($ifname, $field['interface_filter']) == true)
-					$canecho = 1;
-			  } else
-				$canecho = 1;
-			  if($canecho == 1)
-				echo $to_echo;
-			}
-			echo "</select>\n";
+				if(!$field['dontcombinecells'])
+					echo "<td class=\"vtable\">\n";
 
-			if($field['description'] <> "") {
-				echo "<br /> " . $field['description'];
-		    	}
+				echo "<input class='formfld unknown' id='" . $name . "' name='" . $name . "' value=\"" . htmlspecialchars($value) . "\"";
+				if($field['size'])
+					echo " size='" . $field['size'] . "' ";
+				if($field['validate'])
+					echo " onchange='FieldValidate(this.value, \"{$field['validate']}\", \"{$field['message']}\");'";
+				echo " />\n";
 
-			break;
-		    case "password":
-			if ($field['displayname']) {
-				echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-				echo $field['displayname'];
-				echo ":</td>\n";
-			} else if(!$field['dontdisplayname']) {
-				echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-				echo fixup_string($field['name']);
-				echo ":</td>\n";
-			}
-			if(!$field['dontcombinecells'])
-				echo "<td class=\"vtable\">";
-			echo "<input class='formfld pwd' id='" . $name . "' name='" . $name . "' value='" . $value . "' type='password' ";
-			if($field['size'])
-				echo " size='" . $field['size'] . "' ";
-			echo ">\n";
-
-			if($field['description'] <> "") {
-				echo "<br /> " . $field['description'];
-		    	}
-
-			break;
-		    case "certca_selection":
-                        $size = "";
-                        $multiple = "";
-                        $name = strtolower($name);
-                        echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-                        echo fixup_string($field['displayname'] ? $field['displayname'] : $field['name']) . ":\n";
-                        echo "</td>";
-                        echo "<td class=\"vtable\">\n";
-                        if($field['size'] <> "") $size = "size=\"{$field['size']}\"";
-                        echo "<select id='{$name}' name='{$name}' {$size}>\n";
-                        if($field['add_to_certca_selection'] <> "") {
-                                $SELECTED = "";
-                                if($field['add_to_certca_selection'] == $value) $SELECTED = " SELECTED";
-                                echo "<option value='" . $field['add_to_certca_selection'] . "'" . $SELECTED . ">" . $field['add_to_certca_selection'] . "</option>\n";
-                        }
-			foreach($config['ca'] as $ca) {
-				$name = htmlspecialchars($ca['descr']);
-                          $SELECTED = "";
-                          if ($value == $name) $SELECTED = " SELECTED";
-                          $to_echo = "<option value='" . $ca['refid'] . "'" . $SELECTED . ">" . $name . "</option>\n";
-                          $to_echo .= "<!-- {$value} -->";
-                          $canecho = 0;
-                          if($field['certca_filter'] <> "") {
-                                if(stristr($name, $field['certca_filter']) == true)
-                                        $canecho = 1;
-                          } else {
-                                $canecho = 1;
-                          }
-                          if($canecho == 1)
-                                echo $to_echo;
-                        }
-                                echo "</select>\n";
-
-			if($field['description'] <> "") {
-				echo "<br /> " . $field['description'];
-		    	}
-
-			break;
-		    case "cert_selection":
-                        $size = "";
-                        $multiple = "";
-                        $name = strtolower($name);
-                        echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-                        echo fixup_string($field['displayname'] ? $field['displayname'] : $field['name']) . ":\n";
-                        echo "</td>";
-                        echo "<td class=\"vtable\">\n";
-                        if($field['size'] <> "") $size = "size=\"{$field['size']}\"";
-                        echo "<select id='{$name}' name='{$name}' {$size}>\n";
-                        if($field['add_to_cert_selection'] <> "") {
-                                $SELECTED = "";
-                                if($field['add_to_cert_selection'] == $value) $SELECTED = " SELECTED";
-                                echo "<option value='" . $field['add_to_cert_selection'] . "'" . $SELECTED . ">" . $field['add_to_cert_selection'] . "</option>\n";
-                        }
-                        foreach($config['cert'] as $ca) {
-				if (stristr($ca['descr'], "webconf"))
-					continue;
-                                $name = htmlspecialchars($ca['descr']);
-                          $SELECTED = "";
-                          if ($value == $name) $SELECTED = " SELECTED";
-                          $to_echo = "<option value='" . $ca['refid'] . "'" . $SELECTED . ">" . $name . "</option>\n";
-                          $to_echo .= "<!-- {$value} -->";
-                          $canecho = 0;
-                          if($field['cert_filter'] <> "") {
-                                if(stristr($name, $field['cert_filter']) == true)
-                                        $canecho = 1;
-                          } else {
-                                $canecho = 1;
-                          }
-                          if($canecho == 1)
-                                echo $to_echo;
-                        }
-                                echo "</select>\n";
-
-			if($field['description'] <> "") {
-				echo "<br /> " . $field['description'];
-		    	}
-
-			break;
-		    case "select":
-			if ($field['displayname']) {
-                                echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-                                echo $field['displayname'];
-                                echo ":</td>\n";
-			} else if(!$field['dontdisplayname']) {
-				echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-				echo fixup_string($field['name']);
-				echo ":</td>\n";
-			}
-			if($field['size']) $size = " size='" . $field['size'] . "' ";
-			if($field['multiple'] == "yes") $multiple = "MULTIPLE ";
-			if(!$field['dontcombinecells'])
-				echo "<td class=\"vtable\">\n";
-			$onchange = "";
-			foreach ($field['options']['option'] as $opt) {
-				if($opt['enablefields'] <> "") {
-					$onchange = "onchange=\"enableitems(this.selectedIndex);\" ";
+				if($field['description'] <> "") {
+					echo "<br /> " . $field['description'];
 				}
-			}
-			echo "<select class='formselect' " . $onchange . $multiple . $size . "id='" . $name . "' name='" . $name . "'>\n";
-			foreach ($field['options']['option'] as $opt) {
-				$selected = "";
-				if($value == $opt['value'])
-					$selected = " SELECTED";
-				echo "\t<option name='" . $opt['name'] . "' value='" . $opt['value'] . "'" . $selected . ">";
-				if ($opt['displayname'])
-					echo $opt['displayname'];
+				break;
+			case "text":
+				echo "<td colspan=\"2\" align=\"center\" class=\"vncell\">\n";
+				if($field['description'] <> "") {
+					echo "<center><br /> " . $field['description'] . "</center>";
+				}
+				break;
+			case "inputalias":
+				if ($field['displayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo $field['displayname'];
+					echo ":</td>\n";
+				} else if(!$field['dontdisplayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo fixup_string($field['name']);
+					echo ":</td>\n";
+				}
+				if(!$field['dontcombinecells'])
+					echo "<td class=\"vtable\">\n";
+
+				$inputaliases[] = $name;
+				echo "<input class='formfldalias' autocomplete='off' id='" . $name . "' name='" . $name . "' value=\"" . htmlspecialchars($value) . "\"";
+				if($field['size'])
+					echo " size='" . $field['size'] . "' ";
+				if($field['validate'])
+					echo " onchange='FieldValidate(this.value, \"{$field['validate']}\", \"{$field['message']}\");'";
+				echo " />\n";
+
+				if($field['description'] <> "") {
+					echo "<br /> " . $field['description'];
+				}
+				break;
+			case "interfaces_selection":
+			case "interface_select":
+				$size = "";
+				$multiple = "";
+				$name = strtolower($name);
+				echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+				echo fixup_string($field['displayname'] ? $field['displayname'] : $field['name']) . ":\n";
+				echo "</td>";
+				echo "<td class=\"vtable\">\n";
+				if($field['size'] <> "") $size = "size=\"{$field['size']}\"";
+				if($field['multiple'] <> "" and $field['multiple'] <> "0") {
+					$multiple = "multiple=\"multiple\"";
+					$name .= "[]";
+				}
+				echo "<select class='formselect' id='{$name}' name='{$name}' {$size} {$multiple}>\n";
+				if($field['add_to_interfaces_selection'] <> "") {
+					$SELECTED = "";
+					if($field['add_to_interfaces_selection'] == $value) $SELECTED = " selected=\"selected\"";
+					echo "<option value='" . $field['add_to_interfaces_selection'] . "'" . $SELECTED . ">" . $field['add_to_interfaces_selection'] . "</option>\n";
+				}
+				if($field['type'] == "interface_select")
+					$interfaces = get_interface_list();
 				else
-					echo $opt['name'];
-				echo "</option>\n";
-			}
-			echo "</select>\n";
-                        echo "<!-- {$value} -->\n";
+					$interfaces = get_configured_interface_with_descr();
+				foreach ($interfaces as $ifname => $iface) {
+					if ($field['type'] == "interface_select") {
+						$iface = $ifname;
+						if ($iface['mac'])
+							$iface .= " ({$iface['mac']})";
+					}
+					$SELECTED = "";
+					if ($value == $ifname) $SELECTED = " selected=\"selected\"";
+					$to_echo = "<option value='" . $ifname . "'" . $SELECTED . ">" . $iface . "</option>\n";
+					$to_echo .= "<!-- {$value} -->";
+					$canecho = 0;
+					if($field['interface_filter'] <> "") {
+						if(stristr($ifname, $field['interface_filter']) == true)
+							$canecho = 1;
+					} else
+						$canecho = 1;
+					if($canecho == 1)
+						echo $to_echo;
+				}
+				echo "</select>\n";
 
-			if($field['description'] <> "") {
-				echo $field['description'];
-		    	}
+				if($field['description'] <> "") {
+					echo "<br /> " . $field['description'];
+				}
 
-			break;
-		    case "textarea":
-			if ($field['displayname']) {
-                                echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-                                echo $field['displayname'];
-                                echo ":</td>\n";
-			} else if(!$field['dontdisplayname']) {
+				break;
+			case "password":
+				if ($field['displayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo $field['displayname'];
+					echo ":</td>\n";
+				} else if(!$field['dontdisplayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo fixup_string($field['name']);
+					echo ":</td>\n";
+				}
+				if(!$field['dontcombinecells'])
+					echo "<td class=\"vtable\">";
+				echo "<input class='formfld pwd' id='" . $name . "' name='" . $name . "' value=\"" . htmlspecialchars($value) . "\" type='password' ";
+				if($field['size'])
+					echo " size='" . $field['size'] . "' ";
+				echo " />\n";
+
+				if($field['description'] <> "") {
+					echo "<br /> " . $field['description'];
+				}
+
+				break;
+			case "certca_selection":
+				$size = "";
+				$multiple = "";
+				$name = strtolower($name);
 				echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-				echo fixup_string($field['name']);
-				echo ":</td>";
-			}
-			if(!$field['dontcombinecells'])
-				echo "<td class=\"vtable\">";
-			echo "<textarea class='formpre' id='" . $name . "' name='" . $name . "'";
-			if ($field['rows'])
-				echo " rows='" . $field['rows'] . "' ";
-			if ($field['cols'])
-				echo " cols='" . $field['cols'] . "' ";
-			echo ">" . $value . "</textarea>\n";
-				
+				echo fixup_string($field['displayname'] ? $field['displayname'] : $field['name']) . ":\n";
+				echo "</td>";
+				echo "<td class=\"vtable\">\n";
+				if($field['size'] <> "") $size = "size=\"{$field['size']}\"";
+				echo "<select id='{$name}' name='{$name}' {$size}>\n";
+				if($field['add_to_certca_selection'] <> "") {
+					$SELECTED = "";
+					if($field['add_to_certca_selection'] == $value) $SELECTED = " selected=\"selected\"";
+					echo "<option value='" . $field['add_to_certca_selection'] . "'" . $SELECTED . ">" . $field['add_to_certca_selection'] . "</option>\n";
+				}
+				foreach($config['ca'] as $ca) {
+					$name = htmlspecialchars($ca['descr']);
+					$SELECTED = "";
+					if ($value == $name) $SELECTED = " selected=\"selected\"";
+					$to_echo = "<option value='" . $ca['refid'] . "'" . $SELECTED . ">" . $name . "</option>\n";
+					$to_echo .= "<!-- {$value} -->";
+					$canecho = 0;
+					if($field['certca_filter'] <> "") {
+						if(stristr($name, $field['certca_filter']) == true)
+							$canecho = 1;
+					} else {
+						$canecho = 1;
+					}
+					if($canecho == 1)
+						echo $to_echo;
+				}
+				echo "</select>\n";
 
-			if($field['description'] <> "") {
-				echo "<br /> " . $field['description'];
-		    	}
+				if($field['description'] <> "") {
+					echo "<br /> " . $field['description'];
+				}
 
-			break;
-		    case "submit":
-			echo "<td>&nbsp;<br></td></tr>";
-			echo "<tr><td colspan='2'><center>";
-			echo "<input type='submit' name='" . $name . "' value='" . $field['name'] . "'>\n";
-
-			if($field['description'] <> "") {
-				echo "<br /> " . $field['description'];
-		    	}
-
-			break;
-		    case "listtopic":
-			echo "<td>&nbsp;</td></tr>";
-			echo "<tr><td colspan=\"2\" class=\"listtopic\">" . $field['name'] . "<br ></td>\n";
-
-			break;
-		    case "subnet_select":
-			if ($field['displayname']) {
-                                echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-                                echo $field['displayname'];
-                                echo ":</td>\n";
-			} else if(!$field['dontdisplayname']) {
+				break;
+			case "cert_selection":
+				$size = "";
+				$multiple = "";
+				$name = strtolower($name);
 				echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-				echo fixup_string($field['name']);
-				echo ":</td>";
+				echo fixup_string($field['displayname'] ? $field['displayname'] : $field['name']) . ":\n";
+				echo "</td>";
+				echo "<td class=\"vtable\">\n";
+				if($field['size'] <> "") $size = "size=\"{$field['size']}\"";
+				echo "<select id='{$name}' name='{$name}' {$size}>\n";
+				if($field['add_to_cert_selection'] <> "") {
+					$SELECTED = "";
+					if($field['add_to_cert_selection'] == $value) $SELECTED = " selected=\"selected\"";
+					echo "<option value='" . $field['add_to_cert_selection'] . "'" . $SELECTED . ">" . $field['add_to_cert_selection'] . "</option>\n";
+				}
+				foreach($config['cert'] as $ca) {
+					if (stristr($ca['descr'], "webconf"))
+						continue;
+					$name = htmlspecialchars($ca['descr']);
+					$SELECTED = "";
+					if ($value == $name) $SELECTED = " selected=\"selected\"";
+					$to_echo = "<option value='" . $ca['refid'] . "'" . $SELECTED . ">" . $name . "</option>\n";
+					$to_echo .= "<!-- {$value} -->";
+					$canecho = 0;
+					if($field['cert_filter'] <> "") {
+						if(stristr($name, $field['cert_filter']) == true)
+							$canecho = 1;
+					} else {
+						$canecho = 1;
+					}
+					if($canecho == 1)
+						echo $to_echo;
+				}
+				echo "</select>\n";
+
+				if($field['description'] <> "") {
+					echo "<br /> " . $field['description'];
+				}
+
+				break;
+			case "select":
+				if ($field['displayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo $field['displayname'];
+					echo ":</td>\n";
+				} else if(!$field['dontdisplayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo fixup_string($field['name']);
+					echo ":</td>\n";
+				}
+				if($field['size']) $size = " size='" . $field['size'] . "' ";
+				if($field['multiple'] == "yes") $multiple = "MULTIPLE ";
+				if(!$field['dontcombinecells'])
+					echo "<td class=\"vtable\">\n";
+				$onchange = "";
+				foreach ($field['options']['option'] as $opt) {
+					if($opt['enablefields'] <> "") {
+						$onchange = "onchange=\"enableitems(this.selectedIndex);\" ";
+					}
+				}
+				echo "<select class='formselect' " . $onchange . $multiple . $size . "id='" . $name . "' name='" . $name . "'>\n";
+				foreach ($field['options']['option'] as $opt) {
+					$selected = "";
+					if($value == $opt['value'])
+						$selected = " selected=\"selected\"";
+					echo "\t<option value='" . $opt['value'] . "'" . $selected . ">";
+					if ($opt['displayname'])
+						echo $opt['displayname'];
+					else
+						echo $opt['name'];
+					echo "</option>\n";
+				}
+				echo "</select>\n";
+				echo "<!-- {$value} -->\n";
+
+				if($field['description'] <> "") {
+					echo $field['description'];
+				}
+
+				break;
+			case "textarea":
+				if ($field['displayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo $field['displayname'];
+					echo ":</td>\n";
+				} else if(!$field['dontdisplayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo fixup_string($field['name']);
+					echo ":</td>";
+				}
+				if(!$field['dontcombinecells'])
+					echo "<td class=\"vtable\">";
+				echo "<textarea class='formpre' id='" . $name . "' name='" . $name . "'";
+				if ($field['rows'])
+					echo " rows='" . $field['rows'] . "' ";
+				if ($field['cols'])
+					echo " cols='" . $field['cols'] . "' ";
+				echo ">" . $value . "</textarea>\n";
+
+
+				if($field['description'] <> "") {
+					echo "<br /> " . $field['description'];
+				}
+
+				break;
+			case "submit":
+				echo "<td>&nbsp;<br/></td></tr>";
+				echo "<tr><td colspan=\"2\" align=\"center\">";
+				echo "<input type='submit' name='" . $name . "' value=\"" . htmlspecialchars($field['name']) . "\" />\n";
+
+				if($field['description'] <> "") {
+					echo "<br /> " . $field['description'];
+				}
+
+				break;
+			case "listtopic":
+				echo "<td>&nbsp;</td></tr>";
+				echo "<tr><td colspan=\"2\" class=\"listtopic\">" . $field['name'] . "<br /></td>\n";
+
+				break;
+			case "subnet_select":
+				if ($field['displayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo $field['displayname'];
+					echo ":</td>\n";
+				} else if(!$field['dontdisplayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo fixup_string($field['name']);
+					echo ":</td>";
+				}
+				if(!$field['dontcombinecells'])
+					echo "<td class=\"vtable\">";
+				echo "<select class='formselect' name='{$name}'>\n";
+				for($x=1; $x<33; $x++) {
+					$CHECKED = "";
+					if($value == $x) $CHECKED = " selected=\"selected\"";
+					if($x <> 31)
+						echo "<option value='{$x}' {$CHECKED}>{$x}</option>\n";
+				}
+				echo "</select>\n";
+
+				if($field['description'] <> "") {
+					echo "<br /> " . $field['description'];
+				}
+
+				break;
+			case "timezone_select":
+				exec('/usr/bin/tar -tzf /usr/share/zoneinfo.tgz', $timezonelist);
+				$timezonelist = array_filter($timezonelist, 'is_timezone');
+				sort($timezonelist);
+
+				/* kill carriage returns */
+				for($x=0; $x<count($timezonelist); $x++)
+					$timezonelist[$x] = str_replace("\n", "", $timezonelist[$x]);
+
+				if ($field['displayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo $field['displayname'];
+					echo ":</td>\n";
+				} else if(!$field['dontdisplayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo fixup_string($field['name']);
+					echo ":</td>";
+				}
+				if(!$field['dontcombinecells'])
+					echo "<td class=\"vtable\">";
+				echo "<select class='formselect' name='{$name}'>\n";
+				foreach ($timezonelist as $tz) {
+					if(strstr($tz, "GMT"))
+						continue;
+					$SELECTED = "";
+					if ($value == $tz) $SELECTED = " selected=\"selected\"";
+					echo "<option value=\"" . htmlspecialchars($tz) . "\" {$SELECTED}>";
+					echo htmlspecialchars($tz);
+					echo "</option>\n";
+				}
+				echo "</select>\n";
+
+				if($field['description'] <> "") {
+					echo "<br /> " . $field['description'];
+				}
+
+				break;
+			case "checkbox":
+				if ($field['displayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo $field['displayname'];
+					echo ":</td>\n";
+				} else if(!$field['dontdisplayname']) {
+					echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
+					echo $field['name'];
+					echo ":</td>";
+				}
+				$checked = "";
+				if($value <> "")
+					$checked = " checked=\"checked\"";
+				echo "<td class=\"vtable\"><input value=\"on\" type='checkbox' id='" . $name . "' name='" . $name . "' " . $checked;
+				if(isset($field['enablefields']) or isset($field['checkenablefields']))
+					echo " onclick=\"enablechange()\"";
+				else if(isset($field['disablefields']) or isset($field['checkdisablefields']))
+					echo " onclick=\"disablechange()\"";
+				echo " />\n";
+
+				if($field['description'] <> "") {
+					echo $field['description'];
+				}
+
+				break;
 			}
-			if(!$field['dontcombinecells'])
-				echo "<td class=\"vtable\">";
-			echo "<select class='formselect' name='{$name}'>\n";
-			for($x=1; $x<33; $x++) {
-				$CHECKED = "";
-				if($value == $x) $CHECKED = " SELECTED";
-				if($x <> 31)
-					echo "<option value='{$x}' {$CHECKED}>{$x}</option>\n";
+
+			if($field['typehint'] <> "") {
+				echo $field['typehint'];
 			}
-			echo "</select>\n";
-
-			if($field['description'] <> "") {
-				echo "<br /> " . $field['description'];
-		    	}
-
-			break;
-		    case "timezone_select":
-			exec('/usr/bin/tar -tzf /usr/share/zoneinfo.tgz', $timezonelist);
-			$timezonelist = array_filter($timezonelist, 'is_timezone');
-			sort($timezonelist);
-
-			/* kill carriage returns */
-			for($x=0; $x<count($timezonelist); $x++)
-				$timezonelist[$x] = str_replace("\n", "", $timezonelist[$x]);
-
-			if ($field['displayname']) {
-                                echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-                                echo $field['displayname'];
-                                echo ":</td>\n";
-			} else if(!$field['dontdisplayname']) {
-				echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-				echo fixup_string($field['name']);
-				echo ":</td>";
+			if($field['warning'] <> "") {
+				echo "<br /><b><font color=\"red\">" . $field['warning'] . "</font></b>";
 			}
-			if(!$field['dontcombinecells'])
-				echo "<td class=\"vtable\">";
-			echo "<select class='formselect' name='{$name}'>\n";
-			foreach ($timezonelist as $tz) {
-				if(strstr($tz, "GMT"))
-					continue;
-				$SELECTED = "";
-				if ($value == $tz) $SELECTED = " SELECTED";
-				echo "<option value='" . htmlspecialchars($tz) . "' {$SELECTED}>";
-				echo htmlspecialchars($tz);
-				echo "</option>\n";
+
+			if(!$field['combinefieldsbegin']) {
+				if (!$field['dontcombinecells'])
+					echo "</td>";
+
+				echo "</tr>\n";
 			}
-			echo "</select>\n";
-
-			if($field['description'] <> "") {
-				echo "<br /> " . $field['description'];
-		    	}
-
-			break;
-		    case "checkbox":
-			if ($field['displayname']) {
-                                echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-                                echo $field['displayname'];
-                                echo ":</td>\n";
-			} else if(!$field['dontdisplayname']) {
-				echo "<td width=\"22%\" align=\"right\" class=\"vncellreq\">\n";
-				echo $field['name'];
-				echo ":</td>";
-			}
-			$checked = "";
-			if($value <> "")
-				$checked = " CHECKED";
-			echo "<td class=\"vtable\"><input value=\"on\" type='checkbox' id='" . $name . "' name='" . $name . "' " . $checked;
-			if(isset($field['enablefields']) or isset($field['checkenablefields']))
-				echo " onClick=\"enablechange()\"";
-			else if(isset($field['disablefields']) or isset($field['checkdisablefields']))
-				echo " onClick=\"disablechange()\"";
-			echo ">\n";
-
-			if($field['description'] <> "") {
-				echo $field['description'];
-		    	}
-
-			break;
-		    }
-
-		    if($field['typehint'] <> "") {
-			echo $field['typehint'];
-		    }
-		    if($field['warning'] <> "") {
-			echo "<br ><b><font color=\"red\">" . $field['warning'] . "</font></b>";
-		    }
-
-		    if(!$field['combinefieldsbegin']) {
-		    	if (!$field['dontcombinecells'])
-		    		echo "</td>";
-
-			 echo "</tr>\n";
-		    }
 
 		}
 	}
-    ?>
-	</table>
-	</td></tr>
+?>
+			</table>
+		</td>
+	</tr>
 </table>
-<br>&nbsp;
+<br/>&nbsp;
 </div>
+</center>
 </form>
 <script type="text/javascript">
-<!--
+//<![CDATA[
 	if (typeof ext_change != 'undefined') {
 		ext_change();
 	}
@@ -815,15 +816,7 @@ function showchange() {
 
 	}
 
-//-->
-</script>
-<script type="text/javascript">
-NiftyCheck();
-var bgcolor = document.getElementsByTagName("body")[0].style.backgroundColor;
-Rounded("div#roundme","all",bgcolor,"#FFFFFF","smooth");
-enablechange();
-disablechange();
-showchange();
+//]]>
 </script>
 
 <?php
@@ -833,12 +826,13 @@ if($pkg['step'][$stepid]['disableallfieldsbydefault'] <> "") {
 	// create a fieldname loop that can be used with javascript
 	// hide and enable features.
 	echo "\n<script type=\"text/javascript\">\n";
+	echo "//<![CDATA[\n";
 	echo "function disableall() {\n";
 	foreach ($pkg['step'][$stepid]['fields']['field'] as $field) {
 		if($field['type'] <> "submit" and $field['type'] <> "listtopic") {
 			if(!$field['donotdisable'] <> "") {
 				array_push($fieldnames_array, $field['name']);
-				$fieldname = ereg_replace(" ", "", $field['name']);
+				$fieldname = preg_replace("/\s+/", "", $field['name']);
 				$fieldname = strtolower($fieldname);
 				echo "\tdocument.forms[0]." . $fieldname . ".disabled = 1;\n";
 			}
@@ -855,9 +849,9 @@ if($pkg['step'][$stepid]['disableallfieldsbydefault'] <> "") {
 				foreach ($field['options']['option'] as $opt) {
 					if($opt['enablefields'] <> "") {
 						echo "\t\tcase " . $idcounter . ":\n";
-						$enablefields_split = split(",", $opt['enablefields']);
+						$enablefields_split = explode(",", $opt['enablefields']);
 						foreach ($enablefields_split as $efs) {
-							$fieldname = ereg_replace(" ", "", $efs);
+							$fieldname = preg_replace("/\s+/", "", $efs);
 							$fieldname = strtolower($fieldname);
 							if($fieldname <> "") {
 								$onchange = "\t\t\tdocument.forms[0]." . $fieldname . ".disabled = 0; \n";
@@ -873,10 +867,23 @@ if($pkg['step'][$stepid]['disableallfieldsbydefault'] <> "") {
 		echo "\t}\n";
 	}
 	echo "}\n";
+	echo "//]]>\n";
 	echo "</script>\n\n";
 }
+?>
 
+<script type="text/javascript">
+//<![CDATA[
+NiftyCheck();
+var bgcolor = document.getElementsByTagName("body")[0].style.backgroundColor;
+Rounded("div#roundme","all",bgcolor,"#FFFFFF","smooth");
+enablechange();
+disablechange();
+showchange();
+//]]>
+</script>
 
+<?php
 if($pkg['step'][$stepid]['stepafterformdisplay'] <> "") {
 	// handle after form display event.
 	eval($pkg['step'][$stepid]['stepafterformdisplay']);
@@ -884,7 +891,7 @@ if($pkg['step'][$stepid]['stepafterformdisplay'] <> "") {
 
 if($pkg['step'][$stepid]['javascriptafterformdisplay'] <> "") {
 	// handle after form display event.
-        echo "\n<script type=\"text/javascript\">\n";
+	echo "\n<script type=\"text/javascript\">\n";
 	echo $pkg['step'][$stepid]['javascriptafterformdisplay'] . "\n";
 	echo "</script>\n\n";
 }

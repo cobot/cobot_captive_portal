@@ -44,8 +44,10 @@
 ##|-PRIV
 
 require("guiconfig.inc");
+require_once("config.inc");
 
 $pgtitle = array(gettext("Status"),gettext("DHCP leases"));
+$shortcut_section = "dhcp";
 
 $leasesfile = "{$g['dhcpd_chroot_path']}/var/db/dhcpd.leases";
 
@@ -54,16 +56,17 @@ if (($_GET['deleteip']) && (is_ipaddr($_GET['deleteip']))) {
 	killbyname("dhcpd");
 
 	/* Read existing leases */
-	$leases_contents = explode("\n", file_get_contents($leasesfile));
+	/* $leases_contents has the lines of the file, including the newline char at the end of each line. */
+	$leases_contents = file($leasesfile);
 	$newleases_contents = array();
 	$i=0;
 	while ($i < count($leases_contents)) {
 		/* Find the lease(s) we want to delete */
-		if ($leases_contents[$i] == "lease {$_GET['deleteip']} {") {
+		if ($leases_contents[$i] == "lease {$_GET['deleteip']} {\n") {
 			/* Skip to the end of the lease declaration */
 			do {
 				$i++;
-			} while ($leases_contents[$i] != "}");
+			} while ($leases_contents[$i] != "}\n");
 		} else {
 			/* It's a line we want to keep, copy it over. */
 			$newleases_contents[] = $leases_contents[$i];
@@ -94,8 +97,24 @@ function leasecmp($a, $b) {
 }
 
 function adjust_gmt($dt) {
-        $ts = strtotime($dt . " GMT");
-        return strftime("%Y/%m/%d %H:%M:%S", $ts);
+	global $config; 
+	$dhcpd = $config['dhcpd'];
+	foreach ($dhcpd as $dhcpleaseinlocaltime) {
+		$dhcpleaseinlocaltime = $dhcpleaseinlocaltime['dhcpleaseinlocaltime'];
+		if ($dhcpleaseinlocaltime == "yes") 
+			break;
+	}
+	$timezone = $config['system']['timezone'];
+	$ts = strtotime($dt . " GMT");
+	if ($dhcpleaseinlocaltime == "yes") {
+		$this_tz = new DateTimeZone($timezone); 
+		$dhcp_lt = new DateTime(strftime("%I:%M:%S%p", $ts), $this_tz); 
+		$offset = $this_tz->getOffset($dhcp_lt);
+		$ts = $ts + $offset;
+		return strftime("%Y/%m/%d %I:%M:%S%p", $ts);
+	}
+	else
+		return strftime("%Y/%m/%d %H:%M:%S", $ts);
 }
 
 function remove_duplicate($array, $field)
@@ -129,7 +148,7 @@ foreach ($rawdata as $line) {
 	$arpdata[] = $arpent['ip'];
 	}
 }
-
+unset($rawdata);
 $pools = array();
 $leases = array();
 $i = 0;
@@ -137,9 +156,9 @@ $l = 0;
 $p = 0;
 
 // Put everything together again
-while($i < $leases_count) {
+foreach($leases_content as $lease) {
 	/* split the line by space */
-	$data = explode(" ", $leases_content[$i]);
+	$data = explode(" ", $lease);
 	/* walk the fields */
 	$f = 0;
 	$fcount = count($data);
@@ -151,7 +170,8 @@ while($i < $leases_count) {
 	while($f < $fcount) {
 		switch($data[$f]) {
 			case "failover":
-				$pools[$p]['name'] = $data[$f+2];
+				$pools[$p]['name'] = trim($data[$f+2], '"');
+				$pools[$p]['name'] = "{$pools[$p]['name']} (" . convert_friendly_interface_to_friendly_descr(substr($pools[$p]['name'], 5)) . ")";
 				$pools[$p]['mystate'] = $data[$f+7];
 				$pools[$p]['peerstate'] = $data[$f+14];
 				$pools[$p]['mydate'] = $data[$f+10];
@@ -241,7 +261,11 @@ while($i < $leases_count) {
 	}
 	$l++;
 	$i++;
+	/* slowly chisel away at the source array */
+	array_shift($leases_content);
 }
+/* remove the old array */
+unset($lease_content);
 
 /* remove duplicate items by mac address */
 if(count($leases) > 0) {
@@ -350,7 +374,9 @@ foreach ($leases as $data) {
 					break;
 			}
 		} else {
-                	foreach ($config['dhcpd'] as $dhcpif => $dhcpifconf) {	
+			foreach ($config['dhcpd'] as $dhcpif => $dhcpifconf) {
+				if (!is_array($dhcpifconf['range']))
+					continue;
                         	if (($lip >= ip2ulong($dhcpifconf['range']['from'])) && ($lip <= ip2ulong($dhcpifconf['range']['to']))) {
                                 	$data['if'] = $dhcpif;
                                 	break;
@@ -408,7 +434,7 @@ foreach ($leases as $data) {
 ?>
 </table>
 <p>
-<form action="status_dhcp_leases.php" method="GET">
+<form action="status_dhcp_leases.php" method="get">
 <input type="hidden" name="order" value="<?=htmlspecialchars($_GET['order']);?>">
 <?php if ($_GET['all']): ?>
 <input type="hidden" name="all" value="0">

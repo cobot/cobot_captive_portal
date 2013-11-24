@@ -56,19 +56,18 @@ $pconfig['sharednet'] = $config['system']['sharednet'];
 $pconfig['disablechecksumoffloading'] = isset($config['system']['disablechecksumoffloading']);
 $pconfig['disablesegmentationoffloading'] = isset($config['system']['disablesegmentationoffloading']);
 $pconfig['disablelargereceiveoffloading'] = isset($config['system']['disablelargereceiveoffloading']);
-$pconfig['flowtable'] = false;
 $pconfig['flowtable'] = isset($config['system']['flowtable']);
 
 if ($_POST) {
 
-    unset($input_errors);
-    $pconfig = $_POST;
+	unset($input_errors);
+	$pconfig = $_POST;
 
 	if ($_POST['ipv6nat_enable'] && !is_ipaddr($_POST['ipv6nat_ipaddr']))
 		$input_errors[] = gettext("You must specify an IP address to NAT IPv6 packets.");
 
-    ob_flush();
-    flush();
+	ob_flush();
+	flush();
 	if (!$input_errors) {
 
 		if($_POST['ipv6nat_enable'] == "yes") {
@@ -78,15 +77,15 @@ if ($_POST) {
 			if($config['diag']) {
 				if($config['diag']['ipv6nat']) {
 					unset($config['diag']['ipv6nat']['enable']);
-					unset($config['diag']['ipv6nat']['ipaddr']);				
+					unset($config['diag']['ipv6nat']['ipaddr']);
 				}
 			}
 		}
-		
+
 		if($_POST['ipv6allow'] == "yes") {
-		    $config['system']['ipv6allow'] = true;
+			$config['system']['ipv6allow'] = true;
 		} else {
-		    unset($config['system']['ipv6allow']);
+			unset($config['system']['ipv6allow']);
 		}
 
 		if($_POST['sharednet'] == "yes") {
@@ -139,9 +138,9 @@ if ($_POST) {
 
 		$retval = filter_configure();
 		if(stristr($retval, "error") <> true)
-		    $savemsg = get_std_save_message(gettext($retval));
+			$savemsg = get_std_save_message(gettext($retval));
 		else
-		    $savemsg = gettext($retval);
+			$savemsg = gettext($retval);
 	}
 }
 
@@ -153,8 +152,8 @@ include("head.inc");
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
 <?php include("fbegin.inc"); ?>
 
-<script language="JavaScript">
-<!--
+<script type="text/javascript">
+//<![CDATA[
 
 function enable_change(enable_over) {
 	if (document.iform.ipv6nat_enable.checked || enable_over)
@@ -163,7 +162,7 @@ function enable_change(enable_over) {
 		document.iform.ipv6nat_ipaddr.disabled = 1;
 }
 
-//-->
+//]]>
 </script>
 
 
@@ -174,7 +173,7 @@ function enable_change(enable_over) {
 		print_info_box($savemsg);
 ?>
 	<form action="system_advanced_network.php" method="post" name="iform" id="iform">
-		<table width="100%" border="0" cellpadding="0" cellspacing="0">
+		<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="system advanced newtwork">
 			<tr>
 				<td>
 					<?php
@@ -184,7 +183,7 @@ function enable_change(enable_over) {
 						$tab_array[] = array(gettext("Networking"), true, "system_advanced_network.php");
 						$tab_array[] = array(gettext("Miscellaneous"), false, "system_advanced_misc.php");
 						$tab_array[] = array(gettext("System Tunables"), false, "system_advanced_sysctl.php");
-						$tab_array[] = array(gettext("Notifications"), false, "system_advanced_notifications.php");						
+						$tab_array[] = array(gettext("Notifications"), false, "system_advanced_notifications.php");
 						display_top_tabs($tab_array);
 					?>
 				</td>
@@ -193,30 +192,31 @@ function enable_change(enable_over) {
 				<td id="mainarea">
 					<div class="tabcont">
 						<span class="vexpl">
-		    	        	<span class="red">
-								<strong><?=gettext("NOTE:"); ?>&nbsp</strong>
+						<span class="red">
+								<strong><?=gettext("NOTE:"); ?>&nbsp;</strong>
 							</span>
 							<?=gettext("The options on this page are intended for use by advanced users only."); ?>
 							<br/>
 						</span>
 						<br/>
-						<table width="100%" border="0" cellpadding="6" cellspacing="0">
+						<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="main area">
 							<tr>
 								<td colspan="2" valign="top" class="listtopic"><?=gettext("IPv6 Options"); ?></td>
 							</tr>
 							<tr>
 								<td width="22%" valign="top" class="vncell"><?=gettext("Allow IPv6"); ?></td>
 								<td width="78%" class="vtable">
-									<input name="ipv6allow" type="checkbox" id="ipv6allow" value="yes" <?php if ($pconfig['ipv6allow']) echo "checked"; ?> onclick="enable_change(false)" />
+									<input name="ipv6allow" type="checkbox" id="ipv6allow" value="yes" <?php if ($pconfig['ipv6allow']) echo "checked=\"checked\""; ?> onclick="enable_change(false)" />
 									<strong><?=gettext("Allow IPv6"); ?></strong><br/>
-									<?=gettext("All IPv6 will be blocked unless this box is checked."); ?><br/>
+									<?=gettext("All IPv6 traffic will be blocked by the firewall unless this box is checked."); ?><br/>
+									<?=gettext("NOTE: This does not disable any IPv6 features on the firewall, it only blocks traffic."); ?><br/>
 									<br/>
 								</td>
 							</tr>
 							<tr>
 								<td width="22%" valign="top" class="vncell"><?=gettext("IPv6 over IPv4 Tunneling"); ?></td>
 								<td width="78%" class="vtable">
-									<input name="ipv6nat_enable" type="checkbox" id="ipv6nat_enable" value="yes" <?php if ($pconfig['ipv6nat_enable']) echo "checked"; ?> onclick="enable_change(false)" />
+									<input name="ipv6nat_enable" type="checkbox" id="ipv6nat_enable" value="yes" <?php if ($pconfig['ipv6nat_enable']) echo "checked=\"checked\""; ?> onclick="enable_change(false)" />
 									<strong><?=gettext("Enable IPv4 NAT encapsulation of IPv6 packets"); ?></strong><br/>
 									<?=gettext("This provides an RFC 2893 compatibility mechanism ".
 									"that can be used to tunneling IPv6 packets over IPv4 ".
@@ -236,44 +236,53 @@ function enable_change(enable_over) {
 							<tr>
 								<td width="22%" valign="top" class="vncell"><?=gettext("Device polling"); ?></td>
 								<td width="78%" class="vtable">
-									<input name="polling_enable" type="checkbox" id="polling_enable" value="yes" <?php if ($pconfig['polling_enable']) echo "checked"; ?>>
-									<strong><?=gettext("Enable device polling"); ?></strong><br>
+									<input name="polling_enable" type="checkbox" id="polling_enable" value="yes" <?php if ($pconfig['polling_enable']) echo "checked=\"checked\""; ?> />
+									<strong><?=gettext("Enable device polling"); ?></strong><br />
 									<?php printf(gettext("Device polling is a technique that lets the system periodically poll network devices for new data instead of relying on interrupts. This prevents your webConfigurator, SSH, etc. from being inaccessible due to interrupt floods when under extreme load. Generally this is not recommended. Not all NICs support polling; see the %s homepage for a list of supported cards."), $g['product_name']); ?>
 								</td>
 							</tr>
 							<tr>
 								<td width="22%" valign="top" class="vncell"><?=gettext("Hardware Checksum Offloading"); ?></td>
 								<td width="78%" class="vtable">
-									<input name="disablechecksumoffloading" type="checkbox" id="disablechecksumoffloading" value="yes" <?php if (isset($config['system']['disablechecksumoffloading'])) echo "checked"; ?> />
-									<strong><?=gettext("Disable hardware checksum offload"); ?></strong><br>
+									<input name="disablechecksumoffloading" type="checkbox" id="disablechecksumoffloading" value="yes" <?php if (isset($config['system']['disablechecksumoffloading'])) echo "checked=\"checked\""; ?> />
+									<strong><?=gettext("Disable hardware checksum offload"); ?></strong><br />
 									<?=gettext("Checking this option will disable hardware checksum offloading. Checksum offloading is broken in some hardware, particularly some Realtek cards. Rarely, drivers may have problems with checksum offloading and some specific NICs."); ?>
+									<br/>
+									<span class="red"><strong><?=gettext("Note:");?>&nbsp;</strong></span>
+									<?=gettext("This will take effect after you reboot the machine or re-configure each interface.");?>
 								</td>
 							</tr>
 							<tr>
 								<td width="22%" valign="top" class="vncell"><?=gettext("Hardware TCP Segmentation Offloading"); ?></td>
 								<td width="78%" class="vtable">
-									<input name="disablesegmentationoffloading" type="checkbox" id="disablesegmentationoffloading" value="yes" <?php if (isset($config['system']['disablesegmentationoffloading'])) echo "checked"; ?> />
-									<strong><?=gettext("Disable hardware TCP segmentation offload"); ?></strong><br>
+									<input name="disablesegmentationoffloading" type="checkbox" id="disablesegmentationoffloading" value="yes" <?php if (isset($config['system']['disablesegmentationoffloading'])) echo "checked=\"checked\""; ?> />
+									<strong><?=gettext("Disable hardware TCP segmentation offload"); ?></strong><br />
 									<?=gettext("Checking this option will disable hardware TCP segmentation offloading (TSO, TSO4, TSO6). This offloading is broken in some hardware drivers, and may impact performance with some specific NICs."); ?>
+									<br/>
+									<span class="red"><strong><?=gettext("Note:");?>&nbsp;</strong></span>
+									<?=gettext("This will take effect after you reboot the machine or re-configure each interface.");?>
 								</td>
 							</tr>
 							<tr>
 								<td width="22%" valign="top" class="vncell"><?=gettext("Hardware Large Receive Offloading"); ?></td>
 								<td width="78%" class="vtable">
-									<input name="disablelargereceiveoffloading" type="checkbox" id="disablelargereceiveoffloading" value="yes" <?php if (isset($config['system']['disablelargereceiveoffloading'])) echo "checked"; ?> />
-									<strong><?=gettext("Disable hardware large receive offload"); ?></strong><br>
+									<input name="disablelargereceiveoffloading" type="checkbox" id="disablelargereceiveoffloading" value="yes" <?php if (isset($config['system']['disablelargereceiveoffloading'])) echo "checked=\"checked\""; ?> />
+									<strong><?=gettext("Disable hardware large receive offload"); ?></strong><br />
 									<?=gettext("Checking this option will disable hardware large receive offloading (LRO). This offloading is broken in some hardware drivers, and may impact performance with some specific NICs."); ?>
+									<br/>
+									<span class="red"><strong><?=gettext("Note:");?>&nbsp;</strong></span>
+									<?=gettext("This will take effect after you reboot the machine or re-configure each interface.");?>
 								</td>
 							</tr>
 							<tr>
 								<td width="22%" valign="top" class="vncell"><?=gettext("ARP Handling"); ?></td>
 								<td width="78%" class="vtable">
-									<input name="sharednet" type="checkbox" id="sharednet" value="yes" <?php if (isset($pconfig['sharednet'])) echo "checked"; ?> />
-									<strong><?=gettext("Suppress ARP messages"); ?></strong><br>
-									<?=gettext("This option will suppress ARP log messages when multiple interfaces reside on the same broadcast domain"); ?></strong>
+									<input name="sharednet" type="checkbox" id="sharednet" value="yes" <?php if (isset($pconfig['sharednet'])) echo "checked=\"checked\""; ?> />
+									<strong><?=gettext("Suppress ARP messages"); ?></strong><br />
+									<?=gettext("This option will suppress ARP log messages when multiple interfaces reside on the same broadcast domain"); ?>
 								</td>
 							</tr>
-<?php 
+<?php
 /*
 	$version = get_freebsd_version();
 	if($version == "8"):
@@ -287,10 +296,10 @@ function enable_change(enable_over) {
 							<tr>
 								<td width="22%" valign="top" class="vncell">Enable Flowtable</td>
 								<td width="78%" class="vtable">
-									<input name="flowtable" type="checkbox" id="polling_enable" value="yes" <?php if ($pconfig['flowtable']) echo "checked"; ?>>
-									<strong>Enable flowtable support</strong><br>
-									 Enables infrastructure for caching flows as a means of accelerating L3 and L2 lookups 
-									 as well as providing stateful load balancing when used with RADIX_MPATH.<br/>
+									<input name="flowtable" type="checkbox" id="polling_enable" value="yes" <?php if ($pconfig['flowtable']) echo "checked=\"checked\""; ?> />
+									<strong>Enable flowtable support</strong><br />
+									Enables infrastructure for caching flows as a means of accelerating L3 and L2 lookups
+									as well as providing stateful load balancing when used with RADIX_MPATH.<br/>
 								</td>
 							</tr>
 <?php endif; ?>
@@ -298,7 +307,7 @@ function enable_change(enable_over) {
 ?>
 							<tr>
 								<td colspan="2" class="list" height="12">&nbsp;</td>
-							</tr>							
+							</tr>
 							<tr>
 								<td width="22%" valign="top">&nbsp;</td>
 								<td width="78%"><input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save");?>" /></td>
@@ -309,10 +318,10 @@ function enable_change(enable_over) {
 			</tr>
 		</table>
 	</form>
-	<script language="JavaScript" type="text/javascript">
-	<!--
+	<script type="text/javascript">
+	//<![CDATA[
 		enable_change(false);
-	//-->
+	//]]>
 	</script>
 
 <?php include("fend.inc"); ?>

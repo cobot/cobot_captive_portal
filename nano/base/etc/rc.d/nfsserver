@@ -1,0 +1,19 @@
+#!/bin/sh
+#
+# $FreeBSD: src/etc/rc.d/nfsserver,v 1.5.10.1.8.2 2012/11/17 08:24:38 svnexp Exp $
+#
+
+# PROVIDE: nfsserver
+# REQUIRE: NETWORKING mountcritremote
+# KEYWORD: nojail
+
+. /etc/rc.subr
+
+name="nfsserver"
+rcvar="nfs_server_enable"
+start_cmd=":"
+stop_cmd=":"
+required_modules="nfsserver"
+
+load_rc_config $name
+run_rc_command "$1"

@@ -123,10 +123,8 @@ include("head.inc");
 
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC" onload="<?= $jsevents["body"]["onload"] ?>">
 <?php include("fbegin.inc"); ?>
-<script src="/javascript/scriptaculous/prototype.js" type="text/javascript">
-</script>
 <script type="text/javascript">
-<!--
+//<![CDATA[
 
 <?php
 
@@ -152,7 +150,7 @@ function update_description() {
 	document.getElementById("pdesc").innerHTML = descs[index];
 }
 
-//-->
+//]]>
 </script>
 <?php
 	if ($input_errors)
@@ -160,7 +158,7 @@ function update_description() {
 	if ($savemsg)
 		print_info_box($savemsg);
 ?>
-<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="group manager add priveleges">
 	<tr>
 		<td>
 		<?php
@@ -177,13 +175,13 @@ function update_description() {
 		<td id="mainarea">
 			<div class="tabcont">
 				<form action="system_groupmanager_addprivs.php" method="post" name="iform" id="iform">
-					<table width="100%" border="0" cellpadding="6" cellspacing="0">
+					<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="main area">
 						<tr>
 							<td width="22%" valign="top" class="vncellreq"><?=gettext("System Privileges");?></td>
 							<td width="78%" class="vtable">
 								<table>
 									<tr><td>
-								<select name="sysprivs[]" id="sysprivs" class="formselect" onchange="update_description();" multiple>
+								<select name="sysprivs[]" id="sysprivs" class="formselect" onchange="update_description();" multiple="multiple" size="35">
 									<?php
 										foreach($priv_list as $pname => $pdata):
 											if (in_array($pname, $a_group['priv']))
@@ -197,14 +195,16 @@ function update_description() {
 								</td><td>
 								<a href='#'onClick="selectAll();">Select all</a>
 								<script type="text/javascript">
+								//<![CDATA[
 									function selectAll() {
-										var options = $$('select#sysprivs option');
+										var options = jQuery('select#sysprivs option');
 										var len = options.length;
 										for (var i = 0; i < len; i++) {
 										    options[i].selected = true;
 										}
 									}
 									selectAll();
+								//]]>									
 								</script>
 								<br/>
 								</td>

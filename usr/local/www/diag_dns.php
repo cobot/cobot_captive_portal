@@ -48,7 +48,7 @@ if($_GET['createalias'] == "true") {
 	if($resolved) {
 		$host = trim($_POST['host']);
 		$dig=`dig "$host" A | grep "$host" | grep -v ";" | awk '{ print $5 }'`;
-		$resolved = split("\n", $dig);
+		$resolved = explode("\n", $dig);
 		$isfirst = true;
 		foreach($resolved as $re) {
 			if($re <> "") {
@@ -93,14 +93,13 @@ if ($_POST) {
 	$reqdfieldsn = explode(",", "Host");
 
 	do_input_validation($_POST, $reqdfields, $reqdfieldsn, &$input_errors);
-	$host = trim($_POST['host']);
-	$host_esc = escapeshellarg(trim($_POST['host']));
+	$host = trim($_POST['host'], " \t\n\r\0\x0B[]");
+	$host_esc = escapeshellarg($host);
 	
-	if (!is_hostname($host) && !is_ipaddr($host)) 
+	if (!is_hostname($host) && !is_ipaddr($host)) {
 		$input_errors[] = gettext("Host must be a valid hostname or IP address.");
-
-	// Test resolution speed of each DNS server.
-	if ((is_hostname($host) || is_ipaddr($host))) {
+	} else {
+		// Test resolution speed of each DNS server.
 		$dns_speeds = array();
 		$resolvconf_servers = `grep nameserver /etc/resolv.conf | cut -f2 -d' '`;
 		$dns_servers = explode("\n", trim($resolvconf_servers));
@@ -132,7 +131,7 @@ if ($_POST) {
 			$resolved = gethostbyname($host);
 			if($resolved) {
 				$dig=`dig $host_esc A | grep $host_esc | grep -v ";" | awk '{ print $5 }'`;
-				$resolved = split("\n", $dig);
+				$resolved = explode("\n", $dig);
 			}
 			$hostname = $host;
 			if ($host != $resolved)
@@ -145,9 +144,26 @@ if ($_POST) {
 	}
 }
 
+if( ($_POST['host']) && ($_POST['dialog_output']) ) {
+	display_host_results ($host,$resolved,$dns_speeds);
+	exit;
+}
+
+function display_host_results ($address,$hostname,$dns_speeds) {
+	echo gettext("IP Address") . ": {$address} \n";
+	echo gettext("Host Name") . ": {$hostname} \n";
+	echo "\n";
+	echo gettext("Server") . "\t" . gettext("Query Time") . "\n";
+	if(is_array($dns_speeds)) 
+		foreach($dns_speeds as $qt){
+			echo trim($qt['dns_server']) . "\t" . trim($qt['query_time']);
+			echo "\n";
+		}
+}
+
 include("head.inc"); ?>
 <body link="#000000" vlink="#000000" alink="#000000">
-<? include("fbegin.inc"); ?>
+<?php include("fbegin.inc"); ?>
 <table width="100%" border="0" cellpadding="0" cellspacing="0">
         <tr>
                 <td>
@@ -166,7 +182,7 @@ include("head.inc"); ?>
 			<input name="host" type="text" class="formfld" id="host" size="20" value="<?=htmlspecialchars($host);?>">
 			</td>
 			<td>
-			<? if ($resolved && $type) { ?>
+			<?php if ($resolved && $type) { ?>
 			=  <font size="+1">
 <?php
 				$found = 0;
@@ -192,7 +208,7 @@ include("head.inc"); ?>
 					}
 				}
 ?>
-				<font size="-1>">
+				<font size="-1">
 
 			<?	} ?>
 			</td></tr></table>

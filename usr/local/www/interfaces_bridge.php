@@ -59,9 +59,15 @@ function bridge_inuse($num) {
 }
 
 if ($_GET['act'] == "del") {
+	if (!isset($_GET['id']))
+		$input_errors[] = getext("Wrong parameters supplied");
+	else if (empty($a_bridges[$_GET['id']]))
+		$input_errors[] = getext("Wrong index supplied");
 	/* check if still in use */
-	if (bridge_inuse($_GET['id'])) {
+	else if (bridge_inuse($_GET['id'])) {
 		$input_errors[] = gettext("This bridge cannot be deleted because it is assigned as an interface.");
+	} elseif (!does_interface_exist($a_bridges[$_GET['id']]['bridgeif'])) {
+		$input_errors[] = gettext("Invalid bridge interface.");
 	} else {
 		mwexec("/sbin/ifconfig " . $a_bridges[$_GET['id']]['bridgeif'] . " destroy");
 		unset($a_bridges[$_GET['id']]);
@@ -75,6 +81,7 @@ if ($_GET['act'] == "del") {
 
 
 $pgtitle = array(gettext("Interfaces"),gettext("Bridge"));
+$shortcut_section = "interfaces";
 include("head.inc");
 
 ?>
@@ -82,7 +89,7 @@ include("head.inc");
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
 <?php include("fbegin.inc"); ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
-<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="interfaces bridge">
   <tr><td>
 <?php
 	$tab_array = array();
@@ -102,7 +109,7 @@ include("head.inc");
   <tr>
     <td>
 	<div id="mainarea">
-	<table class="tabcont" width="100%" border="0" cellpadding="0" cellspacing="0">
+	<table class="tabcont" width="100%" border="0" cellpadding="0" cellspacing="0" summary="main area">
                 <tr>
                   <td width="20%" class="listhdrr"><?=gettext("Interface"); ?></td>
                   <td width="20%" class="listhdrr"><?=gettext("Members"); ?></td>
@@ -116,7 +123,7 @@ include("head.inc");
 					<?=htmlspecialchars(strtoupper($bridge['bridgeif']));?>
                   </td>
                   <td class="listr">
-					<? $members = explode(',', $bridge['members']);
+					<?php $members = explode(',', $bridge['members']);
 					$j = 0;
 					foreach ($members as $member) {
 						if (isset($ifdescrs[$member])) {
@@ -131,19 +138,19 @@ include("head.inc");
                   <td class="listbg">
                     <?=htmlspecialchars($bridge['descr']);?>&nbsp;
                   </td>
-                  <td valign="middle" nowrap class="list"> <a href="interfaces_bridge_edit.php?id=<?=$i;?>"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_e.gif" width="17" height="17" border="0"></a>
-                     &nbsp;<a href="interfaces_bridge.php?act=del&id=<?=$i;?>" onclick="return confirm('<?=gettext("Do you really want to delete this bridge?"); ?>')"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_x.gif" width="17" height="17" border="0"></a></td>
+                  <td valign="middle" class="list nowrap"> <a href="interfaces_bridge_edit.php?id=<?=$i;?>"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_e.gif" width="17" height="17" border="0" alt="edit" /></a>
+                     &nbsp;<a href="interfaces_bridge.php?act=del&amp;id=<?=$i;?>" onclick="return confirm('<?=gettext("Do you really want to delete this bridge?"); ?>')"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_x.gif" width="17" height="17" border="0" alt="delete" /></a></td>
 				</tr>
 			  <?php $i++; endforeach; ?>
                 <tr>
                   <td class="list" colspan="3">&nbsp;</td>
-                  <td class="list"> <a href="interfaces_bridge_edit.php"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_plus.gif" width="17" height="17" border="0"></a></td>
+                  <td class="list"> <a href="interfaces_bridge_edit.php"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_plus.gif" width="17" height="17" border="0" alt="add" /></a></td>
 				</tr>
 				<tr>
 				<td colspan="3" class="list"><p class="vexpl"><span class="red"><strong>
-				  <?=gettext("Note:"); ?><br>
+				  <?=gettext("Note:"); ?><br/>
 				  </strong></span>
-				  <?=gettext("Here you can configure bridging of interfaces."); ?>
+				  <?=gettext("Here you can configure bridging of interfaces."); ?></p>
 				  </td>
 				<td class="list">&nbsp;</td>
 				</tr>

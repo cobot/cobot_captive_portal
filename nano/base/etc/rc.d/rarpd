@@ -1,0 +1,20 @@
+#!/bin/sh
+#
+# $FreeBSD: src/etc/rc.d/rarpd,v 1.7.2.2.2.2 2012/11/17 08:24:38 svnexp Exp $
+#
+
+# PROVIDE: rarpd
+# REQUIRE: DAEMON cleanvar
+# BEFORE:  LOGIN
+# KEYWORD: nojail
+
+. /etc/rc.subr
+
+name="rarpd"
+rcvar="rarpd_enable"
+command="/usr/sbin/${name}"
+pidfile="/var/run/${name}.pid"
+required_files="/etc/ethers"
+
+load_rc_config $name
+run_rc_command "$1"

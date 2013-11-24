@@ -37,6 +37,7 @@
 ##|-PRIV
 
 $pgtitle = array(gettext("Interfaces"),gettext("QinQ"), gettext("Edit"));
+$shortcut_section = "interfaces";
 
 require("guiconfig.inc");
 
@@ -149,22 +150,25 @@ if ($_POST) {
 		if (isset($id) && $a_qinqs[$id]) {
 			$omembers = explode(" ", $a_qinqs[$id]['members']);
 			$delmembers = array_diff($omembers, $nmembers);
-			if (count($delmembers) > 0) {
-				foreach ($delmembers as $tag) {
-					mwexec("/usr/sbin/ngctl shutdown {$qinqentry['vlanif']}h{$tag}:");
-					mwexec("/usr/sbin/ngctl msg {$qinqentry['vlanif']}qinq: delfilter \\\"{$qinqentry['vlanif']}{$tag}\\\"");
-				}
-			}
 			$addmembers = array_diff($nmembers, $omembers);
-			if (count($addmembers) > 0) {
-				foreach ($addmembers as $member) {
-					$macaddr = get_interface_mac($qinqentry['vlanif']);
-					mwexec("/usr/sbin/ngctl mkpeer {$$qinqentry['vlanif']}qinq: eiface {$$qinqentry['vlanif']}{$member} ether");
-					mwexec("/usr/sbin/ngctl name {$qinqentry['vlanif']}qinq:{$qinqentry['vlanif']}{$tag} {$qinqentry['vlanif']}h{$member}");
-					mwexec("/usr/sbin/ngctl msg {$qinqentry['vlanif']}qinq: addfilter '{ vlan={$member} hook=\\\"{$qinqentry['vlanif']}{$member}\\\" }'");
-					mwexec("/usr/sbin/ngctl msg {$qinqentry['vlanif']}h{$tag}: setifname \\\"{$qinqentry['vlanif']}_{$member}\\\"");
-					mwexec("/usr/sbin/ngctl msg {$qinqentry['vlanif']}h{$member}: set {$macaddr}");
+
+			if ((count($delmembers) > 0) || (count($addmembers) > 0)) {
+				$fd = fopen("{$g['tmp_path']}/netgraphcmd", "w");
+				foreach ($delmembers as $tag) {
+					fwrite($fd, "shutdown {$qinqentry['vlanif']}h{$tag}:\n");
+					fwrite($fd, "msg {$qinqentry['vlanif']}qinq: delfilter \\\"{$qinqentry['vlanif']}{$tag}\\\"\n");
 				}
+
+				foreach ($addmembers as $member) {
+					$qinq = array();
+					$qinq['if'] = $qinqentry['vlanif'];
+					$qinq['tag'] = $member;
+					$macaddr = get_interface_mac($qinqentry['vlanif']);
+					interface_qinq2_configure($qinq, $fd, $macaddr);
+				}
+
+				fclose($fd);
+				mwexec("/usr/sbin/ngctl -f {$g['tmp_path']}/netgraphcmd");
 			}
 			$a_qinqs[$id] = $qinqentry;
 		} else {
@@ -211,11 +215,10 @@ include("head.inc");
 ?>
 
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC" onload="<?= $jsevents["body"]["onload"] ?>">
-<?php
-	include("fbegin.inc");
-?>
+<?php include("fbegin.inc"); ?>
 
 <script type="text/javascript">
+//<![CDATA[
 // Global Variables
 var rowname = new Array(9999);
 var rowtype = new Array(9999);
@@ -242,13 +245,13 @@ var addRowTo = (function() {
         tr = d.createElement("tr");
         for (i = 0; i < field_counter_js; i++) {
                 td = d.createElement("td");
-		td.innerHTML="<INPUT type='hidden' value='" + totalrows +"' name='" + rowname[i] + "_row-" + totalrows + "'></input><input size='" + rowsize[i] + "' class='formfld unknown' name='" + rowname[i] + totalrows + "'></input> ";
+		td.innerHTML="<input type='hidden' value='" + totalrows +"' name='" + rowname[i] + "_row-" + totalrows + "' /><input size='" + rowsize[i] + "' class='formfld unknown' name='" + rowname[i] + totalrows + "' /> ";
                 tr.appendChild(td);
         }
         td = d.createElement("td");
         td.rowSpan = "1";
 
-        td.innerHTML = '<a onclick="removeRow(this);return false;" href="#"><img border="0" src="/themes/' + theme + '/images/icons/icon_x.gif" /></a>';
+        td.innerHTML = '<a onclick="removeRow(this);return false;" href="#"><img border="0" src="/themes/' + theme + '/images/icons/icon_x.gif" alt="remove" /><\/a>';
         tr.appendChild(td);
         tbody.appendChild(tr);
         totalrows++;
@@ -273,6 +276,7 @@ function removeRow(el) {
 	rowname[2] = <?=gettext("detail");?>;
 	rowtype[2] = "textbox";
 	rowsize[2] = "50";
+//]]>
 </script>
 <input type='hidden' name='members_type' value='textbox' class="formfld unknown" />
 
@@ -280,7 +284,7 @@ function removeRow(el) {
 <div id="inputerrors"></div>
 
 <form action="interfaces_qinq_edit.php" method="post" name="iform" id="iform">
-<table width="100%" border="0" cellpadding="6" cellspacing="0">
+<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="interfaces qinq edit">
   <tr>
 	<td colspan="2" valign="top" class="listtopic"><?=gettext("Interface QinQ Edit");?></td>
   </tr>
@@ -293,7 +297,7 @@ function removeRow(el) {
 		if (is_jumbo_capable($ifn)) {
 			echo "<option value=\"{$ifn}\"";
                         if ($ifn == $pconfig['if'])
-				echo "selected";
+				echo " selected=\"selected\"";
                         echo ">";
                         echo htmlspecialchars($ifn . " (" . $ifinfo['mac'] . ")");
                         echo "</option>";
@@ -319,17 +323,17 @@ function removeRow(el) {
 	<td width="78%" class="vtable">
 <?php /* ?>
 		<br/>
-		<input type="checkbox" value="yes" name="autoassign" id="autoassign" <? if ($pconfig['autoassign']) echo checked;?>/>
+		<input type="checkbox" value="yes" name="autoassign" id="autoassign" <?php if ($pconfig['autoassign']) echo "checked=\"checked\""; ?> />
 		<span class="vexpl"> Auto assign interface so it can be configured with ip etc...</span>
 		<br/>
-		<input type="checkbox" value="yes" name="autoenable" id="autoenable" <? if ($pconfig['autoenable']) echo checked;?>/>
+		<input type="checkbox" value="yes" name="autoenable" id="autoenable" <?php if ($pconfig['autoenable']) echo "checked=\"checked\""; ?> />
 		<span class="vexpl"> Auto enable interface so it can be used on filter rules.</span>
 		<br/>
-		<input type="checkbox" value="yes" name="autoadjustmtu" id="autoadjustmtu" <? if ($pconfig['autoadjustmtu']) echo "checked";?>>
+		<input type="checkbox" value="yes" name="autoadjustmtu" id="autoadjustmtu" <?php if ($pconfig['autoadjustmtu']) echo "checked=\"checked\""; ?> />
 		<span class="vexpl"> Allows to keep clients mtu unchanged(1500). <br/>NOTE: if you are using jumbo frames this option is not needed and may produce incorrect results!</span>
 <?php */ ?>
 		<br/>
-		<input name="autogroup" type="checkbox" value="yes" id="autogroup" <? if ($pconfig['autogroup']) echo "checked";?>>
+		<input name="autogroup" type="checkbox" value="yes" id="autogroup" <?php if ($pconfig['autogroup']) echo "checked=\"checked\""; ?> />
 		<span class="vexpl"><?=gettext("Adds interface to QinQ interface groups so you can write filter rules easily.");?></span>
 	</td>
   </tr>
@@ -346,11 +350,11 @@ function removeRow(el) {
   <tr>
     <td width="22%" valign="top" class="vncellreq"><div id="membersnetworkport"><?=gettext("Member (s)");?></div></td>
     <td width="78%" class="vtable">
-	<span vlass="vexpl">
+	<span class="vexpl">
 		<?=gettext("You can specify ranges in the input below. The format is pretty simple i.e 9-100 or 10.20...");?>
 	</span>
 	<br/>
-      <table id="maintable">
+      <table id="maintable" summary="main table">
         <tbody>
           <tr>
             <td><div id="onecolumn"><?=gettext("Tag");?></div></td>
@@ -366,10 +370,10 @@ function removeRow(el) {
 	?>
         <tr>
 	<td class="vtable">
-	        <input name="members<?php echo $counter; ?>" class="formselect" id="members<?php echo $counter; ?>" value="<? echo $member;?>">
+	        <input name="members<?php echo $counter; ?>" class="formselect" id="members<?php echo $counter; ?>" value="<?php echo $member;?>" />
 	</td>
         <td>
-	<a onclick="removeRow(this); return false;" href="#"><img border="0" src="/themes/<?echo $g['theme'];?>/images/icons/icon_x.gif" /></a>
+	<a onclick="removeRow(this); return false;" href="#"><img border="0" src="/themes/<?echo $g['theme'];?>/images/icons/icon_x.gif" alt="remove" /></a>
 	      </td>
           </tr>
 <?php
@@ -379,9 +383,6 @@ function removeRow(el) {
 	} // end if
 ?>
         </tbody>
-        <tfoot>
-
-        </tfoot>
 		  </table>
 			<a onclick="javascript:addRowTo('maintable'); return false;" href="#">
         <img border="0" src="/themes/<?= $g['theme']; ?>/images/icons/icon_plus.gif" alt="" title="<?=gettext("add another entry");?>" />
@@ -402,10 +403,12 @@ function removeRow(el) {
 </form>
 
 <script type="text/javascript">
+//<![CDATA[
 	field_counter_js = 1;
 	rows = 1;
 	totalrows = <?php echo $counter; ?>;
 	loaded = <?php echo $counter; ?>;
+//]]>
 </script>
 
 <?php include("fend.inc"); ?>

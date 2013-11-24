@@ -1,0 +1,416 @@
+<?xml version="1.0"?>
+<pfsense>
+	<version>9.8</version>
+	<lastchange/>
+	<theme>pfsense_ng</theme>
+	<sysctl>
+		<item>
+			<descr><![CDATA[Enable mounting the FS read only with more checks.]]></descr>
+			<tunable>vfs.forcesync</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Disable the pf ftp proxy handler.]]></descr>
+			<tunable>debug.pfftpproxy</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Increase UFS read-ahead speeds to match current state of hard drives and NCQ. More information here: http://ivoras.sharanet.org/blog/tree/2010-11-19.ufs-read-ahead.html]]></descr>
+			<tunable>vfs.read_max</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Set the ephemeral port range to be lower.]]></descr>
+			<tunable>net.inet.ip.portrange.first</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Drop packets to closed TCP ports without returning a RST]]></descr>
+			<tunable>net.inet.tcp.blackhole</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Do not send ICMP port unreachable messages for closed UDP ports]]></descr>
+			<tunable>net.inet.udp.blackhole</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Randomize the ID field in IP packets (default is 0: sequential IP IDs)]]></descr>
+			<tunable>net.inet.ip.random_id</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Drop SYN-FIN packets (breaks RFC1379, but nobody uses it anyway)]]></descr>
+			<tunable>net.inet.tcp.drop_synfin</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Enable sending IPv4 redirects]]></descr>
+			<tunable>net.inet.ip.redirect</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Enable sending IPv6 redirects]]></descr>
+			<tunable>net.inet6.ip6.redirect</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Enable privacy settings for IPv6 (RFC 4941)]]></descr>
+			<tunable>net.inet6.ip6.use_tempaddr</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Prefer privacy addresses and use them over the normal addresses]]></descr>
+			<tunable>net.inet6.ip6.prefer_tempaddr</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Generate SYN cookies for outbound SYN-ACK packets]]></descr>
+			<tunable>net.inet.tcp.syncookies</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Maximum incoming/outgoing TCP datagram size (receive)]]></descr>
+			<tunable>net.inet.tcp.recvspace</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Maximum incoming/outgoing TCP datagram size (send)]]></descr>
+			<tunable>net.inet.tcp.sendspace</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[IP Fastforwarding]]></descr>
+			<tunable>net.inet.ip.fastforwarding</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Do not delay ACK to try and piggyback it onto a data packet]]></descr>
+			<tunable>net.inet.tcp.delayed_ack</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Maximum outgoing UDP datagram size]]></descr>
+			<tunable>net.inet.udp.maxdgram</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Handling of non-IP packets which are not passed to pfil (see if_bridge(4))]]></descr>
+			<tunable>net.link.bridge.pfil_onlyip</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Set to 0 to disable filtering on the incoming and outgoing member interfaces.]]></descr>
+			<tunable>net.link.bridge.pfil_member</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Set to 1 to enable filtering on the bridge interface]]></descr>
+			<tunable>net.link.bridge.pfil_bridge</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Allow unprivileged access to tap(4) device nodes]]></descr>
+			<tunable>net.link.tap.user_open</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Randomize PID's (see src/sys/kern/kern_fork.c: sysctl_kern_randompid())]]></descr>
+			<tunable>kern.randompid</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Maximum size of the IP input queue]]></descr>
+			<tunable>net.inet.ip.intr_queue_maxlen</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Disable CTRL+ALT+Delete reboot from keyboard.]]></descr>
+			<tunable>hw.syscons.kbd_reboot</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Enable TCP Inflight mode]]></descr>
+			<tunable>net.inet.tcp.inflight.enable</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Enable TCP extended debugging]]></descr>
+			<tunable>net.inet.tcp.log_debug</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Set ICMP Limits]]></descr>
+			<tunable>net.inet.icmp.icmplim</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[TCP Offload Engine]]></descr>
+			<tunable>net.inet.tcp.tso</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[UDP Checksums]]></descr>
+			<tunable>net.inet.udp.checksum</tunable>
+			<value>default</value>
+		</item>
+		<item>
+			<descr><![CDATA[Maximum socket buffer size]]></descr>
+			<tunable>kern.ipc.maxsockbuf</tunable>
+			<value>default</value>
+		</item>
+	</sysctl>
+	<system>
+		<optimization>normal</optimization>
+		<hostname>pfSense</hostname>
+		<domain>localdomain</domain>
+		<dnsserver/>
+		<dnsallowoverride/>
+		<group>
+			<name>all</name>
+			<description><![CDATA[All Users]]></description>
+			<scope>system</scope>
+			<gid>1998</gid>
+			<member>0</member>
+		</group>
+		<group>
+			<name>admins</name>
+			<description><![CDATA[System Administrators]]></description>
+			<scope>system</scope>
+			<gid>1999</gid>
+			<member>0</member>
+			<priv>page-all</priv>
+		</group>
+		<user>
+			<name>admin</name>
+			<descr><![CDATA[System Administrator]]></descr>
+			<scope>system</scope>
+			<groupname>admins</groupname>
+			<password>$1$dSJImFph$GvZ7.1UbuWu.Yb8etC0re.</password>
+			<uid>0</uid>
+			<priv>user-shell-access</priv>
+		</user>
+		<nextuid>2000</nextuid>
+		<nextgid>2000</nextgid>
+		<timezone>Etc/UTC</timezone>
+		<time-update-interval>300</time-update-interval>
+		<timeservers>0.pfsense.pool.ntp.org</timeservers>
+		<webgui>
+			<protocol>https</protocol>
+			<ssl-certref>52921395d5de3</ssl-certref>
+		</webgui>
+		<disablenatreflection>yes</disablenatreflection>
+		<disablesegmentationoffloading/>
+		<disablelargereceiveoffloading/>
+		<ipv6allow/>
+		<powerd_ac_mode>hadp</powerd_ac_mode>
+		<powerd_battery_mode>hadp</powerd_battery_mode>
+		<bogons>
+			<interval>monthly</interval>
+		</bogons>
+		<kill_states/>
+	</system>
+	<interfaces>
+		<wan>
+			<enable/>
+			<if>em0</if>
+			<mtu/>
+			<ipaddr>dhcp</ipaddr>
+			<ipaddrv6>dhcp6</ipaddrv6>
+			<subnet/>
+			<gateway/>
+			<blockbogons/>
+			<dhcphostname/>
+			<media/>
+			<mediaopt/>
+			<dhcp6-duid/>
+			<dhcp6-ia-pd-len>0</dhcp6-ia-pd-len>
+		</wan>
+	</interfaces>
+	<staticroutes/>
+	<dhcpd/>
+	<pptpd>
+		<mode/>
+		<redir/>
+		<localip/>
+		<remoteip/>
+	</pptpd>
+	<dnsmasq>
+		<enable/>
+	</dnsmasq>
+	<snmpd>
+		<syslocation/>
+		<syscontact/>
+		<rocommunity>public</rocommunity>
+	</snmpd>
+	<diag>
+		<ipv6nat>
+			<ipaddr/>
+		</ipv6nat>
+	</diag>
+	<bridge/>
+	<syslog/>
+	<filter>
+		<rule>
+			<type>pass</type>
+			<ipprotocol>inet</ipprotocol>
+			<descr><![CDATA[Default allow LAN to any rule]]></descr>
+			<interface>lan</interface>
+			<source>
+				<network>lan</network>
+			</source>
+			<destination>
+				<any/>
+			</destination>
+		</rule>
+		<rule>
+			<type>pass</type>
+			<ipprotocol>inet6</ipprotocol>
+			<descr><![CDATA[Default allow LAN IPv6 to any rule]]></descr>
+			<interface>lan</interface>
+			<source>
+				<network>lan</network>
+			</source>
+			<destination>
+				<any/>
+			</destination>
+		</rule>
+	</filter>
+	<ipsec/>
+	<aliases/>
+	<proxyarp/>
+	<cron>
+		<item>
+			<minute>0</minute>
+			<hour>*</hour>
+			<mday>*</mday>
+			<month>*</month>
+			<wday>*</wday>
+			<who>root</who>
+			<command>/usr/bin/nice -n20 newsyslog</command>
+		</item>
+		<item>
+			<minute>1,31</minute>
+			<hour>0-5</hour>
+			<mday>*</mday>
+			<month>*</month>
+			<wday>*</wday>
+			<who>root</who>
+			<command>/usr/bin/nice -n20 adjkerntz -a</command>
+		</item>
+		<item>
+			<minute>1</minute>
+			<hour>3</hour>
+			<mday>1</mday>
+			<month>*</month>
+			<wday>*</wday>
+			<who>root</who>
+			<command>/usr/bin/nice -n20 /etc/rc.update_bogons.sh</command>
+		</item>
+		<item>
+			<minute>*/60</minute>
+			<hour>*</hour>
+			<mday>*</mday>
+			<month>*</month>
+			<wday>*</wday>
+			<who>root</who>
+			<command>/usr/bin/nice -n20 /usr/local/sbin/expiretable -v -t 3600 sshlockout</command>
+		</item>
+		<item>
+			<minute>1</minute>
+			<hour>1</hour>
+			<mday>*</mday>
+			<month>*</month>
+			<wday>*</wday>
+			<who>root</who>
+			<command>/usr/bin/nice -n20 /etc/rc.dyndns.update</command>
+		</item>
+		<item>
+			<minute>*/60</minute>
+			<hour>*</hour>
+			<mday>*</mday>
+			<month>*</month>
+			<wday>*</wday>
+			<who>root</who>
+			<command>/usr/bin/nice -n20 /usr/local/sbin/expiretable -v -t 3600 virusprot</command>
+		</item>
+		<item>
+			<minute>30</minute>
+			<hour>12</hour>
+			<mday>*</mday>
+			<month>*</month>
+			<wday>*</wday>
+			<who>root</who>
+			<command>/usr/bin/nice -n20 /etc/rc.update_urltables</command>
+		</item>
+	</cron>
+	<wol/>
+	<rrd>
+		<enable/>
+	</rrd>
+	<load_balancer>
+		<monitor_type>
+			<name>ICMP</name>
+			<type>icmp</type>
+			<descr><![CDATA[ICMP]]></descr>
+			<options/>
+		</monitor_type>
+		<monitor_type>
+			<name>TCP</name>
+			<type>tcp</type>
+			<descr><![CDATA[Generic TCP]]></descr>
+			<options/>
+		</monitor_type>
+		<monitor_type>
+			<name>HTTP</name>
+			<type>http</type>
+			<descr><![CDATA[Generic HTTP]]></descr>
+			<options>
+				<path>/</path>
+				<host/>
+				<code>200</code>
+			</options>
+		</monitor_type>
+		<monitor_type>
+			<name>HTTPS</name>
+			<type>https</type>
+			<descr><![CDATA[Generic HTTPS]]></descr>
+			<options>
+				<path>/</path>
+				<host/>
+				<code>200</code>
+			</options>
+		</monitor_type>
+		<monitor_type>
+			<name>SMTP</name>
+			<type>send</type>
+			<descr><![CDATA[Generic SMTP]]></descr>
+			<options>
+				<send/>
+				<expect>220 *</expect>
+			</options>
+		</monitor_type>
+	</load_balancer>
+	<widgets>
+		<sequence>system_information-container:col1:show,captive_portal_status-container:col1:close,carp_status-container:col1:close,cpu_graphs-container:col1:close,gateways-container:col1:close,gmirror_status-container:col1:close,installed_packages-container:col1:close,interface_statistics-container:col1:close,interfaces-container:col2:show,ipsec-container:col2:close,load_balancer_status-container:col2:close,log-container:col2:close,picture-container:col2:close,rss-container:col2:close,services_status-container:col2:close,traffic_graphs-container:col2:close</sequence>
+	</widgets>
+	<revision>
+		<time>1385304981</time>
+		<description><![CDATA[(system): Importing HTTPS certificate]]></description>
+		<username>(system)</username>
+	</revision>
+	<openvpn/>
+	<l7shaper>
+		<container></container>
+	</l7shaper>
+	<dnshaper>
+	</dnshaper>
+	<shaper>
+	</shaper>
+	<cert>
+		<refid>52921395d5de3</refid>
+		<descr><![CDATA[webConfigurator default]]></descr>
+		<crt>LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVLRENDQTVHZ0F3SUJBZ0lKQUtFQUZJUktKNnh5TUEwR0NTcUdTSWIzRFFFQkN3VUFNSUcvTVFzd0NRWUQKVlFRR0V3SlZVekVTTUJBR0ExVUVDQk1KVTI5dFpYZG9aWEpsTVJFd0R3WURWUVFIRXdoVGIyMWxZMmwwZVRFVQpNQklHQTFVRUNoTUxRMjl0Y0dGdWVVNWhiV1V4THpBdEJnTlZCQXNUSms5eVoyRnVhWHBoZEdsdmJtRnNJRlZ1CmFYUWdUbUZ0WlNBb1pXY3NJSE5sWTNScGIyNHBNU1F3SWdZRFZRUURFeHREYjIxdGIyNGdUbUZ0WlNBb1pXY3MKSUZsUFZWSWdibUZ0WlNreEhEQWFCZ2txaGtpRzl3MEJDUUVXRFVWdFlXbHNJRUZrWkhKbGMzTXdIaGNOTVRNeApNVEkwTVRRMU5qSXhXaGNOTVRrd05URTNNVFExTmpJeFdqQ0J2ekVMTUFrR0ExVUVCaE1DVlZNeEVqQVFCZ05WCkJBZ1RDVk52YldWM2FHVnlaVEVSTUE4R0ExVUVCeE1JVTI5dFpXTnBkSGt4RkRBU0JnTlZCQW9UQzBOdmJYQmgKYm5sT1lXMWxNUzh3TFFZRFZRUUxFeVpQY21kaGJtbDZZWFJwYjI1aGJDQlZibWwwSUU1aGJXVWdLR1ZuTENCegpaV04wYVc5dUtURWtNQ0lHQTFVRUF4TWJRMjl0Ylc5dUlFNWhiV1VnS0dWbkxDQlpUMVZTSUc1aGJXVXBNUnd3CkdnWUpLb1pJaHZjTkFRa0JGZzFGYldGcGJDQkJaR1J5WlhOek1JR2ZNQTBHQ1NxR1NJYjNEUUVCQVFVQUE0R04KQURDQmlRS0JnUURRL0tyNXl3NEd0Yms0cWdmYVAvMkJVQjJHSjhiZXVBalBhcm5ueTkzQmx2RnNUQ3k4RElyTgpudE8zQk5mR0NNYXE1cWFvaElCVGI1b2h3bGpBWkIwbVVpVzdNdzlSTm5uQzBkRVAyUjQyUld1cUdlTjlaQk4rCjhBdUkycmNoM3hjQ2xPZm5mcGNRZ1V1V1Q3THlvVmlDaHpvYVVTQ2FzYStjeS9icXFiL2Rzd0lEQVFBQm80SUIKS0RDQ0FTUXdIUVlEVlIwT0JCWUVGRE9iR1lJY2ptTlFzL21ENjNBTnBENndXWFFtTUlIMEJnTlZIU01FZ2V3dwpnZW1BRkRPYkdZSWNqbU5Rcy9tRDYzQU5wRDZ3V1hRbW9ZSEZwSUhDTUlHL01Rc3dDUVlEVlFRR0V3SlZVekVTCk1CQUdBMVVFQ0JNSlUyOXRaWGRvWlhKbE1SRXdEd1lEVlFRSEV3aFRiMjFsWTJsMGVURVVNQklHQTFVRUNoTUwKUTI5dGNHRnVlVTVoYldVeEx6QXRCZ05WQkFzVEprOXlaMkZ1YVhwaGRHbHZibUZzSUZWdWFYUWdUbUZ0WlNBbwpaV2NzSUhObFkzUnBiMjRwTVNRd0lnWURWUVFERXh0RGIyMXRiMjRnVG1GdFpTQW9aV2NzSUZsUFZWSWdibUZ0ClpTa3hIREFhQmdrcWhraUc5dzBCQ1FFV0RVVnRZV2xzSUVGa1pISmxjM09DQ1FDaEFCU0VTaWVzY2pBTUJnTlYKSFJNRUJUQURBUUgvTUEwR0NTcUdTSWIzRFFFQkN3VUFBNEdCQUI3OHR5R2E3all3NDBNQ2F5b3R4cnFWS2pJWAp4NW4rWWpid2FIWWhsU2pYRDNJYndaeEhIME5hRHFqNHl3RGFJamo3bkpNZ0E0RXRWZ28rQi9LT1dMMkxTYW5uCmRtZHpvc1hSem1qR3Fpd2UvMFFVR3JhbGJ0aW91RGQ4UnR5NXN5ejE0RC9WVTdjVWJOYVI4czhwU1l6UG9ISUoKZ1NHVEFKdjBlalhHb2dnaQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==</crt>
+		<prv>R2VuZXJhdGluZyBSU0EgcHJpdmF0ZSBrZXksIDEwMjQgYml0IGxvbmcgbW9kdWx1cwouLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLisrKysrKwouLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLisrKysrKwplIGlzIDY1NTM3ICgweDEwMDAxKQotLS0tLUJFR0lOIFJTQSBQUklWQVRFIEtFWS0tLS0tCk1JSUNYUUlCQUFLQmdRRFEvS3I1eXc0R3RiazRxZ2ZhUC8yQlVCMkdKOGJldUFqUGFybm55OTNCbHZGc1RDeTgKRElyTm50TzNCTmZHQ01hcTVxYW9oSUJUYjVvaHdsakFaQjBtVWlXN013OVJObm5DMGRFUDJSNDJSV3VxR2VOOQpaQk4rOEF1STJyY2gzeGNDbE9mbmZwY1FnVXVXVDdMeW9WaUNoem9hVVNDYXNhK2N5L2JxcWIvZHN3SURBUUFCCkFvR0JBTERwRXZzOTd2T3pKY1pYK1NuQi9hRlg1b1pJYWNyajAyRnlJVW1kaEcxNmo0aHp1M0s4MDB0WTVqUUoKLzNaK3UxNjB2ZVB0dG92cTcza2dnZXpyVXRnMEV1VUQ5RFB2ZmNvaXk0cXRqVVFnRWY0S3hQYys3ek5HK09LcQpUTVQ0ck0ra2pBUWFOaEQyb0c3U3luNlY2MmxTS1dBNnc3MmZLVklaNlBDUWVYZFJBa0VBNmpIbGJYWmVsZW52CmJ4OXRZa3ppdENSNWV1Z1RNemtEYUQ3aW9hdmdXQjErVG4rcW83bmozS3VoNUZ0eVZhK3g5S041T2tETlA0eVkKeUJkZHpCNjM1d0pCQU9SeDd2alcvbnArY3crYmxIeU83UlYwSC9XWmlIKzdERWppcHhOZGM2YmhRd0NKY0xPbQpULzdua0cvcHlvTW5HTmlSVzVZQzcyS3hTRWFIVnFGYkFsVUNRUURQVzZ5RE5ocGJiRTAydThIVEZyWm53Qi9iCmhoNXg3Um9xTS92Z0g5bTh5eWhwZ3Jwb3l3K0k5R0tjV2FlclhLd1pLcUVNeGhHMUlkeW8xWitVT3VLakFrQisKSkZ0c2xHcllnTkpRSC95Uit1bjNHclE3RFpoTno1OHM3OXFKMnVSdGxaMUZ3cDYwMUhUL3NDWVZaZWNwSElHZgp0RVA2Ull5aDFucXVWelVDekJveEFrQTdILzFIa0Q2Q2dRTDdwY3o5Wld6UjlRTWY0WGtoWFlvSTJEdGRyMWJECktpKytWWVAvUTVGWUxDMXlvV2xBR0dieEg3RWxzZmRTZjR4MjJnNURadE94Ci0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg==</prv>
+	</cert>
+</pfsense>

@@ -46,35 +46,44 @@ function allowedipscmp($a, $b) {
 }
 
 function allowedips_sort() {
-	global $g, $config;
+	global $g, $config, $cpzone;
 
-	usort($config['captiveportal']['allowedip'],"allowedipscmp");
+	usort($config['captiveportal'][$cpzone]['allowedip'],"allowedipscmp");
 }
-
-$statusurl = "status_captiveportal.php";
-$logurl = "diag_logs_auth.php";
 
 require("guiconfig.inc");
 require("functions.inc");
-require("filter.inc");
+require_once("filter.inc");
 require("shaper.inc");
 require("captiveportal.inc");
 
 $pgtitle = array(gettext("Services"),gettext("Captive portal"),gettext("Edit allowed IP address"));
+$shortcut_section = "captiveportal";
 
-if (!is_array($config['captiveportal']['allowedip']))
-	$config['captiveportal']['allowedip'] = array();
+$cpzone = $_GET['zone'];
+if (isset($_POST['zone']))
+        $cpzone = $_POST['zone'];
+                        
+if (empty($cpzone) || empty($config['captiveportal'][$cpzone])) {
+        header("Location: services_captiveportal_zones.php");
+        exit;
+}
 
-$a_allowedips = &$config['captiveportal']['allowedip'];
+if (!is_array($config['captiveportal']))
+        $config['captiveportal'] = array();
+$a_cp =& $config['captiveportal'];
 
 $id = $_GET['id'];
 if (isset($_POST['id']))
 	$id = $_POST['id'];
 
+if (!is_array($config['captiveportal'][$cpzone]['allowedip']))
+	$config['captiveportal'][$cpzone]['allowedip'] = array();
+$a_allowedips =& $config['captiveportal'][$cpzone]['allowedip'];
+
 if (isset($id) && $a_allowedips[$id]) {
 	$pconfig['ip'] = $a_allowedips[$id]['ip'];
 	$pconfig['sn'] = $a_allowedips[$id]['sn'];
-	$pconfig['dir'] = $a_allowedips[$id]['dir'];
 	$pconfig['bw_up'] = $a_allowedips[$id]['bw_up'];
 	$pconfig['bw_down'] = $a_allowedips[$id]['bw_down'];
 	$pconfig['descr'] = $a_allowedips[$id]['descr'];
@@ -86,13 +95,16 @@ if ($_POST) {
 	$pconfig = $_POST;
 
 	/* input validation */
-	$reqdfields = explode(" ", "ip");
-	$reqdfieldsn = array(gettext("Allowed IP address"));
+	$reqdfields = explode(" ", "ip sn");
+	$reqdfieldsn = array(gettext("Allowed IP address"), gettext("Subnet mask"));
 	
 	do_input_validation($_POST, $reqdfields, $reqdfieldsn, &$input_errors);
 	
-	if (($_POST['ip'] && !is_ipaddr($_POST['ip']))) 
+	if ($_POST['ip'] && !is_ipaddr($_POST['ip']))
 		$input_errors[] = sprintf(gettext("A valid IP address must be specified. [%s]"), $_POST['ip']);
+	
+	if ($_POST['sn'] && (!is_numeric($_POST['sn']) || ($_POST['sn'] < 1) || ($_POST['sn'] > 32)))
+		$input_errors[] = gettext("A valid subnet mask must be specified");
 	
 	if ($_POST['bw_up'] && !is_numeric($_POST['bw_up']))
 		$input_errors[] = gettext("Upload speed needs to be an integer");
@@ -114,7 +126,6 @@ if ($_POST) {
 		$ip = array();
 		$ip['ip'] = $_POST['ip'];
 		$ip['sn'] = $_POST['sn'];
-		$ip['dir'] = $_POST['dir'];
 		$ip['descr'] = $_POST['descr'];
 		if ($_POST['bw_up'])
 			$ip['bw_up'] = $_POST['bw_up'];
@@ -123,29 +134,40 @@ if ($_POST) {
 		if (isset($id) && $a_allowedips[$id]) {
 			$oldip = $a_allowedips[$id]['ip'];
 			if (!empty($a_allowedips[$id]['sn']))
-				$oldip .= "/{$a_allowedips[$id]['sn']}";
+				$oldmask = $a_allowedips[$id]['sn'];
+			else
+				$oldmask = 32;
 			$a_allowedips[$id] = $ip;
 		} else {
-			$oldip = $ip['ip'];
-			if (!empty($ip['sn']))
-				$oldip .= "/{$ip['sn']}";
 			$a_allowedips[] = $ip;
 		}
 		allowedips_sort();
-		
+
 		write_config();
 
-		if (isset($config['captiveportal']['enable']) && is_module_loaded("ipfw.ko")) {
+		if (isset($a_cp[$cpzone]['enable']) && is_module_loaded("ipfw.ko")) {
 			$rules = "";
-			for ($i = 3; $i < 10; $i++)
-				$rules .= "table {$i} delete {$oldip}\n";
+			unset($ipfw);
+			if (isset($oldip) && isset($oldmask)) {
+				$ipfw = pfSense_ipfw_getTablestats($cpzone, 3, $oldip, $oldmask);
+				$rules .= "table 3 delete {$oldip}/{$oldmask}\n";
+				$rules .= "table 4 delete {$oldip}/{$oldmask}\n";
+				if (is_array($ipfw)) {
+					$rules .= "pipe delete {$ipfw['dnpipe']}\n";
+					$rules .= "pipe delete " . ($ipfw['dnpipe']+1 . "\n");
+				}
+			}
 			$rules .= captiveportal_allowedip_configure_entry($ip);
-			file_put_contents("{$g['tmp_path']}/allowedip_tmp{$id}", $rules);
-			mwexec("/sbin/ipfw -q {$g['tmp_path']}/allowedip_tmp{$id}");
-			@unlink("{$g['tmp_path']}/allowedip_tmp{$id}");
+			if (is_array($ipfw)) {
+				captiveportal_free_dn_ruleno($ipfw['dnpipe']);
+			}
+			$uniqid = uniqid("{$cpzone}_allowed");
+			@file_put_contents("{$g['tmp_path']}/{$uniqid}_tmp", $rules);
+			mwexec("/sbin/ipfw -x {$cpzone} -q {$g['tmp_path']}/{$uniqid}_tmp");
+			@unlink("{$g['tmp_path']}/{$uniqid}_tmp");
 		}
 		
-		header("Location: services_captiveportal_ip.php");
+		header("Location: services_captiveportal_ip.php?zone={$cpzone}");
 		exit;
 	}
 }
@@ -161,23 +183,6 @@ include("head.inc");
 		<tr>
                         <td colspan="2" valign="top" class="listtopic"><?=gettext("Edit allowed ip rule");?></td>
                 </tr>
-		<tr>
-			<td width="22%" valign="top" class="vncellreq"><?=gettext("Direction"); ?></td>
-			<td width="78%" class="vtable"> 
-			<select name="dir" class="formfld">
-		<?php 
-			$dirs = array(gettext("Both"),gettext("From"),gettext("To")) ;
-			foreach ($dirs as $dir): 
-		?>
-				<option value="<?=strtolower($dir);?>" <?php if (strtolower($dir) == strtolower($pconfig['dir'])) echo "selected";?> >
-				<?=htmlspecialchars($dir);?>
-				</option>
-		<?php endforeach; ?>
-			</select>
-			<br> 
-			<span class="vexpl"><?=gettext("Use"); ?> <em><?=gettext("From"); ?></em> <?=gettext("to always allow an IP address through the captive portal (without authentication)"); ?>. 
-			<?=gettext("Use"); ?> <em><?=gettext("To"); ?></em> <?=gettext("to allow access from all clients (even non-authenticated ones) behind the portal to this IP address"); ?>.</span></td>
-		</tr>
 		<tr>
 			<td width="22%" valign="top" class="vncellreq"><?=gettext("IP address"); ?></td>
 			<td width="78%" class="vtable"> 
@@ -216,6 +221,7 @@ include("head.inc");
 			<td width="22%" valign="top">&nbsp;</td>
 			<td width="78%"> 
 				<input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save"); ?>">
+				<input name="zone" type="hidden" value="<?=htmlspecialchars($cpzone);?>">
 				<?php if (isset($id) && $a_allowedips[$id]): ?>
 					<input name="id" type="hidden" value="<?=htmlspecialchars($id);?>">
 				<?php endif; ?>

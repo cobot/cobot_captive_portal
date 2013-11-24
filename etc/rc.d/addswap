@@ -1,0 +1,33 @@
+#!/bin/sh
+#
+# Add additional swap files
+#
+# $FreeBSD: src/etc/rc.d/addswap,v 1.7.10.3.2.2 2012/11/17 08:24:38 svnexp Exp $
+#
+
+# PROVIDE: addswap
+# REQUIRE: FILESYSTEMS kld
+# KEYWORD: nojail
+
+. /etc/rc.subr
+
+name="addswap"
+start_cmd="addswap_start"
+stop_cmd=":"
+
+addswap_start()
+{
+	case ${swapfile} in
+	[Nn][Oo] | '')
+		;;
+	*)
+		if [ -w "${swapfile}" ]; then
+			echo "Adding ${swapfile} as additional swap"
+			mdev=`mdconfig -a -t vnode -f ${swapfile}` && swapon /dev/${mdev}
+		fi
+		;;
+	esac
+}
+
+load_rc_config $name
+run_rc_command "$1"

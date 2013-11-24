@@ -42,6 +42,35 @@
 	pfSense_MODULE:	captiveportal
 */
 
+define('GIGAWORDS_RIGHT_OPERAND', '4294967296'); // 2^32
+
+/**
+ * Get the NAS-IP-Address based on the current wan address
+ *
+ * Use functions in interfaces.inc to find this out
+ *
+ */
+if (!function_exists('getNasIP')) {
+	function getNasIP()
+	{
+		global $config, $cpzone;
+
+		if (empty($config['captiveportal'][$cpzone]['radiussrcip_attribute'])) {
+				$nasIp = get_interface_ip();
+		} else {
+			if (is_ipaddr($config['captiveportal'][$cpzone]['radiussrcip_attribute']))
+				$nasIp = $config['captiveportal'][$cpzone]['radiussrcip_attribute'];
+			else
+				$nasIp = get_interface_ip($config['captiveportal'][$cpzone]['radiussrcip_attribute']);
+		}
+
+		if(!is_ipaddr($nasIp))
+			$nasIp = "0.0.0.0";
+
+		return $nasIp;
+	}
+}
+
 /*
 RADIUS ACCOUNTING START 
 -----------------------
@@ -51,13 +80,13 @@ PEAR::loadExtension('bcmath');
 
 function RADIUS_ACCOUNTING_START($ruleno, $username, $sessionid, $radiusservers, $clientip, $clientmac) {
 
-    global $config;
+    global $config, $cpzone;
 
     $retvalue = array();
     $nas_mac = mac_format(get_interface_mac("wan"));
     $clientmac = mac_format($clientmac);
     $nas_port = intval($ruleno);
-    $radiusvendor = $config['captiveportal']['radiusvendor'] ? $config['captiveportal']['radiusvendor'] : null;
+    $radiusvendor = $config['captiveportal'][$cpzone]['radiusvendor'] ? $config['captiveportal'][$cpzone]['radiusvendor'] : null;
 
     switch($radiusvendor) {
 
@@ -67,12 +96,9 @@ function RADIUS_ACCOUNTING_START($ruleno, $username, $sessionid, $radiusservers,
         break;
 
         default:
-	if (is_ipaddr($config['captiveportal']['radiussrcip_attribute']))
-            $calledstationid = $config['captiveportal']['radiussrcip_attribute'];
-        else
-                $calledstationid = get_interface_ip($config['captiveportal']['radiussrcip_attribute']);
-            $callingstationid = $clientmac;
+	$calledstationid = getNasIP();
         $callingstationid = $clientmac;
+	break;
     }
 
     // Create our instance
@@ -124,7 +150,6 @@ function RADIUS_ACCOUNTING_START($ruleno, $username, $sessionid, $radiusservers,
      */
 
     // Default attributes
-    $racct->putAttribute(RADIUS_SERVICE_TYPE, RADIUS_LOGIN);
     $racct->putAttribute(RADIUS_NAS_PORT_TYPE, RADIUS_ETHERNET);
     $racct->putAttribute(RADIUS_NAS_PORT, $nas_port, 'integer');
     $racct->putAttribute(RADIUS_ACCT_SESSION_ID, $sessionid);
@@ -154,6 +179,7 @@ function RADIUS_ACCOUNTING_START($ruleno, $username, $sessionid, $radiusservers,
 
     // close OO RADIUS_ACCOUNTING
     $racct->close();
+    unset($racct);
 
     return $retvalue ;
 
@@ -166,13 +192,13 @@ RADIUS ACCOUNTING STOP/UPDATE
 
 function RADIUS_ACCOUNTING_STOP($ruleno,$username,$sessionid,$start_time,$radiusservers,$clientip,$clientmac, $term_cause = 1, $interimupdate=false,$stop_time = null) {
 
-    global $config;
+    global $config, $cpzone;
 
     $retvalue = array();
     $nas_mac = mac_format(get_interface_mac("wan"));
     $clientmac = mac_format($clientmac);
     $nas_port = intval($ruleno);
-    $radiusvendor = $config['captiveportal']['radiusvendor'] ? $config['captiveportal']['radiusvendor'] : null;
+    $radiusvendor = $config['captiveportal'][$cpzone]['radiusvendor'] ? $config['captiveportal'][$cpzone]['radiusvendor'] : null;
     $stop_time = (empty($stop_time)) ? time() : $stop_time;
     $session_time = $stop_time - $start_time;
     $volume = getVolume($clientip);
@@ -189,8 +215,9 @@ function RADIUS_ACCOUNTING_STOP($ruleno,$username,$sessionid,$start_time,$radius
         break;
 
         default:
-        $calledstationid = get_interface_ip("wan");
+	$calledstationid = getNasIP();
         $callingstationid = $clientmac;
+	break;
     }
 
     // Create our instance, see if we should use Accounting Interim Updates or Accounting STOP messages
@@ -231,7 +258,6 @@ function RADIUS_ACCOUNTING_STOP($ruleno,$username,$sessionid,$start_time,$radius
     define("RADIUS_ACCT_OUTPUT_GIGAWORDS", "53");
 
     // Default attributes
-    $racct->putAttribute(RADIUS_SERVICE_TYPE, RADIUS_LOGIN);
     $racct->putAttribute(RADIUS_NAS_PORT_TYPE, RADIUS_ETHERNET);
     $racct->putAttribute(RADIUS_NAS_PORT, $nas_port, 'integer');
     $racct->putAttribute(RADIUS_ACCT_SESSION_ID, $sessionid);
@@ -294,7 +320,7 @@ function gigawords($bytes) {
      */
 
     // We use BCMath functions since normal integers don't work with so large numbers
-    $gigawords = bcdiv( bcsub( $bytes, remainder($bytes) ) , PHP_INT_MAX) ;
+    $gigawords = bcdiv( bcsub( $bytes, remainder($bytes) ) , GIGAWORDS_RIGHT_OPERAND) ;
 
     // We need to manually set this to a zero instead of NULL for put_int() safety
     if (is_null($gigawords)) {
@@ -308,7 +334,7 @@ function gigawords($bytes) {
 function remainder($bytes) {
 
     // Calculate the bytes we are going to send to the radius
-    $bytes = bcmod($bytes, PHP_INT_MAX);
+    $bytes = bcmod($bytes, GIGAWORDS_RIGHT_OPERAND);
 
     if (is_null($bytes)) {
         $bytes = 0;

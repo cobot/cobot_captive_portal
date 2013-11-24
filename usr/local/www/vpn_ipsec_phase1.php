@@ -80,6 +80,7 @@ if (isset($p1index) && $a_phase1[$p1index]) {
 		$pconfig['remotegw'] = $a_phase1[$p1index]['remote-gateway'];
 
 	$pconfig['mode'] = $a_phase1[$p1index]['mode'];
+	$pconfig['protocol'] = $a_phase1[$p1index]['protocol'];
 	$pconfig['myid_type'] = $a_phase1[$p1index]['myid_type'];
 	$pconfig['myid_data'] = $a_phase1[$p1index]['myid_data'];
 	$pconfig['peerid_type'] = $a_phase1[$p1index]['peerid_type'];
@@ -92,7 +93,7 @@ if (isset($p1index) && $a_phase1[$p1index]) {
 	$pconfig['generate_policy'] = $a_phase1[$p1index]['generate_policy'];
 	$pconfig['proposal_check'] = $a_phase1[$p1index]['proposal_check'];
 
-	if (($pconfig['authentication_method'] == "pre_shared_key") || 
+	if (($pconfig['authentication_method'] == "pre_shared_key") ||
 		($pconfig['authentication_method'] == "xauth_psk_server")) {
 		$pconfig['pskey'] = $a_phase1[$p1index]['pre-shared-key'];
 	} else {
@@ -111,9 +112,10 @@ if (isset($p1index) && $a_phase1[$p1index]) {
 } else {
 	/* defaults */
 	$pconfig['interface'] = "wan";
-	if($config['interfaces']['lan']) 
+	if($config['interfaces']['lan'])
 		$pconfig['localnet'] = "lan";
 	$pconfig['mode'] = "aggressive";
+	$pconfig['protocol'] = "inet";
 	$pconfig['myid_type'] = "myaddress";
 	$pconfig['peerid_type'] = "peeraddress";
 	$pconfig['authentication_method'] = "pre_shared_key";
@@ -140,16 +142,16 @@ if ($_POST) {
 
 	$method = $pconfig['authentication_method'];
 	// Unset ca and cert if not required to avaoid storing in config
-	if ($method == "pre_shared_key" || method == "xauth_psk_server"){
-		unset($pconfig['caref']);	
-		unset($pconfig['certref']);	
+	if ($method == "pre_shared_key" || $method == "xauth_psk_server"){
+		unset($pconfig['caref']);
+		unset($pconfig['certref']);
 	}
 
 	// Only require PSK here for normal PSK tunnels (not mobile) or xauth.
 	// For RSA methods, require the CA/Cert.
 	switch ($method) {
 		case "pre_shared_key":
-			// If this is a mobile PSK tunnel the user PSKs go on 
+			// If this is a mobile PSK tunnel the user PSKs go on
 			//    the PSK tab, not here, so skip the check.
 			if ($pconfig['mobile'])
 				break;
@@ -174,8 +176,14 @@ if ($_POST) {
 	if (($pconfig['lifetime'] && !is_numeric($pconfig['lifetime'])))
 		$input_errors[] = gettext("The P1 lifetime must be an integer.");
 
-	if (($pconfig['remotegw'] && !is_ipaddr($pconfig['remotegw']) && !is_domain($pconfig['remotegw']))) 
-		$input_errors[] = gettext("A valid remote gateway address or host name must be specified.");
+	if ($pconfig['remotegw']) {
+		if (!is_ipaddr($pconfig['remotegw']) && !is_domain($pconfig['remotegw']))
+			$input_errors[] = gettext("A valid remote gateway address or host name must be specified.");
+		elseif (is_ipaddrv4($pconfig['remotegw']) && ($pconfig['protocol'] != "inet"))
+			$input_errors[] = gettext("A valid remote gateway IPv4 address must be specified or you need to change protocol to IPv6");
+		elseif (is_ipaddrv6($pconfig['remotegw']) && ($pconfig['protocol'] != "inet6"))
+			$input_errors[] = gettext("A valid remote gateway IPv6 address must be specified or you need to change protocol to IPv4");
+	}
 
 	if (($pconfig['remotegw'] && is_ipaddr($pconfig['remotegw']) && !isset($pconfig['disabled']) )) {
 		$t = 0;
@@ -187,6 +195,21 @@ if ($_POST) {
 				}
 			}
 			$t++;
+		}
+	}
+
+	if (is_array($a_phase2) && (count($a_phase2))) {
+		foreach ($a_phase2 as $phase2) {
+			if($phase2['ikeid'] == $pconfig['ikeid']) {
+				if (($pconfig['protocol'] == "inet") && ($phase2['mode'] == "tunnel6")) {
+					$input_errors[] = gettext("There is a Phase 2 using IPv6, you cannot use IPv4.");
+					break;
+				}
+				if (($pconfig['protocol'] == "inet6") && ($phase2['mode'] == "tunnel")) {
+					$input_errors[] = gettext("There is a Phase 2 using IPv4, you cannot use IPv6.");
+					break;
+				}
+			}
 		}
 	}
 
@@ -298,6 +321,7 @@ if ($_POST) {
 			$ph1ent['remote-gateway'] = $pconfig['remotegw'];
 
 		$ph1ent['mode'] = $pconfig['mode'];
+		$ph1ent['protocol'] = $pconfig['protocol'];
 
 		$ph1ent['myid_type'] = $pconfig['myid_type'];
 		$ph1ent['myid_data'] = $pconfig['myid_data'];
@@ -355,8 +379,7 @@ if ($pconfig['mobile'])
 	$pgtitle = array(gettext("VPN"),gettext("IPsec"),gettext("Edit Phase 1"), gettext("Mobile Client"));
 else
 	$pgtitle = array(gettext("VPN"),gettext("IPsec"),gettext("Edit Phase 1"));
-$statusurl = "diag_ipsec.php";
-$logurl = "diag_logs_ipsec.php";
+$shortcut_section = "ipsec";
 
 
 include("head.inc");
@@ -433,29 +456,29 @@ function methodsel_change() {
 function ealgosel_change(bits) {
 	switch (document.iform.ealgo.selectedIndex) {
 <?php
-  $i = 0;
-  foreach ($p1_ealgos as $algo => $algodata) {
-    if (is_array($algodata['keysel'])) {
-      echo "		case {$i}:\n";
-      echo "			document.iform.ealgo_keylen.style.visibility = 'visible';\n";
-      echo "			document.iform.ealgo_keylen.options.length = 0;\n";
-//      echo "			document.iform.ealgo_keylen.options[document.iform.ealgo_keylen.options.length] = new Option( 'auto', 'auto' );\n";
+$i = 0;
+foreach ($p1_ealgos as $algo => $algodata) {
+	if (is_array($algodata['keysel'])) {
+		echo "		case {$i}:\n";
+		echo "			document.iform.ealgo_keylen.style.visibility = 'visible';\n";
+		echo "			document.iform.ealgo_keylen.options.length = 0;\n";
+	//      echo "			document.iform.ealgo_keylen.options[document.iform.ealgo_keylen.options.length] = new Option( 'auto', 'auto' );\n";
 
-      $key_hi = $algodata['keysel']['hi'];
-      $key_lo = $algodata['keysel']['lo'];
-      $key_step = $algodata['keysel']['step'];
+		$key_hi = $algodata['keysel']['hi'];
+		$key_lo = $algodata['keysel']['lo'];
+		$key_step = $algodata['keysel']['step'];
 
-      for ($keylen = $key_hi; $keylen >= $key_lo; $keylen -= $key_step)
-        echo "			document.iform.ealgo_keylen.options[document.iform.ealgo_keylen.options.length] = new Option( '{$keylen} bits', '{$keylen}' );\n";
-      echo "			break;\n";
-    } else {
-      echo "		case {$i}:\n";
-      echo "			document.iform.ealgo_keylen.style.visibility = 'hidden';\n";
-      echo "			document.iform.ealgo_keylen.options.length = 0;\n";
-      echo "			break;\n";
-    }
-    $i++;
-  }
+		for ($keylen = $key_hi; $keylen >= $key_lo; $keylen -= $key_step)
+			echo "			document.iform.ealgo_keylen.options[document.iform.ealgo_keylen.options.length] = new Option( '{$keylen} bits', '{$keylen}' );\n";
+		echo "			break;\n";
+	} else {
+		echo "		case {$i}:\n";
+		echo "			document.iform.ealgo_keylen.style.visibility = 'hidden';\n";
+		echo "			document.iform.ealgo_keylen.options.length = 0;\n";
+		echo "			break;\n";
+	}
+	$i++;
+}
 ?>
 	}
 
@@ -493,7 +516,7 @@ function dpdchkbox_change() {
 				$tab_array = array();
 				$tab_array[0] = array(gettext("Tunnels"), true, "vpn_ipsec.php");
 				$tab_array[1] = array(gettext("Mobile clients"), false, "vpn_ipsec_mobile.php");
-				$tab_array[2] = array(gettext("Pre-shared keys"), false, "vpn_ipsec_keys.php");
+				$tab_array[2] = array(gettext("Pre-Shared Keys"), false, "vpn_ipsec_keys.php");
 				display_top_tabs($tab_array);
 			?>
 		</td>
@@ -517,17 +540,45 @@ function dpdchkbox_change() {
 						</td>
 					</tr>
 					<tr>
+						<td width="22%" valign="top" class="vncellreq"><?=gettext("Internet Protocol"); ?></td>
+						<td width="78%" class="vtable">
+							<select name="protocol" class="formselect">
+							<?php
+								$protocols = array("inet" => "IPv4", "inet6" => "IPv6");
+								foreach ($protocols as $protocol => $name):
+							?>
+								<option value="<?=$protocol;?>" <?php if ($protocol == $pconfig['protocol']) echo "selected"; ?>>
+									<?=htmlspecialchars($name);?>
+								</option>
+							<?php endforeach; ?>
+							</select> <br> <span class="vexpl"><?=gettext("Select the Internet Protocol family from this dropdown"); ?>.</span>
+						</td>
+					</tr>
+					<tr>
 						<td width="22%" valign="top" class="vncellreq"><?=gettext("Interface"); ?></td>
 						<td width="78%" class="vtable">
 							<select name="interface" class="formselect">
-							<?php 
+							<?php
 								$interfaces = get_configured_interface_with_descr();
+
 								$carplist = get_configured_carp_interface_list();
 								foreach ($carplist as $cif => $carpip)
 									$interfaces[$cif] = $carpip." (".get_vip_descr($carpip).")";
+
 								$aliaslist = get_configured_ip_aliases_list();
 								foreach ($aliaslist as $aliasip => $aliasif)
 									$interfaces[$aliasip] = $aliasip." (".get_vip_descr($aliasip).")";
+
+								$grouplist = return_gateway_groups_array();
+								foreach ($grouplist as $name => $group) {
+									if($group[0]['vip'] <> "")
+										$vipif = $group[0]['vip'];
+									else
+										$vipif = $group[0]['int'];
+									$interfaces[$name] = "GW Group {$name}";
+								}
+
+
 								foreach ($interfaces as $iface => $ifacename):
 							?>
 								<option value="<?=$iface;?>" <?php if ($iface == $pconfig['interface']) echo "selected"; ?>>
@@ -545,7 +596,7 @@ function dpdchkbox_change() {
 					<tr>
 						<td width="22%" valign="top" class="vncellreq"><?=gettext("Remote gateway"); ?></td>
 						<td width="78%" class="vtable">
-							<?=$mandfldhtml;?><input name="remotegw" type="text" class="formfld unknown" id="remotegw" size="20" value="<?=htmlspecialchars($pconfig['remotegw']);?>">
+							<?=$mandfldhtml;?><input name="remotegw" type="text" class="formfld unknown" id="remotegw" size="28" value="<?=htmlspecialchars($pconfig['remotegw']);?>">
 							<br>
 							<?=gettext("Enter the public IP address or host name of the remote gateway"); ?>
 						</td>
@@ -597,7 +648,7 @@ function dpdchkbox_change() {
 						<td width="78%" class="vtable">
 							<select name="mode" class="formselect">
 							<?php
-								$modes = array(gettext("main"),gettext("aggressive"));
+								$modes = array("main","aggressive","base");
 								foreach ($modes as $mode):
 							?>
 								<option value="<?=$mode;?>" <?php if ($mode == $pconfig['mode']) echo "selected"; ?>>
@@ -647,7 +698,7 @@ function dpdchkbox_change() {
 							<input name="pskey" type="text" class="formfld unknown" id="pskey" size="40" value="<?=htmlspecialchars($pconfig['pskey']);?>">
 							<span class="vexpl">
 							<br>
-								<?=gettext("Input your pre-shared key string"); ?>.
+								<?=gettext("Input your Pre-Shared Key string"); ?>.
 							</span>
 						</td>
 					</tr>
@@ -722,16 +773,14 @@ function dpdchkbox_change() {
 						<td width="22%" valign="top" class="vncellreq"><?=gettext("DH key group"); ?></td>
 						<td width="78%" class="vtable">
 							<select name="dhgroup" class="formselect">
-							<?php $keygroups = explode(" ", "1 2 5"); foreach ($keygroups as $keygroup): ?>
+							<?php foreach ($p1_dhgroups as $keygroup => $keygroupname): ?>
 								<option value="<?=$keygroup;?>" <?php if ($keygroup == $pconfig['dhgroup']) echo "selected"; ?>>
-									<?=htmlspecialchars($keygroup);?>
+									<?=htmlspecialchars($keygroupname);?>
 								</option>
 							<?php endforeach; ?>
 							</select>
 							<br>
 							<span class="vexpl">
-								<em><?=gettext("1 = 768 bit, 2 = 1024 bit, 5 = 1536 bit"); ?></em>
-								<br>
 								<?=gettext("Must match the setting chosen on the remote side"); ?>.
 							</span>
 						</td>

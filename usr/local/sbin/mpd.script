@@ -83,8 +83,6 @@ DialPeer1:
 DialPeer2:
 	log "Detected $ModemDescription."
 	call $ModemSetupFunc
-	if $SimPin != "" call DialPeerSetPin
-	if $APN != "" call DialPeerSetAPN
 	log "Dialing server at $Telephone..."
 	call ModemDial
 	if $dialResult == "OK" goto DialPeerOK
@@ -101,19 +99,21 @@ DialPeer3:
 	success
 
 DialPeerSetPin:
-	set $modemCmd "+CPIN=?"
+	set $modemCmd "+CPIN?"
 	log $modemCmd
 	call ModemQuery
 	log $modemQuery
-	if $modemQuery match ".*READY.*" PinReady
+	if $modemQuery match ".*READY.*" goto DialPinReady
 	set $modemCmd "+CPIN=\"$SimPin\""
 	call ModemCmd2
 	wait $PinWait
-PinReady:
+
+DialPinReady:
 	return
 
 DialPeerSetAPN:
 	set $modemCmd "+CGDCONT=$APNum,\"IP\",\"$APN\""
+	log $modemCmd
 	call ModemCmd2
 	return
 	
@@ -144,6 +144,7 @@ ModemDial:
 	set $ConnectionSpeed ""
 	if $ConnectTimeout == "" set $ConnectTimeout 45
 	print "AT${DialPrefix}${ModTelephone}\r\n"
+	log "AT${DialPrefix}${ModTelephone}"
 	match "NO CARRIER" DialAbortNoCar
 	match "NO DIAL" DialAbortNoDial
 	match "BUSY" DialAbortBusy
@@ -395,6 +396,8 @@ ModemIdent:
 
 ModemIdentGeneric:
 	set $ModemDescription "Hayes compatible modem"
+	if $SimPin != "" call DialPeerSetPin
+	if $APN != "" call DialPeerSetAPN
 	set $ModemSetupFunc GenericSetup
 	return
 

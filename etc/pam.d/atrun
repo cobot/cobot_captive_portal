@@ -1,0 +1,10 @@
+#
+# $FreeBSD: src/etc/pam.d/atrun,v 1.1.10.1.8.2 2012/11/17 08:24:38 svnexp Exp $
+#
+# PAM configuration for the "atrun" service
+#
+
+# Note well: enabling pam_nologin for atrun will currently result
+# in jobs discarded, not just delayed, during a no-login period.
+#account	required	pam_nologin.so
+account		required	pam_unix.so

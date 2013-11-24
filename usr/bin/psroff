@@ -1,0 +1,5 @@
+#! /bin/sh -
+#
+# $FreeBSD: src/gnu/usr.bin/groff/src/roff/psroff/psroff.sh,v 1.2.36.1.8.2 2012/11/17 08:24:40 svnexp Exp $
+
+exec groff -Tps -l -C ${1+"$@"}

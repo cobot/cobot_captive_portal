@@ -49,6 +49,7 @@ $now = time();
 $year = date("Y");
 
 $pgtitle = array(gettext("Status"),gettext("Gateways"));
+$shortcut_section = "gateways";
 include("head.inc");
 
 ?>
@@ -72,10 +73,10 @@ include("head.inc");
                   <td width="10%" class="listhdrr"><?=gettext("Name"); ?></td>
                   <td width="10%" class="listhdrr"><?=gettext("Gateway"); ?></td>
                   <td width="10%" class="listhdrr"><?=gettext("Monitor"); ?></td>
-                  <td width="10%" class="listhdrr"><?=gettext("RTT"); ?></td>
-                  <td width="10%" class="listhdrr"><?=gettext("Loss"); ?></td>
-                  <td width="20%" class="listhdrr"><?=gettext("Status"); ?></td>
-                  <td width="30%" class="listhdr"><?=gettext("Description"); ?></td>
+                  <td width="8%" class="listhdrr"><?=gettext("RTT"); ?></td>
+                  <td width="7%" class="listhdrr"><?=gettext("Loss"); ?></td>
+                  <td width="35%" class="listhdrr"><?=gettext("Status"); ?></td>
+                  <td width="20%" class="listhdr"><?=gettext("Description"); ?></td>
 		</tr>
 		  <?php foreach ($a_gateways as $gname => $gateway) {
 			?>
@@ -97,7 +98,7 @@ include("head.inc");
 		<?php	if ($gateways_status[$gname])
 				echo $gateways_status[$gname]['delay'];
 			else
-				echo gettext("Gathering data");
+				echo gettext("Pending");
 		?>
 				<?php $counter++; ?>
 		</td>
@@ -105,7 +106,7 @@ include("head.inc");
 		<?php	if ($gateways_status[$gname])
 				echo $gateways_status[$gname]['loss'];
 			else
-				echo gettext("Gathering data");
+				echo gettext("Pending");
 		?>
 				<?php $counter++; ?>
 		</td>
@@ -116,34 +117,30 @@ include("head.inc");
 					$status = $gateways_status[$gname];
 					if (stristr($status['status'], "down")) {
 						$online = gettext("Offline");
-						$bgcolor = "lightcoral";
+						$bgcolor = "#F08080";  // lightcoral
 					} elseif (stristr($status['status'], "loss")) {
-						$online = gettext("Warning, Packetloss");
-						$bgcolor = "khaki";
+						$online = gettext("Warning, Packetloss").': '.$status['loss'];
+						$bgcolor = "#F0E68C";  // khaki
 					} elseif (stristr($status['status'], "delay")) {
-						$online = gettext("Warning, Latency");
-						$bgcolor = "khaki";
+						$online = gettext("Warning, Latency").': '.$status['delay'];
+						$bgcolor = "#F0E68C";  // khaki
 					} elseif ($status['status'] == "none") {
 						$online = gettext("Online");
-						$bgcolor = "lightgreen";
+						$bgcolor = "#90EE90";  // lightgreen
 					}
 				} else if (isset($gateway['monitor_disable'])) {
 						$online = gettext("Online");
-						$bgcolor = "lightgreen";
+						$bgcolor = "#90EE90";  // lightgreen
 				} else {
-					$online = gettext("Gathering data");
-					$bgcolor = "lightgray";
+					$online = gettext("Pending");
+					$bgcolor = "#D3D3D3";  // lightgray
 				}
-				echo "<tr><td bgcolor=\"$bgcolor\" > $online </td><td>";
-				$lastchange = $gateway['lastcheck'];
+				echo "<tr><td><table width='100%'><tr><td bgcolor=\"$bgcolor\">&nbsp;$online&nbsp;</td></tr><tr><td>";
+				$lastchange = $gateways_status[$gname]['lastcheck'];
 				if(!empty($lastchange)) {
-					$lastchange = explode(" ", $lastchange);
-					array_shift($lastchange);
-					array_shift($lastchange);
-					$lastchange = implode(" ", $lastchange);
-					printf(gettext("Last check %s"), $lastchange);
+					echo gettext("Last check:") . '<br/>' . $lastchange;
 				}
-				echo "</td></tr>";
+				echo "</td></tr></table></td></tr>";
                         ?>
 			</table>
                   </td>
