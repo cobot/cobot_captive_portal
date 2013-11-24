@@ -50,100 +50,194 @@ require_once("radius.inc");
 require_once("voucher.inc");
 
 function get_default_captive_portal_html() {
-	global $config, $g, $cpzone;
-
-	$htmltext = <<<EOD
-<html> 
-<body> 
-<form method="post" action="\$PORTAL_ACTION\$"> 
-	<input name="redirurl" type="hidden" value="\$PORTAL_REDIRURL\$">
-	<input name="zone" type="hidden" value="\$PORTAL_ZONE\$">
-	<center>
-	<table cellpadding="6" cellspacing="0" width="550" height="380" style="border:1px solid #000000">
-	<tr height="10" bgcolor="#990000">
-		<td style="border-bottom:1px solid #000000">
-			<font color='white'>
-			<b>
-				{$g['product_name']} captive portal
-			</b>
-			</font>
-		</td>
-	</tr>
-	<tr>
-		<td>
-			<div id="mainlevel">
-			<center>
-			<table width="100%" border="0" cellpadding="5" cellspacing="0">
-			<tr>
-				<td>
-					<center>
-					<div id="mainarea">
-					<center>
-					<table width="100%" border="0" cellpadding="5" cellspacing="5">
-					<tr>
-						<td>
-							<div id="maindivarea">
-							<center>
-								<div id='statusbox'>
-									<font color='red' face='arial' size='+1'>
-									<b>
-										\$PORTAL_MESSAGE\$
-									</b>
-									</font>
-								</div>
-								<br/>
-								<div id='loginbox'>
-								<table>
-									<tr><td colspan="2"><center>Welcome to the {$g['product_name']} Captive Portal!</td></tr>
-									<tr><td>&nbsp;</td></tr>
-									<tr><td align="right">Username:</td><td><input name="auth_user" type="text" style="border: 1px dashed;"></td></tr>
-									<tr><td align="right">Password:</td><td><input name="auth_pass" type="password" style="border: 1px dashed;"></td></tr>
-									<tr><td>&nbsp;</td></tr>
-
+  return <<<EOD
+    <!DOCTYPE HTML>
+    <html>
+    <head>
+      <title>coworking login</title>
+      <style>
+        html,body,div,span,object,iframe,
+        h1,h2,h3,h4,h5,h6,p,blockquote,pre,
+        a,abbr,acronym,address,code,
+        del,dfn,em,img,q,dl,dt,dd,ol,ul,li,
+        fieldset,form,label,legend,
+        table,caption,tbody,tfoot,thead,tr,th,td,
+        article,aside,dialog,figure,footer,header, hgroup,nav,section{margin:0;padding:0;border:0;font-weight:inherit;font-style:inherit;font-size:100%;font-family:inherit;vertical-align:baseline;}
+        article,aside,dialog,figure,footer,header,
+        hgroup,nav,section{display:block;}
+        body{line-height:1.5;}
+        a img{border:none;}
+        /* --------------------------------------*/
+        body{font-family:"Lucida Grande","Lucida Sans Unicode","Lucida Sans",Verdana,Tahoma,sans-serif;background:#E3E2DD}
+        h1{margin:.25em 0 0 0;float:left;font-family:"Museo","Lucida Grande","Lucida Sans Unicode","Lucida Sans",Verdana,Tahoma,sans-serif;font-size:2.4em;border-bottom:1px dotted #B9B997;}
+        .desc{float:left;margin-bottom: 1em;}
+        .wrapper{margin:5px auto 2em auto;width:100%;max-width:525px;}
+        .login{-moz-border-radius:6px 6px 6px 6px;-moz-box-shadow:0 0 2px #999999;-webkit-border-radius:6px 6px 6px 6px;-webkit-box-shadow:0 0 2px #999999;background:none repeat scroll 0 0 rgba(237,237,232,0.8);margin:0 3px;padding:1em 2em 2em;clear:both;}
+        h2 {font-size: 1.5em;}
+        p{font-size:0.9m;margin-bottom: 0.5em;}
+        .info{font-size:0.875em;margin-top:2em;}
+        a:link,a:active,a:visited{color:#295177;}
+        a:focus,a:hover{color:#000000;}
+        label{color:#04080E;font-weight:normal;display:block;margin:15 0 7px 0;}
+        .hint{color:#666666;font-size:0.79em;display:block;margin:7px 0 0 0;}
+        .error{color:#C50C40;}
+        form ul{list-style:none;padding:none;}
+        form li{margin-bottom:1em;}
+        form{display:block;margin-top:2em;}
+        input[type="email"],input[type="text"],input[type="password"],select{-moz-border-radius:5px 5px 5px 5px;-webkit-border-radius:5px 5px 5px 5px;background:#E3E2DD;border:1px solid #999;color:#666;font-family:"Lucida Grande","Lucida Sans Unicode","Lucida Sans",Verdana,Tahoma,sans-serif;padding:6px;width:100%;}
+        input[type="email"]:hover,
+        input[type="text"]:hover,
+        input[type="password"]:hover,
+        select:hover,
+        input[type="email"]:focus,
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        select:focus,
+        input[type="email"]:active,
+        input[type="text"]:active,
+        input[type="password"]:active,
+        select:active{color:#000;background:#FFF;-moz-box-shadow:inset 0px 2px 6px #D6D4C8;-webkit-box-shadow:inset 0px 2px 6px #D6D4C8;box-shadow:inset 0px 2px 6px #D6D4C8;}
+        img.stage{float:right;height:7em;display:block;margin:0 auto .5em;}
+        input[type="submit"]{background:#295177;border:none;color:#F6F6F4;font-size:1.2em;cursor:pointer;-moz-border-radius:5px;-webkit-border-radius:5px;border-radius:5px;text-shadow:1px 1px 1px #000;}
+        input[type="submit"]:hover{background:#27333F;}
+      </style>
+    </head>
+    <body>
+      <div class="wrapper">
+        <h1>coworking login</h1>
+        <p class="desc">Please log in with your Cobot account.</p>
+        <div class="login">
+          <form method="post" action="\$PORTAL_ACTION\$" id="auth_form" novalidate>
+            <ul>
+              <li>
+                <p>
+                   <label for="auth_user">Email address or guest login</label>
+                   <input name="auth_user" id="auth_user" type="email" />
+                   <span class="hint" id="email_hint">The same you use to log in on Cobot</span>
+                </p>
+              </li>
+    
+              <li>
+                <p>
+                   <label for="auth_pass">Password</label>
+                   <input id="auth_pass" name="auth_pass" type="password" />
+                </p>
+              </li>
+    
+              <li>
+                <p>
+                   <input name="redirurl" type="hidden" value="\$PORTAL_REDIRURL\$" />
+                   <label></label>
+                   <input name="accept" type="submit" value="Log In" /><br />
+                   No account yet? <a href="http://\$SPACE_SUBDOMAIN\$.cobot.me">Sign up</a>.<br />
+                   <a href="https://www.cobot.me/password/new">Forgot password?</a>
+                </p>
+              </li>
+            </ul>
+          </form>
+        </div>
+      </div>
+    </body>
+  </html>
 EOD;
-
-	if(isset($config['voucher'][$cpzone]['enable'])) {
-	$htmltext .= <<<EOD
-									<tr>
-										<td align="right">Enter Voucher Code: </td>
-										<td><input name="auth_voucher" type="text" style="border:1px dashed;" size="22"></td>
-									</tr>
-
-EOD;
-	}
-
-	$htmltext .= <<<EOD
-									<tr>
-										<td colspan="2"><center><input name="accept" type="submit" value="Continue"></center></td>
-									</tr>
-								</table>
-								</div>
-							</center>
-							</div>
-						</td>
-					</tr>
-					</table>
-					</center>
-					</div>
-					</center>
-				</td>
-			</tr>
-			</table>
-			</center>
-			</div>
-		</td>
-	</tr>
-	</table>
-	</center>
-</form>
-</body> 
-</html>
-
-EOD;
-
-	return $htmltext;
 }
 
+function get_default_captive_portal_error_html() {
+  return <<<EOD
+    <!DOCTYPE HTML>
+    <html>
+    <head>
+      <title>coworking login</title>
+      <style>
+        html,body,div,span,object,iframe,
+        h1,h2,h3,h4,h5,h6,p,blockquote,pre,
+        a,abbr,acronym,address,code,
+        del,dfn,em,img,q,dl,dt,dd,ol,ul,li,
+        fieldset,form,label,legend,
+        table,caption,tbody,tfoot,thead,tr,th,td,
+        article,aside,dialog,figure,footer,header, hgroup,nav,section{margin:0;padding:0;border:0;font-weight:inherit;font-style:inherit;font-size:100%;font-family:inherit;vertical-align:baseline;}
+        article,aside,dialog,figure,footer,header,
+        hgroup,nav,section{display:block;}
+        body{line-height:1.5;}
+        a img{border:none;}
+        /* --------------------------------------*/
+        body{font-family:"Lucida Grande","Lucida Sans Unicode","Lucida Sans",Verdana,Tahoma,sans-serif;background:#E3E2DD}
+        h1{margin:.25em 0 0 0;float:left;font-family:"Museo","Lucida Grande","Lucida Sans Unicode","Lucida Sans",Verdana,Tahoma,sans-serif;font-size:2.4em;border-bottom:1px dotted #B9B997;}
+        .desc{float:left;margin-bottom: 1em;}
+        .wrapper{margin:5px auto 2em auto;width:100%;max-width:525px;}
+        .login{-moz-border-radius:6px 6px 6px 6px;-moz-box-shadow:0 0 2px #999999;-webkit-border-radius:6px 6px 6px 6px;-webkit-box-shadow:0 0 2px #999999;background:none repeat scroll 0 0 rgba(237,237,232,0.8);margin:0 3px;padding:1em 2em 2em;clear:both;}
+        h2 {font-size: 1.5em;}
+        p{font-size:0.9m;margin-bottom: 0.5em;}
+        .info{font-size:0.875em;margin-top:2em;}
+        a:link,a:active,a:visited{color:#295177;}
+        a:focus,a:hover{color:#000000;}
+        label{color:#04080E;font-weight:normal;display:block;margin:15 0 7px 0;}
+        .hint{color:#666666;font-size:0.79em;display:block;margin:7px 0 0 0;}
+        .error{color:#C50C40;}
+        form ul{list-style:none;padding:none;}
+        form li{margin-bottom:1em;}
+        form{display:block;margin-top:2em;}
+        input[type="email"],input[type="text"],input[type="password"],select{-moz-border-radius:5px 5px 5px 5px;-webkit-border-radius:5px 5px 5px 5px;background:#E3E2DD;border:1px solid #999;color:#666;font-family:"Lucida Grande","Lucida Sans Unicode","Lucida Sans",Verdana,Tahoma,sans-serif;padding:6px;width:100%;}
+        input[type="email"]:hover,
+        input[type="text"]:hover,
+        input[type="password"]:hover,
+        select:hover,
+        input[type="email"]:focus,
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        select:focus,
+        input[type="email"]:active,
+        input[type="text"]:active,
+        input[type="password"]:active,
+        select:active{color:#000;background:#FFF;-moz-box-shadow:inset 0px 2px 6px #D6D4C8;-webkit-box-shadow:inset 0px 2px 6px #D6D4C8;box-shadow:inset 0px 2px 6px #D6D4C8;}
+        img.stage{float:right;height:7em;display:block;margin:0 auto .5em;}
+        input[type="submit"]{background:#295177;border:none;color:#F6F6F4;font-size:1.2em;cursor:pointer;-moz-border-radius:5px;-webkit-border-radius:5px;border-radius:5px;text-shadow:1px 1px 1px #000;}
+        input[type="submit"]:hover{background:#27333F;}
+      </style>
+    </head>
+    <body>
+      <div class="wrapper">
+        <h1>coworking login</h1>
+        <p class="desc">Please log in with your Cobot account.</p>
+        <div class="login">
+          <h2 class="error">Sorry, we could not log you in</h2>
+          <p class="error" id="portal_message">\$PORTAL_MESSAGE\$</p>
+          <p>To buy additional time passes visit <a href="http://\$SPACE_SUBDOMAIN\$.cobot.me">Cobot</a>.</p>
+          <form method="post" action="\$PORTAL_ACTION\$" id="auth_form" novalidate>
+            <ul>
+              <li>
+                <p>
+                   <label for="auth_user">Email address or guest login</label>
+                   <input name="auth_user" id="auth_user" type="email" />
+                   <span class="hint" id="email_hint">The same you use to log in on Cobot</span>
+                </p>
+              </li>
+  
+              <li>
+                <p>
+                   <label for="auth_pass">Password</label>
+                   <input id="auth_pass" name="auth_pass" type="password" />
+                </p>
+              </li>
+  
+              <li>
+                <p>
+                   <input name="redirurl" type="hidden" value="\$PORTAL_REDIRURL\$" />
+                   <label></label>
+                   <input name="accept" type="submit" value="Log In" /><br />
+                   No account yet? <a href="http://\$SPACE_SUBDOMAIN\$.cobot.me">Sign up</a>.<br />
+                   <a href="https://www.cobot.me/password/new">Forgot password?</a>
+                </p>
+              </li>
+            </ul>
+          </form>
+        </div>
+      </div>
+    </body>
+  </html>
+EOD;
+}
+ 
 function captiveportal_load_modules() {
 	global $config;
 
@@ -214,12 +308,7 @@ function captiveportal_configure_zone($cpcfg) {
 			$croninterval = 60;
 
 		/* write portal page */
-		if (is_array($cpcfg['page']) && $cpcfg['page']['htmltext'])
-			$htmltext = base64_decode($cpcfg['page']['htmltext']);
-		else {
-			/* example/template page */
-			$htmltext = get_default_captive_portal_html();
-		}
+		$htmltext = get_default_captive_portal_html();
 
 		$fd = @fopen("{$g['varetc_path']}/captiveportal_{$cpzone}.html", "w");
 		if ($fd) {
@@ -232,6 +321,7 @@ function captiveportal_configure_zone($cpcfg) {
 			$htmltext = str_replace("\$CLIENT_IP\$", "#CLIENT_IP#", $htmltext);
 			$htmltext = str_replace("\$ORIGINAL_PORTAL_IP\$", "#ORIGINAL_PORTAL_IP#", $htmltext);
 			$htmltext = str_replace("\$PORTAL_ACTION\$", "#PORTAL_ACTION#", $htmltext);
+			$htmltext = str_replace("\$SPACE_SUBDOMAIN\$", "{$cpcfg['webapi_space']}", $htmltext);
 			if($cpcfg['preauthurl']) {
 				$htmltext = str_replace("\$PORTAL_REDIRURL\$", "{$cpcfg['preauthurl']}", $htmltext);
 				$htmltext = str_replace("#PORTAL_REDIRURL#", "{$cpcfg['preauthurl']}", $htmltext);
@@ -242,12 +332,7 @@ function captiveportal_configure_zone($cpcfg) {
 		unset($htmltext);
 
 		/* write error page */
-		if (is_array($cpcfg['page']) && $cpcfg['page']['errtext'])
-			$errtext = base64_decode($cpcfg['page']['errtext']);
-		else {
-			/* example page  */
-			$errtext = get_default_captive_portal_html();
-		}
+		$errtext = get_default_captive_portal_error_html();
 
 		$fd = @fopen("{$g['varetc_path']}/captiveportal-{$cpzone}-error.html", "w");
 		if ($fd) {
@@ -260,6 +345,7 @@ function captiveportal_configure_zone($cpcfg) {
 			$errtext = str_replace("\$CLIENT_IP\$", "#CLIENT_IP#", $errtext);
 			$errtext = str_replace("\$ORIGINAL_PORTAL_IP\$", "#ORIGINAL_PORTAL_IP#", $errtext);
 			$errtext = str_replace("\$PORTAL_ACTION\$", "#PORTAL_ACTION#", $errtext);
+			$errtext = str_replace("\$SPACE_SUBDOMAIN\$", "{$cpcfg['webapi_space']}", $errtext);
 			if($cpcfg['preauthurl']) {
 				$errtext = str_replace("\$PORTAL_REDIRURL\$", "{$cpcfg['preauthurl']}", $errtext);
 				$errtext = str_replace("#PORTAL_REDIRURL#", "{$cpcfg['preauthurl']}", $errtext);

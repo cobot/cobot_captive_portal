@@ -42,6 +42,78 @@
 		pfSense_MODULE:	auth
 */
 
+require_once('Requests/library/Requests.php');
+require_once('JSON.php');
+
+function webapi_backend_mac($mac, $space, $token) {
+  Requests::register_autoloader();
+
+  $url = 'https://' . $space . '.cobot.me/api/check_ins';
+  $data = array('token' => $mac);
+  $headers = array('Authorization' => 'Bearer ' . $token);
+
+  try {
+    $request = Requests::post($url, $headers, $data);
+
+    if($request->status_code == 201) {
+      $json = new Services_JSON();
+      $body = $json->decode($request->body);
+      return $body->valid_until;
+    } else {
+      return null;
+    }
+  } catch(Exception $e) {
+    return null;
+  }
+}
+
+function webapi_backend($username, $passwd, $mac, $space, $token) {
+  Requests::register_autoloader();
+
+  $url = 'https://' . $space . '.cobot.me/api/check_ins';
+  $data = array('login' => $username, 'password' => $passwd, 'token' => $mac);
+  $headers = array('Authorization' => 'Bearer ' . $token);
+
+  try {
+    $request = Requests::post($url, $headers, $data);
+
+    $json = new Services_JSON();
+    $body = $json->decode($request->body);
+
+    if($request->status_code == 201) {
+      return array(
+        'success' => true,
+        'message' => $body->valid_until
+      );
+    } else if($request->status_code == 422) {
+      return array(
+        'success' => false,
+        'message' => $body->errors->base
+      );
+    } else {
+      $message = $request->body;
+
+      if($body && $body->errors) {
+	$message = implode(', ', $body->errors);
+      }
+
+      if($body && $body->error) {
+        $message = $body->error;
+      }
+
+      return array(
+        'success' => false,
+        'message' => 'Error reaching Cobot (Status: ' . $request->status_code . ', Error: ' . $message . ').'
+      );
+    }
+  } catch(Exception $e) {
+    return array(
+      'success' => false,
+      'message' => 'Error reaching Cobot (' . $e->getMessage() . ')'
+    );
+  }
+}
+
 /*
  * NOTE : Portions of the mschapv2 support was based on the BSD licensed CHAP.php
  * file courtesy of Michael Retterklieber.
