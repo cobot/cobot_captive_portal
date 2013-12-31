@@ -6,7 +6,7 @@ With this patch installed the captive portal will authenticate directly against 
 
 Note that this disables support for Radius/local captive portal authentication.
 
-***Currently this package supports version 2.0.1 and 2.0.3 of Pfsense.***
+***Currently this package supports version 2.0.1, 2.0.3 and 2.1.0 of Pfsense.***
 
 ## Installation
 
@@ -41,6 +41,7 @@ Enter "Cobot" in the description field and:
 
 * for Pfsense 2.0.1 enter "https://github.com/cobot/cobot_captive_portal/commit/919c69b028109d2a6b208dbe8b102c8fd9c6b752" in the "URL/Commit ID" field.
 * for Pfsense 2.0.3 enter "https://github.com/cobot/cobot_captive_portal/commit/55cdde908fb1d839551a180455ddd0dfe85e7ff1" in the "URL/Commit ID" field.
+* for Pfsense 2.1.0 enter "https://github.com/cobot/cobot_captive_portal/commit/3c25950acafaf7fd961823a340e79a1cbdd3b4a7" in the "URL/Commit ID" field.
 
 Click the _Save_ button.
 
@@ -56,8 +57,24 @@ Go to the _Services_, _Captive Portal_.
 
 ![Select captive portal](https://raw.github.com/cobot/cobot_captive_portal/master/screenshots/captive_portal.png)
 
+Only on Pfsense 2.1.0: create a captive portal zone with any name (for example 'cobot').
+
+![Create zone](https://raw.github.com/cobot/cobot_captive_portal/master/screenshots/captive_portal_zone.png)
+
 Check _Enable captive portal_, select the interface you want to protect (in most cases LAN), enter the subdomain (http://_subdomain_.cobot.me) of your space under _Space subdomain_ and your access token (you can get this token on Cobot under _Setup_ => _Wifi integration_).
 
 ![Activate captive portal](https://raw.github.com/cobot/cobot_captive_portal/master/screenshots/edit_captive_portal.png)
 
 Press "Save" and you are done.
+
+### Whitelisting Cobot
+
+In order to allow your members to access Cobot without logging in to the captive portal (for example for buying time passes after they have run out) you have to whitelist Cobot.
+
+Go to the captive portal page and click on the _Allowed Hostnames_ tab.
+
+![Allowed Hostnames](https://raw.github.com/cobot/cobot_captive_portal/master/screenshots/captive_portal_allowed_hostnames.png)
+
+Create a new entry where you select _To_ from the _Direction_ drop-down and enter _&lt;your-subdomain&gt;.cobot.me_ for the _Hostname_.
+
+![Edit Allowed Hostnames](https://raw.github.com/cobot/cobot_captive_portal/master/screenshots/captive_portal_edit_allowed_hostnames.png)
