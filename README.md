@@ -41,7 +41,7 @@ Enter "Cobot" in the description field and:
 
 * for Pfsense 2.0.1 enter "https://github.com/cobot/cobot_captive_portal/commit/919c69b028109d2a6b208dbe8b102c8fd9c6b752" in the "URL/Commit ID" field.
 * for Pfsense 2.0.3 enter "https://github.com/cobot/cobot_captive_portal/commit/55cdde908fb1d839551a180455ddd0dfe85e7ff1" in the "URL/Commit ID" field.
-* for Pfsense 2.1.0 enter "https://github.com/cobot/cobot_captive_portal/commit/3c25950acafaf7fd961823a340e79a1cbdd3b4a7" in the "URL/Commit ID" field.
+* for Pfsense 2.1.0 enter "https://github.com/cobot/cobot_captive_portal/commit/0b06835494b93cf666e5d9548927f1d7139b5ee5" in the "URL/Commit ID" field.
 
 Click the _Save_ button.
 
