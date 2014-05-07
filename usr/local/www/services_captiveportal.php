@@ -87,8 +87,6 @@ $a_cert =& $config['cert'];
 if ($a_cp[$cpzone]) {
 	$pconfig['zoneid'] = $a_cp[$cpzone]['zoneid'];
 	$pconfig['cinterface'] = $a_cp[$cpzone]['interface'];
-	$pconfig['webapi_space'] = $a_cp[$cpzone]['webapi_space'];
-  $pconfig['webapi_token'] = $a_cp[$cpzone]['webapi_token'];
 	$pconfig['maxproc'] = $a_cp[$cpzone]['maxproc'];
 	$pconfig['maxprocperip'] = $a_cp[$cpzone]['maxprocperip'];
 	$pconfig['timeout'] = $a_cp[$cpzone]['timeout'];
@@ -99,17 +97,44 @@ if ($a_cp[$cpzone]) {
 	$pconfig['enable'] = isset($a_cp[$cpzone]['enable']);
 	$pconfig['auth_method'] = $a_cp[$cpzone]['auth_method'];
 	$pconfig['localauth_priv'] = isset($a_cp[$cpzone]['localauth_priv']);
+	$pconfig['radacct_enable'] = isset($a_cp[$cpzone]['radacct_enable']);
+	$pconfig['radmac_enable'] = isset($a_cp[$cpzone]['radmac_enable']);
+	$pconfig['radmac_secret'] = $a_cp[$cpzone]['radmac_secret'];
+	$pconfig['reauthenticate'] = isset($a_cp[$cpzone]['reauthenticate']);
+	$pconfig['reauthenticateacct'] = $a_cp[$cpzone]['reauthenticateacct'];
+	$pconfig['httpslogin_enable'] = isset($a_cp[$cpzone]['httpslogin']);
+	$pconfig['httpsname'] = $a_cp[$cpzone]['httpsname'];
 	$pconfig['preauthurl'] = strtolower($a_cp[$cpzone]['preauthurl']);
+	$pconfig['certref'] = $a_cp[$cpzone]['certref'];
 	$pconfig['logoutwin_enable'] = isset($a_cp[$cpzone]['logoutwin_enable']);
 	$pconfig['peruserbw'] = isset($a_cp[$cpzone]['peruserbw']);
 	$pconfig['bwdefaultdn'] = $a_cp[$cpzone]['bwdefaultdn'];
 	$pconfig['bwdefaultup'] = $a_cp[$cpzone]['bwdefaultup'];
 	$pconfig['nomacfilter'] = isset($a_cp[$cpzone]['nomacfilter']);
 	$pconfig['noconcurrentlogins'] = isset($a_cp[$cpzone]['noconcurrentlogins']);
+	$pconfig['radius_protocol'] = $a_cp[$cpzone]['radius_protocol'];
 	$pconfig['redirurl'] = $a_cp[$cpzone]['redirurl'];
+	$pconfig['radiusip'] = $a_cp[$cpzone]['radiusip'];
+	$pconfig['radiusip2'] = $a_cp[$cpzone]['radiusip2'];
+	$pconfig['radiusip3'] = $a_cp[$cpzone]['radiusip3'];
+	$pconfig['radiusip4'] = $a_cp[$cpzone]['radiusip4'];
+	$pconfig['radiusport'] = $a_cp[$cpzone]['radiusport'];
+	$pconfig['radiusport2'] = $a_cp[$cpzone]['radiusport2'];
+	$pconfig['radiusport3'] = $a_cp[$cpzone]['radiusport3'];
+	$pconfig['radiusport4'] = $a_cp[$cpzone]['radiusport4'];
+	$pconfig['radiusacctport'] = $a_cp[$cpzone]['radiusacctport'];
+	$pconfig['radiuskey'] = $a_cp[$cpzone]['radiuskey'];
+	$pconfig['radiuskey2'] = $a_cp[$cpzone]['radiuskey2'];
+	$pconfig['radiuskey3'] = $a_cp[$cpzone]['radiuskey3'];
+	$pconfig['radiuskey4'] = $a_cp[$cpzone]['radiuskey4'];
+	$pconfig['radiusvendor'] = $a_cp[$cpzone]['radiusvendor'];
+	$pconfig['radiussession_timeout'] = isset($a_cp[$cpzone]['radiussession_timeout']);
+	$pconfig['radiussrcip_attribute'] = $a_cp[$cpzone]['radiussrcip_attribute'];
 	$pconfig['passthrumacadd'] = isset($a_cp[$cpzone]['passthrumacadd']);
 	$pconfig['passthrumacaddusername'] = isset($a_cp[$cpzone]['passthrumacaddusername']);
+	$pconfig['radmac_format'] = $a_cp[$cpzone]['radmac_format'];
 	$pconfig['reverseacct'] = isset($a_cp[$cpzone]['reverseacct']);
+	$pconfig['radiusnasid'] = $a_cp[$cpzone]['radiusnasid'];
 	$pconfig['page'] = array();
 	if ($a_cp[$cpzone]['page']['htmltext'])
 		$pconfig['page']['htmltext'] = $a_cp[$cpzone]['page']['htmltext'];
@@ -144,6 +169,15 @@ if ($_POST) {
 				}
 			}
 		}
+
+		if ($_POST['httpslogin_enable']) {
+			if (!$_POST['certref']) {
+				$input_errors[] = gettext("Certificate must be specified for HTTPS login.");
+			}
+			if (!$_POST['httpsname'] || !is_domain($_POST['httpsname'])) {
+				$input_errors[] = gettext("The HTTPS server name must be specified for HTTPS login.");
+			}
+		}
 	}
 
 	if ($_POST['timeout']) {
@@ -175,8 +209,38 @@ if ($_POST) {
 			$input_errors[] = gettext("The waiting period to restore pass-through credits must be above 0 hours.");
 		}
 	}
+	if (($_POST['radiusip'] && !is_ipaddr($_POST['radiusip']))) {
+		$input_errors[] = sprintf(gettext("A valid IP address must be specified. [%s]"), $_POST['radiusip']);
+	}
+	if (($_POST['radiusip2'] && !is_ipaddr($_POST['radiusip2']))) {
+		$input_errors[] = sprintf(gettext("A valid IP address must be specified. [%s]"), $_POST['radiusip2']);
+	}
+	if (($_POST['radiusip3'] && !is_ipaddr($_POST['radiusip3']))) {
+		$input_errors[] = sprintf(gettext("A valid IP address must be specified. [%s]"), $_POST['radiusip3']);
+	}
+	if (($_POST['radiusip4'] && !is_ipaddr($_POST['radiusip4']))) {
+		$input_errors[] = sprintf(gettext("A valid IP address must be specified. [%s]"), $_POST['radiusip4']);
+	}
+	if (($_POST['radiusport'] && !is_port($_POST['radiusport']))) {
+		$input_errors[] = sprintf(gettext("A valid port number must be specified. [%s]"), $_POST['radiusport']);
+	}
+	if (($_POST['radiusport2'] && !is_port($_POST['radiusport2']))) {
+		$input_errors[] = sprintf(gettext("A valid port number must be specified. [%s]"), $_POST['radiusport2']);
+	}
+	if (($_POST['radiusport3'] && !is_port($_POST['radiusport3']))) {
+		$input_errors[] = sprintf(gettext("A valid port number must be specified. [%s]"), $_POST['radiusport3']);
+	}
+	if (($_POST['radiusport4'] && !is_port($_POST['radiusport4']))) {
+		$input_errors[] = sprintf(gettext("A valid port number must be specified. [%s]"), $_POST['radiusport4']);
+	}
+	if (($_POST['radiusacctport'] && !is_port($_POST['radiusacctport']))) {
+		$input_errors[] = sprintf(gettext("A valid port number must be specified. [%s]"), $_POST['radiusacctport']);
+	}
 	if ($_POST['maxproc'] && (!is_numeric($_POST['maxproc']) || ($_POST['maxproc'] < 4) || ($_POST['maxproc'] > 100))) {
 		$input_errors[] = gettext("The maximum number of concurrent connections per client IP address may not be larger than the global maximum.");
+	}
+	if (trim($_POST['radiusnasid']) !== "" && !preg_match("/^[\x21-\x7e]{3,253}$/i", trim($_POST['radiusnasid']))) {
+		$input_errors[] = gettext("The NAS-Identifier must be 3-253 characters long and should only contain ASCII characters.");
 	}
 
 	if (!$input_errors) {
@@ -191,8 +255,6 @@ if ($_POST) {
 		$oldifaces = explode(",", $newcp['interface']);
 		if (is_array($_POST['cinterface']))
 			$newcp['interface'] = implode(",", $_POST['cinterface']);
-		$newcp['webapi_space'] = $_POST['webapi_space'];
-    $newcp['webapi_token'] = $_POST['webapi_token'];
 		$newcp['maxproc'] = $_POST['maxproc'];
 		$newcp['maxprocperip'] = $_POST['maxprocperip'] ? $_POST['maxprocperip'] : false;
 		$newcp['timeout'] = $_POST['timeout'];
@@ -206,17 +268,61 @@ if ($_POST) {
 			unset($newcp['enable']);
 		$newcp['auth_method'] = $_POST['auth_method'];
 		$newcp['localauth_priv'] = isset($_POST['localauth_priv']);
+		$newcp['radacct_enable'] = $_POST['radacct_enable'] ? true : false;
+		$newcp['reauthenticate'] = $_POST['reauthenticate'] ? true : false;
+		$newcp['radmac_enable'] = $_POST['radmac_enable'] ? true : false;
+		$newcp['radmac_secret'] = $_POST['radmac_secret'] ? $_POST['radmac_secret'] : false;
+		$newcp['reauthenticateacct'] = $_POST['reauthenticateacct'];
+		if ($_POST['httpslogin_enable'])
+			$newcp['httpslogin'] = true;
+		else
+			unset($newcp['httpslogin']);
+		$newcp['httpsname'] = $_POST['httpsname'];
 		$newcp['preauthurl'] = $_POST['preauthurl'];
 		$newcp['peruserbw'] = $_POST['peruserbw'] ? true : false;
 		$newcp['bwdefaultdn'] = $_POST['bwdefaultdn'];
 		$newcp['bwdefaultup'] = $_POST['bwdefaultup'];
+		$newcp['certref'] = $_POST['certref'];
 		$newcp['logoutwin_enable'] = $_POST['logoutwin_enable'] ? true : false;
 		$newcp['nomacfilter'] = $_POST['nomacfilter'] ? true : false;
 		$newcp['noconcurrentlogins'] = $_POST['noconcurrentlogins'] ? true : false;
+		$newcp['radius_protocol'] = $_POST['radius_protocol'];
 		$newcp['redirurl'] = $_POST['redirurl'];
+		if (isset($_POST['radiusip']))
+			$newcp['radiusip'] = $_POST['radiusip'];
+		else
+			unset($newcp['radiusip']);
+		if (isset($_POST['radiusip2']))
+			$newcp['radiusip2'] = $_POST['radiusip2'];
+		else
+			unset($newcp['radiusip2']);
+		if (isset($_POST['radiusip3']))
+			$newcp['radiusip3'] = $_POST['radiusip3'];
+		else
+			unset($newcp['radiusip3']);
+		if (isset($_POST['radiusip4']))
+			$newcp['radiusip4'] = $_POST['radiusip4'];
+		else
+			unset($newcp['radiusip4']);
+		$newcp['radiusport'] = $_POST['radiusport'];
+		$newcp['radiusport2'] = $_POST['radiusport2'];
+		if (isset($_POST['radiusport3']))
+			$newcp['radiusport3'] = $_POST['radiusport3'];
+		if (isset($_POST['radiusport4']))
+			$newcp['radiusport4'] = $_POST['radiusport4'];
+		$newcp['radiusacctport'] = $_POST['radiusacctport'];
+		$newcp['radiuskey'] = $_POST['radiuskey'];
+		$newcp['radiuskey2'] = $_POST['radiuskey2'];
+		$newcp['radiuskey3'] = $_POST['radiuskey3'];
+		$newcp['radiuskey4'] = $_POST['radiuskey4'];
+		$newcp['radiusvendor'] = $_POST['radiusvendor'] ? $_POST['radiusvendor'] : false;
+		$newcp['radiussession_timeout'] = $_POST['radiussession_timeout'] ? true : false;
+		$newcp['radiussrcip_attribute'] = $_POST['radiussrcip_attribute'];
 		$newcp['passthrumacadd'] = $_POST['passthrumacadd'] ? true : false;
 		$newcp['passthrumacaddusername'] = $_POST['passthrumacaddusername'] ? true : false;
+		$newcp['radmac_format'] = $_POST['radmac_format'] ? $_POST['radmac_format'] : false;
 		$newcp['reverseacct'] = $_POST['reverseacct'] ? true : false;
+		$newcp['radiusnasid'] = trim($_POST['radiusnasid']);
 		if (!is_array($newcp['page']))
 			$newcp['page'] = array();
 
@@ -254,11 +360,14 @@ include("head.inc");
 <script language="JavaScript">
 <!--
 function enable_change(enable_change) {
-	var endis = !(document.iform.enable.checked || enable_change);
+	var endis, radius_endis;
+	endis = !(document.iform.enable.checked || enable_change);
+	localauth_endis = !((!endis && document.iform.auth_method[1].checked) || enable_change);
+	radius_endis = !((!endis && document.iform.auth_method[2].checked) || enable_change);
+	https_endis = !((!endis && document.iform.httpslogin_enable.checked) || enable_change);
 
 	document.iform.cinterface.disabled = endis;
-	document.iform.webapi_space.disabled = endis;
-  document.iform.webapi_token.disabled = endis;
+	//document.iform.maxproc.disabled = endis;
 	document.iform.maxprocperip.disabled = endis;
 	document.iform.idletimeout.disabled = endis;
 	document.iform.freelogins_count.disabled = endis;
@@ -267,16 +376,56 @@ function enable_change(enable_change) {
 	document.iform.timeout.disabled = endis;
 	document.iform.preauthurl.disabled = endis;
 	document.iform.redirurl.disabled = endis;
+	document.iform.localauth_priv.disabled = localauth_endis;
+	document.iform.radiusip.disabled = radius_endis;
+	document.iform.radiusip2.disabled = radius_endis;
+	document.iform.radiusip3.disabled = radius_endis;
+	document.iform.radiusip4.disabled = radius_endis;
+	document.iform.radiusport.disabled = radius_endis;
+	document.iform.radiusport3.disabled = radius_endis;
+	document.iform.radiusport4.disabled = radius_endis;
+	document.iform.radiusport2.disabled = radius_endis;
+	document.iform.radiuskey.disabled = radius_endis;
+	document.iform.radiuskey2.disabled = radius_endis;
+	document.iform.radiuskey3.disabled = radius_endis;
+	document.iform.radiuskey4.disabled = radius_endis;
+	document.iform.radacct_enable.disabled = radius_endis;
 	document.iform.peruserbw.disabled = endis;
 	document.iform.bwdefaultdn.disabled = endis;
 	document.iform.bwdefaultup.disabled = endis;
+	document.iform.reauthenticate.disabled = radius_endis;
 	document.iform.auth_method[0].disabled = endis;
+	document.iform.auth_method[1].disabled = endis;
+	document.iform.auth_method[2].disabled = endis;
+	document.iform.radius_protocol[0].disabled = radius_endis;
+	document.iform.radius_protocol[1].disabled = radius_endis;
+	document.iform.radius_protocol[2].disabled = radius_endis;
+	document.iform.radius_protocol[3].disabled = radius_endis;
+	document.iform.radmac_enable.disabled = radius_endis;
+	document.iform.httpslogin_enable.disabled = endis;
+	document.iform.radmac_format.disabled = radius_endis;
+	document.iform.httpsname.disabled = https_endis;
+	document.iform.certref.disabled = https_endis;
 	document.iform.logoutwin_enable.disabled = endis;
 	document.iform.nomacfilter.disabled = endis;
 	document.iform.noconcurrentlogins.disabled = endis;
+	document.iform.radiusvendor.disabled = radius_endis;
+	document.iform.radiussession_timeout.disabled = radius_endis;
+	document.iform.radiussrcip_attribute.disabled = radius_endis;
 	document.iform.htmlfile.disabled = endis;
 	document.iform.errfile.disabled = endis;
 	document.iform.logoutfile.disabled = endis;
+
+	document.iform.radiusacctport.disabled = (radius_endis || !document.iform.radacct_enable.checked) && !enable_change;
+
+	document.iform.radmac_secret.disabled = (radius_endis || !document.iform.radmac_enable.checked) && !enable_change;
+
+	var radacct_dis = (radius_endis || !document.iform.radacct_enable.checked) && !enable_change;
+	document.iform.reauthenticateacct[0].disabled = radacct_dis;
+	document.iform.reauthenticateacct[1].disabled = radacct_dis;
+	document.iform.reauthenticateacct[2].disabled = radacct_dis;
+	document.iform.reverseacct.disabled = (radius_endis || !document.iform.radacct_enable.checked) && !enable_change;
+	document.iform.radiusnasid.disabled = radius_endis;
 }
 //-->
 </script>
@@ -441,29 +590,288 @@ function enable_change(enable_change) {
 	<tr>
 	  <td width="22%" valign="top" class="vncell"><?=gettext("Authentication"); ?></td>
 	  <td width="78%" class="vtable">
-  		<table cellpadding="0" cellspacing="0">
-  		  <tr>
-  		    <td colspan="2"><input name="auth_method" type="radio" id="auth_method" value="webapi" disabled="disabled" checked="checked"/><?=gettext("Cobot Web API"); ?></td>
-  		  </tr>
-  		  <tr>
-  		    <td>&nbsp;</td>
-  		    <td>&nbsp;</td>
-  		  </tr>
-        <tr>
-          <td width="22%"><?=gettext("Space subdomain (&lt;subdomain&gt;.cobot.me)"); ?></td>
-          <td width="78%">
-            <input name="webapi_space" type="text" class="formfld unknown" id="webapi_space" size="20" value="<?=htmlspecialchars($pconfig['webapi_space']);?>">
-            <input type="hidden" name="auth_method" value="webapi" />
-          </td>
-        </tr>
-        <tr>
-          <td width="22%"><?=gettext("Access Token"); ?></td>
-          <td width="78%">
-            <input name="webapi_token" type="text" class="formfld unknown" id="webapi_token" size="20" value="<?=htmlspecialchars($pconfig['webapi_token']);?>">
-          </td>
-        </tr>
-  		</table>
-		</td>
+		<table cellpadding="0" cellspacing="0">
+		<tr>
+		  <td colspan="2"><input name="auth_method" type="radio" id="auth_method" value="none" onClick="enable_change(false)" <?php if($pconfig['auth_method']!="local" && $pconfig['auth_method']!="radius") echo "checked"; ?>>
+  <?=gettext("No Authentication"); ?></td>
+		</tr>
+		<tr>
+		  <td colspan="2"><input name="auth_method" type="radio" id="auth_method" value="local" onClick="enable_change(false)" <?php if($pconfig['auth_method']=="local") echo "checked"; ?>>
+  <?=gettext("Local"); ?> <a href="system_usermanager.php"><?=gettext("User Manager"); ?></a> / <?=gettext("Vouchers"); ?></td>
+		</tr>
+		</tr><tr>
+		  <td>&nbsp;</td>
+		  <td>&nbsp;</td>
+		</tr>
+		<tr>
+		  <td>&nbsp;</td>
+		  <td><input name="localauth_priv" type="checkbox" id="localauth_priv" value="yes" onClick="enable_change(false)" <?php if($pconfig['localauth_priv']=="yes") echo "checked"; ?>>
+  <?=gettext("Allow only users/groups with 'Captive portal login' privilege set"); ?></td>
+		</tr><tr>
+		  <td colspan="2"><input name="auth_method" type="radio" id="auth_method" value="radius" onClick="enable_change(false)" <?php if($pconfig['auth_method']=="radius") echo "checked"; ?>>
+  <?=gettext("RADIUS Authentication"); ?></td>
+		</tr><tr>
+		  <td>&nbsp;</td>
+		  <td>&nbsp;</td>
+                </tr>
+                  <td width="22%" valign="top" class="vncell"><?=gettext("Radius Protocol"); ?></td>
+                  <td width="78%" class="vtable">
+                    <table cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td colspan="2"><input name="radius_protocol" type="radio" id="radius_protocol" value="PAP" onClick="enable_change(false)" <?php if($pconfig['auth_method']=="radius" && $pconfig['radius_protocol']!="CHAP_MD5" && $pconfig['radius_protocol']!="MSCHAPv1" && $pconfig['radius_protocol']!="MSCHAPv2") echo "checked"; ?>>
+      <?=gettext("PAP"); ?></td>
+                      </tr>
+                    <tr>
+                      <td colspan="2"><input name="radius_protocol" type="radio" id="radius_protocol" value="CHAP_MD5" onClick="enable_change(false)" <?php if($pconfig['auth_method']=="radius" && $pconfig['radius_protocol']=="CHAP_MD5") echo "checked"; ?>>
+      <?=gettext("CHAP_MD5"); ?></td>
+                      </tr>
+                    <tr>
+                      <td colspan="2"><input name="radius_protocol" type="radio" id="radius_protocol" value="MSCHAPv1" onClick="enable_change(false)" <?php if($pconfig['auth_method']=="radius" && $pconfig['radius_protocol']=="MSCHAPv1") echo "checked"; ?>>
+      <?=gettext("MSCHAPv1"); ?></td>
+                      </tr>
+                    <tr>
+                      <td colspan="2"><input name="radius_protocol" type="radio" id="radius_protocol" value="MSCHAPv2" onClick="enable_change(false)" <?php if($pconfig['auth_method']=="radius" && $pconfig['radius_protocol']=="MSCHAPv2") echo "checked"; ?>>
+      <?=gettext("MSCHAPv2"); ?></td>
+                      </tr><tr>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      </tr>
+                    </table>
+                  </tr><tr>
+                  <td>&nbsp;</td>
+                  <td>&nbsp;</td>
+                  </tr>
+                </table>
+		<table width="100%" border="0" cellpadding="6" cellspacing="0">
+			<tr>
+				<td colspan="2" valign="top" class="listtopic">Primary Authentication Source</td>
+			</tr>
+			<tr>
+				<td colspan="2" valign="top" class="optsect_t2"><?=gettext("Primary RADIUS server"); ?></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("IP address"); ?></td>
+				<td class="vtable"><input name="radiusip" type="text" class="formfld unknown" id="radiusip" size="20" value="<?=htmlspecialchars($pconfig['radiusip']);?>"><br>
+				<?=gettext("Enter the IP address of the RADIUS server which users of the captive portal have to authenticate against."); ?></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("Port"); ?></td>
+				<td class="vtable"><input name="radiusport" type="text" class="formfld unknown" id="radiusport" size="5" value="<?=htmlspecialchars($pconfig['radiusport']);?>"><br>
+				 <?=gettext("Leave this field blank to use the default port (1812)."); ?></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("Shared secret"); ?>&nbsp;&nbsp;</td>
+				<td class="vtable"><input name="radiuskey" type="text" class="formfld unknown" id="radiuskey" size="16" value="<?=htmlspecialchars($pconfig['radiuskey']);?>"><br>
+				<?=gettext("Leave this field blank to not use a RADIUS shared secret (not recommended)."); ?></td>
+			</tr>
+			<tr>
+			  <td colspan="2" class="list" height="12"></td>
+			</tr>
+			<tr>
+				<td colspan="2" valign="top" class="optsect_t2"><?=gettext("Secondary RADIUS server"); ?></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("IP address"); ?></td>
+				<td class="vtable"><input name="radiusip2" type="text" class="formfld unknown" id="radiusip2" size="20" value="<?=htmlspecialchars($pconfig['radiusip2']);?>"><br>
+				<?=gettext("If you have a second RADIUS server, you can activate it by entering its IP address here."); ?></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("Port"); ?></td>
+				<td class="vtable"><input name="radiusport2" type="text" class="formfld unknown" id="radiusport2" size="5" value="<?=htmlspecialchars($pconfig['radiusport2']);?>"></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("Shared secret"); ?>&nbsp;&nbsp;</td>
+				<td class="vtable"><input name="radiuskey2" type="text" class="formfld unknown" id="radiuskey2" size="16" value="<?=htmlspecialchars($pconfig['radiuskey2']);?>"></td>
+			</tr>
+			<tr>
+			  <td colspan="2" class="list" height="12"></td>
+			</tr>
+			<tr>
+				<td colspan="2" valign="top" class="listtopic">Secondary Authentication Source</td>
+			</tr>
+			<tr>
+				<td colspan="2" valign="top" class="optsect_t2"><?=gettext("Primary RADIUS server"); ?></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("IP address"); ?></td>
+				<td class="vtable"><input name="radiusip3" type="text" class="formfld unknown" id="radiusip3" size="20" value="<?=htmlspecialchars($pconfig['radiusip3']);?>"><br>
+				<?=gettext("If you have a third RADIUS server, you can activate it by entering its IP address here."); ?></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("Port"); ?></td>
+				<td class="vtable"><input name="radiusport3" type="text" class="formfld unknown" id="radiusport3" size="5" value="<?=htmlspecialchars($pconfig['radiusport3']);?>"></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("Shared secret"); ?>&nbsp;&nbsp;</td>
+				<td class="vtable"><input name="radiuskey3" type="text" class="formfld unknown" id="radiuskey3" size="16" value="<?=htmlspecialchars($pconfig['radiuskey3']);?>"></td>
+			</tr>
+			<tr>
+			  <td colspan="2" class="list" height="12"></td>
+			</tr>
+			<tr>
+				<td colspan="2" valign="top" class="optsect_t2"><?=gettext("Secondary RADIUS server"); ?></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("IP address"); ?></td>
+				<td class="vtable"><input name="radiusip4" type="text" class="formfld unknown" id="radiusip4" size="20" value="<?=htmlspecialchars($pconfig['radiusip4']);?>"><br>
+				<?=gettext("If you have a fourth RADIUS server, you can activate it by entering its IP address here."); ?></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("Port"); ?></td>
+				<td class="vtable"><input name="radiusport4" type="text" class="formfld unknown" id="radiusport4" size="5" value="<?=htmlspecialchars($pconfig['radiusport4']);?>"></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("Shared secret"); ?>&nbsp;&nbsp;</td>
+				<td class="vtable"><input name="radiuskey4" type="text" class="formfld unknown" id="radiuskey4" size="16" value="<?=htmlspecialchars($pconfig['radiuskey4']);?>"></td>
+			</tr>
+			<tr>
+			  <td colspan="2" class="list" height="12"></td>
+			</tr>
+			<tr>
+				<td colspan="2" valign="top" class="listtopic"><?=gettext("Accounting"); ?></td>
+			</tr>
+			<tr>
+				<td class="vncell">&nbsp;</td>
+				<td class="vtable"><input name="radacct_enable" type="checkbox" id="radacct_enable" value="yes" onClick="enable_change(false)" <?php if($pconfig['radacct_enable']) echo "checked"; ?>>
+				<strong><?=gettext("send RADIUS accounting packets"); ?></strong><br>
+				<?=gettext("If this is enabled, RADIUS accounting packets will be sent to the primary RADIUS server."); ?></td>
+			</tr>
+			<tr>
+			  <td class="vncell" valign="top"><?=gettext("Accounting port"); ?></td>
+			  <td class="vtable"><input name="radiusacctport" type="text" class="formfld unknown" id="radiusacctport" size="5" value="<?=htmlspecialchars($pconfig['radiusacctport']);?>"><br>
+			  <?=gettext("Leave blank to use the default port (1813)."); ?></td>
+			  </tr>
+			<tr>
+			  <td colspan="2" class="list" height="12"></td>
+			</tr>
+			<tr>
+			  <td class="vncell" valign="top"><?=gettext("Accounting updates"); ?></td>
+			  <td class="vtable">
+			  <input name="reauthenticateacct" type="radio" value="" <?php if(!$pconfig['reauthenticateacct']) echo "checked"; ?>> <?=gettext("no accounting updates"); ?><br>
+			  <input name="reauthenticateacct" type="radio" value="stopstart" <?php if($pconfig['reauthenticateacct'] == "stopstart") echo "checked"; ?>> <?=gettext("stop/start accounting"); ?><br>
+			  <input name="reauthenticateacct" type="radio" value="interimupdate" <?php if($pconfig['reauthenticateacct'] == "interimupdate") echo "checked"; ?>> <?=gettext("interim update"); ?>
+			  </td>
+			</tr>
+			<tr>
+			  <td colspan="2" class="list" height="12"></td>
+			</tr>
+			<tr>
+				<td colspan="2" valign="top" class="listtopic"><?=gettext("RADIUS options"); ?></td>
+			</tr>
+			<tr>
+				<td class="vncell"><?=gettext("Reauthentication"); ?></td>
+				<td class="vtable"><input name="reauthenticate" type="checkbox" id="reauthenticate" value="yes" onClick="enable_change(false)" <?php if($pconfig['reauthenticate']) echo "checked"; ?>>
+				<strong><?=gettext("Reauthenticate connected users every minute"); ?></strong><br>
+				<?=gettext("If reauthentication is enabled, Access-Requests will be sent to the RADIUS server for each user that is " .
+				"logged in every minute. If an Access-Reject is received for a user, that user is disconnected from the captive portal immediately."); ?></td>
+			</tr>
+			<tr>
+				<td class=""><?=gettext("RADIUS MAC authentication"); ?></td>
+				<td class="">
+				<input name="radmac_enable" type="checkbox" id="radmac_enable" value="yes" onClick="enable_change(false)" <?php if ($pconfig['radmac_enable']) echo "checked"; ?>><strong><?=gettext("Enable RADIUS MAC authentication"); ?></strong><br>
+				<?=gettext("If this option is enabled, the captive portal will try to authenticate users by sending their MAC address as the username and the password " .
+				"entered below to the RADIUS server."); ?></td>
+			</tr>
+			<tr>
+				<td class="vncell"><?=gettext("MAC authentication secret"); ?></td>
+				<td class="vtable"><input name="radmac_secret" type="text" class="formfld unknown" id="radmac_secret" size="16" value="<?=htmlspecialchars($pconfig['radmac_secret']);?>"></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("RADIUS NAS IP attribute"); ?></td>
+				<td class="vtable">
+				<select name="radiussrcip_attribute" id="radiussrcip_attribute">
+				<?php $iflist = get_configured_interface_with_descr();
+					foreach ($iflist as $ifdesc => $ifdescr) {
+						$ipaddr = get_interface_ip($ifdesc);
+						if (is_ipaddr($ipaddr)) {
+							$selected = "";
+							if ($ifdesc == $pconfig['radiussrcip_attribute'])
+								$selected= "selected";
+							echo "<option value='{$ifdesc}' {$selected}>{$ifdescr} - {$ipaddr}</option>\n";
+						}
+					}
+					if (is_array($config['virtualip']['vip'])) {
+						foreach ($config['virtualip']['vip'] as $sn) {
+							if ($sn['mode'] == "proxyarp" && $sn['type'] == "network") {
+								$start = ip2long32(gen_subnet($sn['subnet'], $sn['subnet_bits']));
+								$end = ip2long32(gen_subnet_max($sn['subnet'], $sn['subnet_bits']));
+								$len = $end - $start;
+
+								for ($i = 0; $i <= $len; $i++) {
+									$snip = long2ip32($start+$i);
+									echo "<option value='{$snip}' {$selected}>" . htmlspecialchars("{$sn['descr']} - {$snip}") . "></option>\n";
+								}
+							} else
+								echo "<option value='{$sn['subnet']}' {$selected}>" . htmlspecialchars("{$sn['descr']} - {$sn['subnet']}") . "></option>\n";
+						}
+					}
+				?>
+				</select><br/>
+				<?=gettext("Choose the IP to use for calling station attribute."); ?>
+				</td>
+			</tr>
+
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("Session-Timeout"); ?></td>
+				<td class="vtable"><input name="radiussession_timeout" type="checkbox" id="radiussession_timeout" value="yes" <?php if ($pconfig['radiussession_timeout']) echo "checked"; ?>><strong><?=gettext("Use RADIUS Session-Timeout attributes"); ?></strong><br>
+				<?=gettext("When this is enabled, clients will be disconnected after the amount of time retrieved from the RADIUS Session-Timeout attribute."); ?></td>
+			</tr>
+
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("Type"); ?></td>
+				<td class="vtable"><select name="radiusvendor" id="radiusvendor">
+				<option value="default"><?php echo gettext("default"); ?></option>
+				<?php
+				$radiusvendors = array("cisco");
+				foreach ($radiusvendors as $radiusvendor){
+					if ($pconfig['radiusvendor'] == $radiusvendor)
+						echo "<option selected value=\"$radiusvendor\">$radiusvendor</option>\n";
+					else
+						echo "<option value=\"$radiusvendor\">$radiusvendor</option>\n";
+				}
+				?></select><br>
+				<?php printf(gettext("If RADIUS type is set to Cisco, in Access-Requests the value of Calling-Station-Id will be set to the client's IP address and " .
+				"the Called-Station-Id to the client's MAC address. Default behavior is Calling-Station-Id = client's MAC address and Called-Station-Id = %s's WAN IP address."),
+					$g['product_name']);?></td>
+			</tr>
+
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("Accounting Style"); ?></td>
+				<td class="vtable"><input name="reverseacct" type="checkbox" id="reverseacct" value="yes" <?php if ($pconfig['reverseacct']) echo "checked"; ?>><strong><?=gettext("Invert Acct-Input-Octets and Acct-Output-Octets"); ?></strong><br>
+				<?=gettext("When this is enabled, data counts for RADIUS accounting packets will be taken from the client perspective, not the NAS. Acct-Input-Octets will represent download, and Acct-Output-Octets will represent upload."); ?></td>
+			</tr>
+
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("NAS Identifier"); ?></td>
+				<td class="vtable"><input name="radiusnasid" type="text" maxlength="253" class="formfld unknown" id="radiusnasid" value="<?=htmlspecialchars($pconfig['radiusnasid']);?>"/><br/>
+					<?=gettext("Specify a NAS identifier to override the default value") . " (" . php_uname("n") . ")"; ?></td>
+			</tr>
+			<tr>
+				<td class="vncell" valign="top"><?=gettext("MAC address format"); ?></td>
+				<td class="vtable">
+					<select name="radmac_format" id="radmac_format">
+						<option value="default"><?php echo gettext("default"); ?></option>
+						<?php
+						$macformats = array("singledash","ietf","cisco","unformatted");
+						foreach ($macformats as $macformat) {
+							if ($pconfig['radmac_format'] == $macformat) {
+								echo "<option selected value=\"$macformat\">",gettext($macformat),"</option>\n";
+							} else {
+								echo "<option value=\"$macformat\">",gettext($macformat),"</option>\n";
+							}
+						}
+						?>
+					</select></br>
+					<?=gettext("This option changes the MAC address format used in the whole RADIUS system. Change this if you also"); ?>
+					<?=gettext("need to change the username format for RADIUS MAC authentication."); ?><br>
+					<?=gettext("default:"); ?> 00:11:22:33:44:55<br>
+					<?=gettext("singledash:"); ?> 001122-334455<br>
+					<?=gettext("ietf:"); ?> 00-11-22-33-44-55<br>
+					<?=gettext("cisco:"); ?> 0011.2233.4455<br>
+					<?=gettext("unformatted:"); ?> 001122334455
+				</td>
+			</tr>
+		</table>
 	</tr>
 	<tr>
 		<td valign="top" class="vncell"><?=gettext("HTTPS login"); ?></td>
@@ -570,7 +978,7 @@ function enable_change(enable_change) {
 	<tr>
 	  <td width="22%" valign="top">&nbsp;</td>
 	  <td width="78%">
-		<?php echo "<input name='zone' id='zone' type='hidden' value='{$cpzone}'/>"; ?>
+		<?php echo "<input name='zone' id='zone' type='hidden' value='" . htmlspecialchars($cpzone) . "'/>"; ?>
 		<input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save"); ?>" onClick="enable_change(true)">
 		<a href="services_captiveportal_zones.php"><input name="Cancel" type="button" class="formbtn" value="<?=gettext("Cancel"); ?>" onClick="enable_change(true)"></a>
 	  </td>

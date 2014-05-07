@@ -2,7 +2,7 @@
 #
 # Wait for the default route to be up
 #
-# $FreeBSD: src/etc/rc.d/defaultroute,v 1.6.2.2.6.2 2012/11/17 08:24:38 svnexp Exp $
+# $FreeBSD$
 #
 
 # PROVIDE: defaultroute

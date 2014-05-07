@@ -1,6 +1,6 @@
 #! /usr/local/bin/perl -w
 #
-# $FreeBSD: src/usr.sbin/ntp/scripts/ntptrace,v 1.1.30.1.8.2 2012/11/17 08:25:56 svnexp Exp $
+# $FreeBSD$
 
 # John Hay -- John.Hay@icomtek.csir.co.za / jhay@FreeBSD.org
 

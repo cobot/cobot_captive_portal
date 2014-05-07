@@ -57,7 +57,7 @@ if(!function_exists("update_status")) {
 }
 if(!function_exists("update_output_window")) {
 	function update_output_window($status) {
-		echo $status . "\n";
+		echo htmlspecialchars($status) . "\n";
 	}
 }
 
@@ -102,7 +102,7 @@ function remove_freebsd_package($packagestring) {
 	// The packagestring passed in must be the full PBI package name, 
 	// as displayed by the pbi_info utility. e.g. "package-1.2.3_4-i386" 
 	// It must NOT have ".pbi" on the end.
-	exec("/usr/local/sbin/pbi_info {$packagestring} | /usr/bin/awk '/Prefix/ {print $2}'",$pbidir);
+	exec("/usr/local/sbin/pbi_info " . escapeshellarg($packagestring) . " | /usr/bin/awk '/Prefix/ {print $2}'",$pbidir);
 	$pbidir = $pbidir[0];
 	if ($pbidir == "") {
 		log_error("PBI dir for {$packagestring} was not found - cannot cleanup PBI files");
@@ -127,7 +127,7 @@ function remove_freebsd_package($packagestring) {
 			}
 		}
 
-		exec("/usr/local/sbin/pbi_delete {$packagestring} 2>>/tmp/pbi_delete_errors.txt");
+		exec("/usr/local/sbin/pbi_delete " . escapeshellarg($packagestring) . " 2>>/tmp/pbi_delete_errors.txt");
 	}
 }
 
@@ -188,7 +188,7 @@ function get_pkg_internal_name($package) {
 
 /****f* pkg-utils/get_pkg_info
  * NAME
- *   get_pkg_info - Retrieve package information from pfsense.com.
+ *   get_pkg_info - Retrieve package information from package server.
  * INPUTS
  *   $pkgs - 'all' to retrieve all packages, an array containing package names otherwise
  *   $info - 'all' to retrieve all information, an array containing keys otherwise
@@ -279,7 +279,7 @@ function is_freebsd_pkg_installed($pkg) {
 	if(!$pkg) 
 		return;
 	$output = "";
-	exec("/usr/local/sbin/pbi_info \"{$pkg}\"", $output, $retval);
+	exec("/usr/local/sbin/pbi_info " . escapeshellarg($pkg), $output, $retval);
 
 	return (intval($retval) == 0);
 }
@@ -361,19 +361,6 @@ function uninstall_package($pkg_name) {
 	global $config, $static_output;
 	global $builder_package_install;
 
-	// Back up /usr/local/lib libraries first if
-	// not running from the builder code.
-	// also take into account rrd binaries
-	if(!$builder_package_install) {
-		if(!file_exists("/tmp/pkg_libs.tgz")) {
-			$static_output .= "Backing up libraries... ";
-			update_output_window($static_output);
-			mwexec("/usr/bin/tar czPf /tmp/pkg_libs.tgz `/bin/cat /etc/pfSense_md5.txt | /usr/bin/grep 'local/lib' | /usr/bin/awk '{ print $2 }' | /usr/bin/cut -d'(' -f2 | /usr/bin/cut -d')' -f1`", true);
-			mwexec("/usr/bin/tar czPf /tmp/pkg_bins.tgz `/bin/cat /etc/pfSense_md5.txt | /usr/bin/grep 'rrd' | /usr/bin/awk '{ print $2 }' | /usr/bin/cut -d'(' -f2 | /usr/bin/cut -d')' -f1`", true);
-			$static_output .= "\n";
-		}
-	}
-
 	$id = get_pkg_id($pkg_name);
 	if ($id >= 0) {
 		stop_service(get_pkg_internal_name($config['installedpackages']['package'][$id]));
@@ -397,20 +384,11 @@ function uninstall_package($pkg_name) {
 			}
 		}
 	}
-	delete_package_xml($pkg_name);
+	if (is_package_installed($pkg_name))
+		delete_package_xml($pkg_name);
 
-	// Restore libraries that we backed up if not 
-	// running from the builder code.
-	if(!$builder_package_install) {
-		$static_output .= "Cleaning up... ";
-		update_output_window($static_output);
-		mwexec("/usr/bin/tar xzPfk /tmp/pkg_libs.tgz -C /", true);
-		mwexec("/usr/bin/tar xzPfk /tmp/pkg_bins.tgz -C /", true);
-		@unlink("/tmp/pkg_libs.tgz");
-		@unlink("/tmp/pkg_bins.tgz");
-		$static_output .= gettext("done.") . "\n";
-		update_output_window($static_output);
-	}
+	$static_output .= gettext("done.") . "\n";
+	update_output_window($static_output);
 }
 
 function force_remove_package($pkg_name) {
@@ -567,21 +545,32 @@ function pkg_fetch_recursive($pkgname, $filename, $dependlevel = 0, $base_url = 
 
 		$pkgaddout = "";
 
-		exec("/usr/local/sbin/pbi_add {$pkgstaging} -f -v --no-checksig {$fetchto} 2>&1", $pkgaddout);
-		pkg_debug($pkgname . " " . print_r($pkgaddout, true) . "\npbi_add successfully completed.\n");
-		setup_library_paths();
-		exec("/usr/local/sbin/pbi_info " . preg_replace('/\.pbi$/','',$filename) . " | /usr/bin/awk '/Prefix/ {print $2}'",$pbidir);
-		$pbidir = $pbidir[0];
-		$linkdirs = array('bin','sbin');
-		foreach($linkdirs as $dir) {
-			if(is_dir("{$pbidir}/{$dir}")) {
-				$files = scandir("{$pbidir}/{$dir}");
-				foreach($files as $f) {
-					if(!file_exists("/usr/local/{$dir}/{$f}")) {
-						symlink("{$pbidir}/{$dir}/{$f}","/usr/local/{$dir}/{$f}");
+		$result = exec("/usr/local/sbin/pbi_add " . $pkgstaging . " -f -v --no-checksig " . escapeshellarg($fetchto) . " 2>&1", $pkgaddout, $rc);
+		pkg_debug($pkgname . " " . print_r($pkgaddout, true) . "\n");
+		if ($rc == 0) {
+			setup_library_paths();
+			$result = exec("/usr/local/sbin/pbi_info " . escapeshellarg(preg_replace('/\.pbi$/','',$filename)) . " | /usr/bin/awk '/Prefix/ {print $2}'",$pbidir);
+			$pbidir = $pbidir[0];
+			$linkdirs = array('bin','sbin');
+			foreach($linkdirs as $dir) {
+				if(is_dir("{$pbidir}/{$dir}")) {
+					$files = scandir("{$pbidir}/{$dir}");
+					foreach($files as $f) {
+						if(!file_exists("/usr/local/{$dir}/{$f}")) {
+							@symlink("{$pbidir}/{$dir}/{$f}","/usr/local/{$dir}/{$f}");
+						}
 					}
 				}
 			}
+			pkg_debug("pbi_add successfully completed.\n");
+		} else {
+			if (is_array($pkgaddout))
+				foreach ($pkgaddout as $line)
+					$static_output .= " " . $line .= "\n";
+
+			update_output_window($static_output);
+			pkg_debug("pbi_add failed.\n");
+			return false;
 		}
 	}
 	return true;
@@ -590,7 +579,7 @@ function pkg_fetch_recursive($pkgname, $filename, $dependlevel = 0, $base_url = 
 function install_package($package, $pkg_info = "", $force_install = false) {
 	global $g, $config, $static_output, $pkg_interface;
 
-	/* safe side. Write config below will send to ro again. */
+	/* safe side. */
 	conf_mount_rw();
 
 	if($pkg_interface == "console") 	
@@ -803,7 +792,7 @@ function install_package_xml($pkg) {
 				if(stristr($filename, ".tgz") <> "") {
 					pkg_debug(gettext("Extracting tarball to -C for ") . $filename . "...\n");
 					$tarout = "";
-					exec("/usr/bin/tar xvzf " . $prefix . $filename . " -C / 2>&1", $tarout);
+					exec("/usr/bin/tar xvzf " . escapeshellarg($prefix . $filename) . " -C / 2>&1", $tarout);
 					pkg_debug(print_r($tarout, true) . "\n");
 				}
 				if($pkg_chmod <> "") {
@@ -861,7 +850,7 @@ function install_package_xml($pkg) {
 				$pkg_name_for_pbi_match = strtolower($pkg) . "-";
 				exec("/usr/local/sbin/pbi_info | grep '^{$pkg_name_for_pbi_match}' | xargs /usr/local/sbin/pbi_info | awk '/Prefix/ {print $2}'",$pbidirarray);
 				$pbidir0 = $pbidirarray[0];
-				exec("find /usr/local/etc/ -name *.conf | grep \"{$pkg}\"",$files);
+				exec("find /usr/local/etc/ -name *.conf | grep " . escapeshellarg($pkg),$files);
 				foreach($files as $f) {
 					$pbiconf = str_replace('/usr/local',$pbidir0,$f);
 					if(is_file($pbiconf) || is_link($pbiconf)) {
@@ -1336,9 +1325,9 @@ function stop_packages() {
 		}
 	}
 
-	$shell = @popen("/bin/sh", "w");
-	if ($shell) {
-		foreach ($rcfiles as $rcfile => $number) {
+	foreach ($rcfiles as $rcfile => $number) {
+		$shell = @popen("/bin/sh", "w");
+		if ($shell) {
 			echo " Stopping {$rcfile}...";
 			if (!@fwrite($shell, "{$rcfile} stop >>/tmp/bootup_messages 2>&1")) {
 				if ($shell)
@@ -1346,9 +1335,8 @@ function stop_packages() {
 				$shell = @popen("/bin/sh", "w");
 			}
 			echo "done.\n";
+			pclose($shell);
 		}
-
-		pclose($shell);
 	}
 }
 

@@ -340,17 +340,17 @@ function get_carp_interface_status($carpinterface) {
  * get_pfsync_interface_status($pfsyncinterface): returns the status of a pfsync
  */
 function get_pfsync_interface_status($pfsyncinterface) {
-	$result = does_interface_exist($pfsyncinterface);
-	if($result <> true) return;
-	$status = exec_command("/sbin/ifconfig {$pfsyncinterface} | /usr/bin/awk '/pfsync:/ {print \$5}'");
-	return $status;
+	if (!does_interface_exist($pfsyncinterface))
+		return;
+
+	return exec_command("/sbin/ifconfig {$pfsyncinterface} | /usr/bin/awk '/pfsync:/ {print \$5}'");
 }
 
 /*
  * add_rule_to_anchor($anchor, $rule): adds the specified rule to an anchor
  */
 function add_rule_to_anchor($anchor, $rule, $label) {
-	mwexec("echo " . $rule . " | /sbin/pfctl -a " . $anchor . ":" . $label . " -f -");
+	mwexec("echo " . escapeshellarg($rule) . " | /sbin/pfctl -a " . escapeshellarg($anchor) . ":" . escapeshellarg($label) . " -f -");
 }
 
 /*
@@ -619,7 +619,7 @@ if (!function_exists('php_check_syntax')){
 if (!function_exists('php_check_syntax')){
 	function php_check_syntax($code_to_check, &$errormessage){
 		return false;
-		$command = "/usr/local/bin/php -l " . $code_to_check;
+		$command = "/usr/local/bin/php -l " . escapeshellarg($code_to_check);
 		$output = exec_command($command);
 		if (stristr($output, "Errors parsing") == false) {
 			echo "false\n";
@@ -661,17 +661,19 @@ function rmdir_recursive($path,$follow_links=false) {
 }
 
 /*
- * call_pfsense_method(): Call a method exposed by the pfsense.com XMLRPC server.
+ * call_pfsense_method(): Call a method exposed by the pfsense.org XMLRPC server.
  */
 function call_pfsense_method($method, $params, $timeout = 0) {
 	global $g, $config;
 
-	$ip = gethostbyname($g['product_website']);
-	if($ip == $g['product_website'])
-		return false;
-
 	$xmlrpc_base_url = isset($config['system']['altpkgrepo']['enable']) ? $config['system']['altpkgrepo']['xmlrpcbaseurl'] : $g['xmlrpcbaseurl'];
 	$xmlrpc_path = $g['xmlrpcpath'];
+	
+	$xmlrpcfqdn = preg_replace("(https?://)", "", $xmlrpc_base_url);
+	$ip = gethostbyname($xmlrpcfqdn);
+	if($ip == $xmlrpcfqdn)
+		return false;
+
 	$msg = new XML_RPC_Message($method, array(XML_RPC_Encode($params)));
 	$port = 0;
 	$proxyurl = "";
@@ -711,9 +713,11 @@ function call_pfsense_method($method, $params, $timeout = 0) {
  */
 function check_firmware_version($tocheck = "all", $return_php = true) {
 	global $g, $config;
-
-	$ip = gethostbyname($g['product_website']);
-	if($ip == $g['product_website'])
+	
+	$xmlrpc_base_url = isset($config['system']['altpkgrepo']['enable']) ? $config['system']['altpkgrepo']['xmlrpcbaseurl'] : $g['xmlrpcbaseurl'];
+	$xmlrpcfqdn = preg_replace("(https?://)", "", $xmlrpc_base_url);
+	$ip = gethostbyname($xmlrpcfqdn);
+	if($ip == $xmlrpcfqdn)
 		return false;
 
 	$rawparams = array("firmware" => array("version" => trim(file_get_contents('/etc/version'))),
@@ -987,7 +991,7 @@ function setup_serial_port($when="save", $path="") {
 						fwrite($fd, "{$bcs}\n");
 				}
 			}
-			if(isset($config['system']['enableserial'])) {
+			if(isset($config['system']['enableserial']) || $g['enableserial_force']) {
 				fwrite($fd, "-D");
 			}
 			fclose($fd);
@@ -1012,11 +1016,19 @@ function setup_serial_port($when="save", $path="") {
 					$new_boot_config[] = $bcs;
 
 			$serialspeed = (is_numeric($config['system']['serialspeed'])) ? $config['system']['serialspeed'] : "9600";
-			if(isset($config['system']['enableserial'])) {
+			if(isset($config['system']['enableserial']) || $g['enableserial_force']) {
 				$new_boot_config[] = 'boot_multicons="YES"';
 				$new_boot_config[] = 'boot_serial="YES"';
 				$new_boot_config[] = 'comconsole_speed="' . $serialspeed . '"';
-				$new_boot_config[] = 'console="comconsole,vidconsole"';
+				$primaryconsole = isset($g['primaryconsole_force']) ? $g['primaryconsole_force'] : $config['system']['primaryconsole'];
+				switch ($primaryconsole) {
+					case "video":
+						$new_boot_config[] = 'console="vidconsole,comconsole"';
+						break;
+					case "serial":
+					default:
+						$new_boot_config[] = 'console="comconsole,vidconsole"';
+				}
 			} elseif ($g['platform'] == "nanobsd") {
 				$new_boot_config[] = 'comconsole_speed="' . $serialspeed . '"';
 			}
@@ -1031,7 +1043,7 @@ function setup_serial_port($when="save", $path="") {
 	$fd = fopen("/etc/ttys", "w");
 	foreach($ttys_split as $tty) {
 		if(stristr($tty, "ttyd0") or stristr($tty, "ttyu0")) {
-			if(isset($config['system']['enableserial'])) {
+			if(isset($config['system']['enableserial']) || $g['enableserial_force']) {
 				fwrite($fd, "ttyu0	\"/usr/libexec/getty bootupcli\"	cons25	on	secure\n");
 			} else {
 				fwrite($fd, "ttyu0	\"/usr/libexec/getty bootupcli\"	cons25	off	secure\n");
@@ -1442,7 +1454,7 @@ function get_interface_info($ifdescr) {
 
 //returns cpu speed of processor. Good for determining capabilities of machine
 function get_cpu_speed() {
-	return exec("sysctl hw.clockrate | awk '{ print $2 }'");
+	return exec("/sbin/sysctl -n hw.clockrate");
 }
 
 function add_hostname_to_watch($hostname) {
@@ -1452,7 +1464,7 @@ function add_hostname_to_watch($hostname) {
 	if((is_fqdn($hostname)) && (!is_ipaddr($hostname))) {
 		$domrecords = array();
 		$domips = array();
-		exec("host -t A $hostname", $domrecords, $rethost);
+		exec("host -t A " . escapeshellarg($hostname), $domrecords, $rethost);
 		if($rethost == 0) {
 			foreach($domrecords as $domr) {
 				$doml = explode(" ", $domr);
@@ -1526,7 +1538,7 @@ function compare_hostname_to_dnscache($hostname) {
 	if((is_fqdn($hostname)) && (!is_ipaddr($hostname))) {
 		$domrecords = array();
 		$domips = array();
-		exec("host -t A $hostname", $domrecords, $rethost);
+		exec("host -t A " . escapeshellarg($hostname), $domrecords, $rethost);
 		if($rethost == 0) {
 			foreach($domrecords as $domr) {
 				$doml = explode(" ", $domr);
@@ -1868,15 +1880,17 @@ function update_alias_url_data() {
 			}
 		}
 	}
-	if ($updated)
-		write_config();
 	unlock($lockkey);
+	if ($updated) {
+		write_config();
+		send_event("filter reload");
+	}
 }
 
 function process_alias_unzip($temp_filename) {
 	if(!file_exists("/usr/local/bin/unzip"))
 		return;
-	mwexec("/bin/mv {$temp_filename}/aliases {$temp_filename}/aliases.zip");
+	rename("{$temp_filename}/aliases", "{$temp_filename}/aliases.zip");
 	mwexec("/usr/local/bin/unzip {$temp_filename}/aliases.tgz -d {$temp_filename}/aliases/");
 	unlink("{$temp_filename}/aliases.zip");
 	$files_to_process = return_dir_as_array("{$temp_filename}/");
@@ -1893,7 +1907,7 @@ function process_alias_unzip($temp_filename) {
 function process_alias_tgz($temp_filename) {
 	if(!file_exists("/usr/bin/tar"))
 		return;
-	mwexec("/bin/mv {$temp_filename}/aliases {$temp_filename}/aliases.tgz");
+	rename("{$temp_filename}/aliases", "{$temp_filename}/aliases.tgz");
 	mwexec("/usr/bin/tar xzf {$temp_filename}/aliases.tgz -C {$temp_filename}/aliases/");
 	unlink("{$temp_filename}/aliases.tgz");
 	$files_to_process = return_dir_as_array("{$temp_filename}/");
@@ -2013,7 +2027,7 @@ function process_alias_urltable($name, $url, $freq, $forceupdate=false) {
 
 	// If the file doesn't exist or is older than update_freq days, fetch a new copy.
 	if (!file_exists($urltable_filename)
-		|| ((time() - filemtime($urltable_filename)) > ($freq * 86400))
+		|| ((time() - filemtime($urltable_filename)) > ($freq * 86400 - 90))
 		|| $forceupdate) {
 
 		// Try to fetch the URL supplied
@@ -2026,7 +2040,7 @@ function process_alias_urltable($name, $url, $freq, $forceupdate=false) {
 			mwexec("/usr/bin/sed 's/\;.*//g' ". escapeshellarg($urltable_filename . ".tmp") . "| /usr/bin/egrep -v '^[[:space:]]*$|^#' > " . escapeshellarg($urltable_filename));
 			unlink_if_exists($urltable_filename . ".tmp");
 		} else
-			mwexec("/usr/bin/touch {$urltable_filename}");
+			touch($urltable_filename);
 		conf_mount_ro();
 		return true;
 	} else {
@@ -2119,10 +2133,10 @@ function nanobsd_update_fstab($gslice, $complete_path, $oldufs, $newufs) {
 	$tmppath = "/tmp/{$gslice}";
 	$fstabpath = "/tmp/{$gslice}/etc/fstab";
 
-	exec("/bin/mkdir {$tmppath}");
+	mkdir($tmppath);
 	exec("/sbin/fsck_ufs -y /dev/{$complete_path}");
 	exec("/sbin/mount /dev/ufs/{$gslice} {$tmppath}");
-	exec("/bin/cp /etc/fstab {$fstabpath}");
+	copy("/etc/fstab", $fstabpath);
 
 	if (!file_exists($fstabpath)) {
 		$fstab = <<<EOF
@@ -2137,7 +2151,7 @@ EOF;
 		$status = exec("sed -i \"\" \"s/pfsense{$oldufs}/pfsense{$newufs}/g\" {$fstabpath}");
 	}
 	exec("/sbin/umount {$tmppath}");
-	exec("/bin/rmdir {$tmppath}");
+	rmdir($tmppath);
 
 	return $status;
 }

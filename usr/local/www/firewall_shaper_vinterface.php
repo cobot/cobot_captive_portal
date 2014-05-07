@@ -99,7 +99,7 @@ if ($_GET) {
 			if (is_array($config['filter']['rule'])) {
 				foreach ($config['filter']['rule'] as $rule) {
 					if ($rule['dnpipe'] == $queue->GetQname() || $rule['pdnpipe'] == $queue->GetQname())
-						$input_errors[] = gettext("This pipe/queue is referenced in filter rules, please remove references from there before deleteing.");
+						$input_errors[] = gettext("This pipe/queue is referenced in filter rules, please remove references from there before deleting.");
 				}
 			}
 			if (!$input_errors) {
@@ -303,11 +303,15 @@ if ($queue) {
 }
 
 $tree = "<ul class=\"tree\" >";
+$rowIndex = 0;
 if (is_array($dummynet_pipe_list)) {
         foreach ($dummynet_pipe_list as $tmpdn) {
+			$rowIndex++;
                 $tree .= $tmpdn->build_tree();
         }
 }
+if ($rowIndex == 0)
+	$tree .= "<li></li>";
 $tree .= "</ul>";
 
 if (!$dontshow || $newqueue) {

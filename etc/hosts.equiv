@@ -1,4 +1,4 @@
-# $FreeBSD: src/etc/hosts.equiv,v 1.4.56.1.8.2 2012/11/17 08:24:37 svnexp Exp $
+# $FreeBSD$
 #
 #localhost
 #my_very_good_friend.domain

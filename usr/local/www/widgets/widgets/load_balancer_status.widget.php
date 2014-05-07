@@ -5,7 +5,7 @@
 	Copyright (C) 2010 Seth Mos <seth.mos@dds.nl>.
 	Copyright (C) 2005-2008 Bill Marquette
 
-	Part of pfSense widgets (www.pfsense.com)
+	Part of pfSense widgets (https://www.pfsense.org)
 	originally based on m0n0wall (http://m0n0.ch/wall)
 
 	Copyright (C) 2004-2005 T. Lechat <dev@lechat.org>, Manuel Kasper <mk@neon1.net>
@@ -94,7 +94,7 @@ if (!$nentries)
 		<table border="0" cellpadding="0" cellspacing="2" summary="status">
 		<?php
 		foreach ($a_pool as $pool) {
-			if ($pool['name'] == $vsent['pool']) {
+			if ($pool['name'] == $vsent['poolname']) {
 				$pool_hosts=array();
 				foreach ((array) $pool['servers'] as $server) {
 					$svr['ip']['addr']=$server;

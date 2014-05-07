@@ -67,7 +67,7 @@ function write_rcfile($params) {
 		$tokill =& $params['stop'];
 	} else if(!empty($params['executable'])) {
 		/* just nuke the executable */
-		$tokill = "/usr/bin/killall {$params['executable']}";
+		$tokill = "/usr/bin/killall " . escapeshellarg($params['executable']);
 	} else {
 		/* make an educated guess (bad) */
 		$tokill = array_pop(explode('/', array_shift(explode(' ', $params['start']))));
@@ -442,23 +442,21 @@ function get_service_status_icon($service, $withtext = true, $smallicon = false)
 	$output = "";
 	if(get_service_status($service)) {
 		$statustext = gettext("Running");
-		$output .= '<td class="listr" align="center">' . "\n";
 		$output .= "<img style=\"vertical-align:middle\" title=\"" . sprintf(gettext("%s Service is"),$service["name"]) . " {$statustext}\" src=\"/themes/" . $g["theme"] . "/images/icons/";
 		$output .= ($smallicon) ? "icon_pass.gif" : "icon_service_running.gif";
 		$output .= "\" alt=\"status\" />";
 		if ($withtext)
 			$output .= "&nbsp;&nbsp;" . $statustext;
-		$output .= "</td>\n";
+		$output .= "\n";
 	} else {
 		$service_enabled = is_service_enabled($service['name']);
 		$statustext = ($service_enabled) ? gettext("Stopped") : gettext("Disabled");
-		$output .= '<td class="listbg" align="center">' . "\n";
 		$output .= "<img style=\"vertical-align:middle\" title=\"" . sprintf(gettext("%s Service is"),$service["name"]) . " {$statustext}\" src=\"/themes/" . $g["theme"] . "/images/icons/";
 		$output .= ($smallicon) ? "icon_block.gif" : "icon_service_stopped.gif";
 		$output .= "\" alt=\"status\" />";
 		if ($withtext)
 			$output .= "&nbsp;&nbsp;" . "<font color=\"white\">{$statustext}</font>";
-		$output .= "</td>\n";
+		$output .= "\n";
 	}
 	return $output;
 }

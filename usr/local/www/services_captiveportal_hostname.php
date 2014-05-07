@@ -36,9 +36,9 @@
 
 ##|+PRIV
 ##|*IDENT=page-services-captiveportal-allowedhostnames
-##|*NAME=Services: Captive portal: Allowed IPs page
-##|*DESCR=Allow access to the 'Services: Captive portal: Allowed IPs' page.
-##|*MATCH=services_captiveportal_ip.php*
+##|*NAME=Services: Captive portal: Allowed Hostnames page
+##|*DESCR=Allow access to the 'Services: Captive portal: Allowed Hostnames' page.
+##|*MATCH=services_captiveportal_hostname.php*
 ##|-PRIV
 
 require("guiconfig.inc");
@@ -98,7 +98,7 @@ include("head.inc");
 <?php include("fbegin.inc"); ?>
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
 <form action="services_captiveportal_hostname.php" method="post">
-<input type="hidden" name="zone" id="zone" value="<?=$cpzone;?>" />
+<input type="hidden" name="zone" id="zone" value="<?=htmlspecialchars($cpzone);?>" />
 <?php if ($savemsg) print_info_box($savemsg); ?>
 <table width="100%" border="0" cellpadding="0" cellspacing="0">
   <tr><td class="tabnavtbl">

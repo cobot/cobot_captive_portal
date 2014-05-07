@@ -33,7 +33,7 @@
 	pfSense_BUILDER_BINARIES:	/usr/sbin/powerd	/usr/bin/killall	/sbin/sysctl	/sbin/route
 	pfSense_BUILDER_BINARIES:	/bin/hostname	/bin/ls	/usr/sbin/syslogd	
 	pfSense_BUILDER_BINARIES:	/usr/sbin/pccardd	/usr/local/sbin/lighttpd	/bin/chmod 	/bin/mkdir
-	pfSense_BUILDER_BINARIES:	/usr/bin/tar		/usr/local/bin/ntpd	/usr/sbin/ntpdate
+	pfSense_BUILDER_BINARIES:	/usr/bin/tar		/usr/local/sbin/ntpd	/usr/sbin/ntpdate
 	pfSense_BUILDER_BINARIES:	/usr/bin/nohup	/sbin/dmesg	/usr/local/sbin/atareinit	/sbin/kldload
 	pfSense_MODULE:	utils
 */
@@ -177,8 +177,8 @@ function get_searchdomains() {
 	
 	// Read in dhclient nameservers
 	$search_list = glob("/var/etc/searchdomain_*");
-	if (is_array($search_lists)) {
-		foreach($search_lists as $fdns) {
+	if (is_array($search_list)) {
+		foreach($search_list as $fdns) {
 			$contents = file($fdns, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 			if (!is_array($contents))
 				continue;
@@ -335,8 +335,13 @@ function system_dhcpleases_configure() {
 			@touch("{$g['dhcpd_chroot_path']}/var/db/dhcpd.leases");
 		if (isvalidpid("{$g['varrun_path']}/dhcpleases.pid"))
 			sigkillbypid("{$g['varrun_path']}/dhcpleases.pid", "HUP");
-		else
+		else {
+			/* To ensure we do not start multiple instances of dhcpleases, perform some clean-up first. */
+			if (is_process_running("dhcpleases"))
+				mwexec('/bin/pkill dhcpleases');
+			@unlink("{$g['varrun_path']}/dhcpleases.pid");
 			mwexec("/usr/local/sbin/dhcpleases -l {$g['dhcpd_chroot_path']}/var/db/dhcpd.leases -d {$config['system']['domain']} -p {$g['varrun_path']}/dnsmasq.pid -h {$g['varetc_path']}/hosts");
+		}
 	} else {
 		sigkillbypid("{$g['varrun_path']}/dhcpleases.pid", "TERM");
 		@unlink("{$g['varrun_path']}/dhcpleases.pid");
@@ -379,7 +384,7 @@ function system_routing_configure($interface = "") {
 	$foundgwv6 = false;
 	/* tack on all the hard defined gateways as well */
 	if (is_array($config['gateways']['gateway_item'])) {
-		mwexec("/bin/rm -f {$g['tmp_path']}/*_defaultgw {$g['tmp_path']}/*_defaultgwv6", true);
+		array_map('unlink', glob("{$g['tmp_path']}/*_defaultgw{,v6}", GLOB_BRACE));
 		foreach	($config['gateways']['gateway_item'] as $gateway) {
 			if (isset($gateway['defaultgw'])) {
 				if ($gateway['ipprotocol'] != "inet6" && (is_ipaddrv4($gateway['gateway']) || $gateway['gateway'] == "dynamic")) {
@@ -395,13 +400,13 @@ function system_routing_configure($interface = "") {
 							@file_put_contents("{$g['tmp_path']}/{$defaultif}_defaultgw", $gateway['gateway']);
 					}
 					$foundgw = true;
-				} else if ($gateway['ipprotocol'] == "inet6" && (is_ipaddrv6($gateway['gateway']) || $gateway['gateway'] == "dynamic6")) {
-					if ($gateway['gateway'] == "dynamic6")
+				} else if ($gateway['ipprotocol'] == "inet6" && (is_ipaddrv6($gateway['gateway']) || $gateway['gateway'] == "dynamic")) {
+					if ($gateway['gateway'] == "dynamic")
 						$gateway['gateway'] = get_interface_gateway_v6($gateway['interface']);
 					$gatewayipv6 = $gateway['gateway'];
 					$interfacegwv6 = $gateway['interface'];
 					if (!empty($gateway['interface'])) {
-						$defaultifv6 = get_real_interface($gateway['interface'], "inet6");
+						$defaultifv6 = get_real_interface($gateway['interface']);
 						if ($defaultifv6)
 							@file_put_contents("{$g['tmp_path']}/{$defaultifv6}_defaultgwv6", $gateway['gateway']);
 					}
@@ -419,7 +424,7 @@ function system_routing_configure($interface = "") {
 		@touch("{$g['tmp_path']}/{$defaultif}_defaultgw");
 	}	
 	if ($foundgwv6 == false) {
-		$defaultifv6 = get_real_interface("wan", "inet6");
+		$defaultifv6 = get_real_interface("wan");
 		$interfacegwv6 = "wan";
 		$gatewayipv6 = get_interface_gateway_v6("wan");
 		@touch("{$g['tmp_path']}/{$defaultif}_defaultgwv6");
@@ -573,7 +578,7 @@ function system_syslogd_start() {
 	} else { // Defaults to CLOG
 		$log_directive = "%";
 		$log_size = "10240";
-		$log_create_directive = "/usr/sbin/clog -i -s ";
+		$log_create_directive = "/usr/local/sbin/clog -i -s ";
 	}
 	
 	if (isset($syslogcfg)) {
@@ -634,13 +639,11 @@ function system_syslogd_start() {
 		$syslogconf .= "!dnsmasq,filterdns,unbound\n";
 		if (!isset($syslogcfg['disablelocallogging']))
 			$syslogconf .= "*.*								{$log_directive}{$g['varlog_path']}/resolver.log\n";
-		if (isset($syslogcfg['apinger']))
-			$syslogconf .= system_syslogd_get_remote_servers($syslogcfg, "*.*");
 
 		$syslogconf .= "!dhcpd,dhcrelay,dhclient\n";
 		if (!isset($syslogcfg['disablelocallogging']))
 			$syslogconf .= "*.*								{$log_directive}{$g['varlog_path']}/dhcpd.log\n";
-		if (isset($syslogcfg['apinger']))
+		if (isset($syslogcfg['dhcp']))
 			$syslogconf .= system_syslogd_get_remote_servers($syslogcfg, "*.*");
 
 		$syslogconf .= "!relayd\n";
@@ -710,7 +713,23 @@ EOD;
 		if (!is_dir("{$g['dhcpd_chroot_path']}/var/run"))
 			exec("/bin/mkdir -p {$g['dhcpd_chroot_path']}/var/run");
 
-		$retval = mwexec_bg("/usr/sbin/syslogd -s -c -c -l {$g['dhcpd_chroot_path']}/var/run/log -f {$g['varetc_path']}/syslog.conf");
+		$sourceip = "";
+		if (!empty($syslogcfg['sourceip'])) {
+			if ($syslogcfg['ipproto'] == "ipv6") {
+				$ifaddr = is_ipaddr($syslogcfg['sourceip']) ? $syslogcfg['sourceip'] : get_interface_ipv6($syslogcfg['sourceip']);
+				if (!is_ipaddr($ifaddr))
+					$ifaddr = get_interface_ip($syslogcfg['sourceip']);
+			} else {
+				$ifaddr = is_ipaddr($syslogcfg['sourceip']) ? $syslogcfg['sourceip'] : get_interface_ip($syslogcfg['sourceip']);
+				if (!is_ipaddr($ifaddr))
+					$ifaddr = get_interface_ipv6($syslogcfg['sourceip']);
+			}
+			if (is_ipaddr($ifaddr)) {
+				$sourceip = "-b {$ifaddr}";
+			}
+		}
+
+		$retval = mwexec_bg("/usr/sbin/syslogd -s -c -c -l {$g['dhcpd_chroot_path']}/var/run/log -f {$g['varetc_path']}/syslog.conf {$sourceip}");
 
 	} else {
 		$retval = mwexec_bg("/usr/sbin/syslogd -s -c -c -l {$g['dhcpd_chroot_path']}/var/run/log");
@@ -859,8 +878,8 @@ function system_generate_lighty_config($filename,
 		$captive_portal_mod_evasive = "evasive.max-conns-per-ip = {$maxprocperip}";
 
 		$server_upload_dirs = "server.upload-dirs = ( \"{$g['tmp_path']}/captiveportal/\" )\n";
-		exec("mkdir -p {$g['tmp_path']}/captiveportal");
-		exec("chmod a-w {$g['tmp_path']}/captiveportal");
+		if (!is_dir("{$g['tmp_path']}/captiveportal"))
+			@mkdir("{$g['tmp_path']}/captiveportal", 0555);
 		$server_max_request_size = "server.max-request-size    = 384";
 		$cgi_config = "";
 	} else {
@@ -1198,7 +1217,17 @@ function system_timezone_configure() {
 
 	/* extract appropriate timezone file */
 	$timezone = $syscfg['timezone'];
-	if (!$timezone)
+	if ($timezone) {
+		exec('/usr/bin/tar -tvzf /usr/share/zoneinfo.tgz', $tzs);
+		foreach ($tzs as $tz) {
+			if (preg_match(",{$timezone}$,", $tz))
+				break;
+			if (preg_match(",{$timezone} link to *(.*)$,", $tz, $matches)) {
+				$timezone = $matches[1];
+				break;
+			}
+		}
+	} else
 		$timezone = "Etc/UTC";
 
 	conf_mount_rw();
@@ -1283,7 +1312,7 @@ function system_ntp_configure($start_ntpd=true) {
 	foreach (explode(' ', $config['system']['timeservers']) as $ts)
 		$ntpcfg .= "server {$ts} iburst maxpoll 9\n";
 
-	$ntpcfg .= "enable monitor\n";
+	$ntpcfg .= "disable monitor\n";
 	$ntpcfg .= "enable stats\n";
 	$ntpcfg .= "statistics clockstats\n";
 	$ntpcfg .= "statsdir {$statsdir}\n";
@@ -1306,7 +1335,8 @@ function system_ntp_configure($start_ntpd=true) {
 			if (!is_ipaddr($interface)) {
 				$interface = get_real_interface($interface);
 			}
-			$ntpcfg .= "interface listen {$interface}\n";
+			if (!empty($interface))
+				$ntpcfg .= "interface listen {$interface}\n";
 		}
 	}
 
@@ -1328,10 +1358,10 @@ function system_ntp_configure($start_ntpd=true) {
 
 	/* if /var/empty does not exist, create it */
 	if(!is_dir("/var/empty"))
-		exec("/bin/mkdir -p /var/empty && chmod ug+rw /var/empty/.");
+		mkdir("/var/empty", 0775, true);
 
 	/* start opentpd, set time now and use /var/etc/ntpd.conf */
-	mwexec("/usr/local/bin/ntpd -g -c {$g['varetc_path']}/ntpd.conf -p {$g['varrun_path']}/ntpd.pid", false, true);
+	mwexec("/usr/local/sbin/ntpd -g -c {$g['varetc_path']}/ntpd.conf -p {$g['varrun_path']}/ntpd.pid", false, true);
 	
 	// Note that we are starting up
 	log_error("NTPD is starting up.");

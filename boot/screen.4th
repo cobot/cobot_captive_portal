@@ -1,5 +1,5 @@
 \ Screen manipulation related words.
-\ $FreeBSD: src/sys/boot/forth/screen.4th,v 1.1.34.1.8.2 2012/11/17 08:25:07 svnexp Exp $
+\ $FreeBSD$
 
 marker task-screen.4th
 

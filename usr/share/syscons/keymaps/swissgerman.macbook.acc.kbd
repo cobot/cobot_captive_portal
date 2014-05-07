@@ -1,4 +1,4 @@
-# $FreeBSD: src/share/syscons/keymaps/swissgerman.macbook.acc.kbd,v 1.1.2.2.4.2 2012/11/17 08:25:04 svnexp Exp $
+# $FreeBSD$
 #
 # swissgerman Macbook/Macbook PRO ISO 8859-1 keymap, with accent keys
 # derived from swissgerman.iso.acc.kbd

@@ -1,5 +1,5 @@
 #
-# $FreeBSD: src/etc/pam.d/system,v 1.1.32.1.8.2 2012/11/17 08:24:38 svnexp Exp $
+# $FreeBSD$
 #
 # System-wide defaults
 #
@@ -9,7 +9,7 @@ auth		sufficient	pam_opie.so		no_warn no_fake_prompts
 auth		requisite	pam_opieaccess.so	no_warn allow_local
 #auth		sufficient	pam_krb5.so		no_warn try_first_pass
 #auth		sufficient	pam_ssh.so		no_warn try_first_pass
-auth		required	pam_unix.so		no_warn try_first_pass nullok
+auth		required	pam_unix.so		no_warn try_first_pass
 
 # account
 #account 	required	pam_krb5.so

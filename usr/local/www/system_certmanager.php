@@ -56,18 +56,21 @@ $openssl_digest_algs = array("sha1", "sha224", "sha256", "sha384", "sha512");
 
 $pgtitle = array(gettext("System"), gettext("Certificate Manager"));
 
-$userid = $_GET['userid'];
-if (isset($_POST['userid']))
+if (is_numericint($_GET['userid']))
+	$userid = $_GET['userid'];
+if (isset($_POST['userid']) && is_numericint($_POST['userid']))
 	$userid = $_POST['userid'];
-if (is_numeric($userid)) {
+
+if (isset($userid)) {
 	$cert_methods["existing"] = gettext("Choose an existing certificate");
 	if (!is_array($config['system']['user']))
 		$config['system']['user'] = array();
 	$a_user =& $config['system']['user'];
 }
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (!is_array($config['ca']))
@@ -107,8 +110,9 @@ if ($act == "del") {
 if ($act == "new") {
 	$pconfig['method'] = $_GET['method'];
 	$pconfig['keylen'] = "2048";
-	$pconfig['csr_keylen'] = "2048";
 	$pconfig['digest_alg'] = "sha256";
+	$pconfig['csr_keylen'] = "2048";
+	$pconfig['csr_digest_alg'] = "sha256";
 	$pconfig['type'] = "user";
 	$pconfig['lifetime'] = "3650";
 }
@@ -239,7 +243,7 @@ if ($_POST) {
 
 		$altnames = array();
 		do_input_validation($_POST, $reqdfields, $reqdfieldsn, &$input_errors);
-		if ($pconfig['method'] != "import") {
+		if ($pconfig['method'] != "import" && $pconfig['method'] != "existing") {
 			/* subjectAltNames */
 			foreach ($_POST as $key => $value) {
 				$entry = '';
@@ -255,7 +259,7 @@ if ($_POST) {
 					$altnames[$entry][$field] = $value;
 				}
 			}
-			$pconfig['aliases']['item'] = $aliases;
+			$pconfig['altnames']['item'] = $altnames;
 
 			/* Input validation for subjectAltNames */
 			foreach ($altnames as $idx => $altname) {
@@ -287,19 +291,23 @@ if ($_POST) {
 			/* Make sure we do not have invalid characters in the fields for the certificate */
 			for ($i = 0; $i < count($reqdfields); $i++) {
 				if (preg_match('/email/', $reqdfields[$i])){ /* dn_email or csr_dn_name */
-				 	if (preg_match("/[\!\#\$\%\^\(\)\~\?\>\<\&\/\\\,\"\']/", $_POST["$reqdfields[$i]"]))
+					if (preg_match("/[\!\#\$\%\^\(\)\~\?\>\<\&\/\\\,\"\']/", $_POST[$reqdfields[$i]]))
 						array_push($input_errors, "The field 'Distinguished name Email Address' contains invalid characters.");
 				}else if (preg_match('/commonname/', $reqdfields[$i])){ /* dn_commonname or csr_dn_commonname */
-					if (preg_match("/[\!\@\#\$\%\^\(\)\~\?\>\<\&\/\\\,\"\']/", $_POST["$reqdfields[$i]"]))
+					if (preg_match("/[\!\@\#\$\%\^\(\)\~\?\>\<\&\/\\\,\"\']/", $_POST[$reqdfields[$i]]))
 						array_push($input_errors, "The field 'Distinguished name Common Name' contains invalid characters.");
-				}else if (($reqdfields[$i] != "descr") && preg_match("/[\!\@\#\$\%\^\(\)\~\?\>\<\&\/\\\,\.\"\']/", $_POST["$reqdfields[$i]"]))
+				}else if (($reqdfields[$i] != "descr") && preg_match("/[\!\@\#\$\%\^\(\)\~\?\>\<\&\/\\\,\.\"\']/", $_POST[$reqdfields[$i]]))
 					array_push($input_errors, "The field '" . $reqdfieldsn[$i] . "' contains invalid characters.");
 			}
-			if (isset($_POST["keylen"]) && !in_array($_POST["keylen"], $cert_keylens))
+
+			if (($pconfig['method'] != "external") && isset($_POST["keylen"]) && !in_array($_POST["keylen"], $cert_keylens))
 				array_push($input_errors, gettext("Please select a valid Key Length."));
-			if (isset($_POST["csr_keylen"]) && !in_array($_POST["csr_keylen"], $cert_keylens))
+			if (($pconfig['method'] != "external") && !in_array($_POST["digest_alg"], $openssl_digest_algs))
+				array_push($input_errors, gettext("Please select a valid Digest Algorithm."));
+				
+			if (($pconfig['method'] == "external") && isset($_POST["csr_keylen"]) && !in_array($_POST["csr_keylen"], $cert_keylens))
 				array_push($input_errors, gettext("Please select a valid Key Length."));
-			if (!in_array($_POST["digest_alg"], $openssl_digest_algs))
+			if (($pconfig['method'] == "external") && !in_array($_POST["csr_digest_alg"], $openssl_digest_algs))
 				array_push($input_errors, gettext("Please select a valid Digest Algorithm."));
 		}
 
@@ -368,7 +376,7 @@ if ($_POST) {
 						}
 						$dn['subjectAltName'] = implode(",", $altnames_tmp);
 					}
-					if(!csr_generate($cert, $pconfig['csr_keylen'], $dn, $pconfig['digest_alg'])){
+					if(!csr_generate($cert, $pconfig['csr_keylen'], $dn, $pconfig['csr_digest_alg'])){
 						while($ssl_err = openssl_error_string()){
 							$input_errors = array();
 							array_push($input_errors, "openssl library returns: " . $ssl_err);
@@ -799,7 +807,7 @@ function internalca_change() {
 											?>
 											<tr>
 												<td>
-												<input autocomplete="off" name="altname_type<?php echo $counter; ?>" type="text" class="formfld unknown" id="altname_type<?php echo $counter; ?>" size="20" value="<?=htmlspecialchars($value);?>" />
+												<input autocomplete="off" name="altname_type<?php echo $counter; ?>" type="text" class="formfld unknown" id="altname_type<?php echo $counter; ?>" size="20" value="<?=htmlspecialchars($type);?>" />
 												</td>
 												<td>
 												<input autocomplete="off" name="altname_value<?php echo $counter; ?>" type="text" class="formfld unknown" id="altname_value<?php echo $counter; ?>" size="20" value="<?=htmlspecialchars($value);?>" />
@@ -866,14 +874,14 @@ function internalca_change() {
 						<tr>
 							<td width="22%" valign="top" class="vncellreq"><?=gettext("Digest Algorithm");?></td>
 							<td width="78%" class="vtable">
-								<select name='digest_alg' id='digest_alg' class="formselect">
+								<select name='csr_digest_alg' id='csr_digest_alg' class="formselect">
 								<?php
-									foreach( $openssl_digest_algs as $digest_alg):
+									foreach( $openssl_digest_algs as $csr_digest_alg):
 									$selected = "";
-									if ($pconfig['digest_alg'] == $digest_alg)
+									if ($pconfig['csr_digest_alg'] == $csr_digest_alg)
 										$selected = " selected=\"selected\"";
 								?>
-									<option value="<?=$digest_alg;?>"<?=$selected;?>><?=strtoupper($digest_alg);?></option>
+									<option value="<?=$csr_digest_alg;?>"<?=$selected;?>><?=strtoupper($csr_digest_alg);?></option>
 								<?php endforeach; ?>
 								</select>
 								<br/><?= gettext("NOTE: It is recommended to use an algorithm stronger than SHA1 when possible.") ?>
@@ -964,7 +972,7 @@ function internalca_change() {
 							<td width="22%" valign="top" class="vncellreq"><?=gettext("Existing Certificates");?></td>
 							<td width="78%" class="vtable">
 								<?php if (isset($userid) && $a_user): ?>
-								<input name="userid" type="hidden" value="<?=$userid;?>" />
+								<input name="userid" type="hidden" value="<?=htmlspecialchars($userid);?>" />
 								<?php endif;?>
 								<select name='certref' class="formselect">
 								<?php
@@ -998,7 +1006,7 @@ function internalca_change() {
 							<td width="78%">
 								<input id="submit" name="save" type="submit" class="formbtn" value="<?=gettext("Save");?>" />
 								<?php if (isset($id) && $a_cert[$id]): ?>
-								<input name="id" type="hidden" value="<?=$id;?>" />
+								<input name="id" type="hidden" value="<?=htmlspecialchars($id);?>" />
 								<?php endif;?>
 							</td>
 						</tr>
@@ -1051,7 +1059,7 @@ function internalca_change() {
 								<?php endif; */ ?>
 								<input id="submit" name="save" type="submit" class="formbtn" value="<?=gettext("Update");?>" />
 								<?php if (isset($id) && $a_cert[$id]): ?>
-								<input name="id" type="hidden" value="<?=$id;?>" />
+								<input name="id" type="hidden" value="<?=htmlspecialchars($id);?>" />
 								<input name="act" type="hidden" value="csr" />
 								<?php endif;?>
 							</td>

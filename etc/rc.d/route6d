@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $FreeBSD: src/etc/rc.d/route6d,v 1.10.2.2.2.2 2012/11/17 08:24:38 svnexp Exp $
+# $FreeBSD$
 #
 
 # PROVIDE: route6d

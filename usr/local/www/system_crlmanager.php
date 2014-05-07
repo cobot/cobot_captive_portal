@@ -49,8 +49,9 @@ $crl_methods = array(
 	"internal" => gettext("Create an internal Certificate Revocation List"),
 	"existing" => gettext("Import an existing Certificate Revocation List"));
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (ctype_alnum($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && ctype_alnum($_POST['id']))
 	$id = $_POST['id'];
 
 if (!is_array($config['ca']))
@@ -107,6 +108,7 @@ if ($act == "new") {
 }
 
 if ($act == "exp") {
+	crl_update($thiscrl);
 	$exp_name = urlencode("{$thiscrl['descr']}.crl");
 	$exp_data = base64_decode($thiscrl['text']);
 	$exp_size = strlen($exp_data);
@@ -387,7 +389,7 @@ function method_change() {
 							<td width="78%">
 								<input id="submit" name="save" type="submit" class="formbtn" value="<?=gettext("Save"); ?>" />
 								<?php if (isset($id) && $thiscrl): ?>
-								<input name="id" type="hidden" value="<?=$id;?>" />
+								<input name="id" type="hidden" value="<?=htmlspecialchars($id);?>" />
 								<?php endif;?>
 							</td>
 						</tr>
@@ -418,7 +420,7 @@ function method_change() {
 							<td width="22%" valign="top">&nbsp;</td>
 							<td width="78%">
 								<input id="submit" name="save" type="submit" class="formbtn" value="<?=gettext("Save"); ?>" />
-								<input name="id" type="hidden" value="<?=$id;?>" />
+								<input name="id" type="hidden" value="<?=htmlspecialchars($id);?>" />
 								<input name="act" type="hidden" value="editimported" />
 							</td>
 						</tr>
@@ -588,11 +590,9 @@ function method_change() {
 						<td class="listr"><?php echo ($internal) ? count($tmpcrl['cert']) : "Unknown (imported)"; ?></td>
 						<td class="listr"><?php echo ($inuse) ? "YES" : "NO"; ?></td>
 						<td valign="middle" class="list nowrap">
-							<?php if (!$internal || count($tmpcrl['cert'])): ?>
 							<a href="system_crlmanager.php?act=exp&amp;id=<?=$tmpcrl['refid'];?>">
 								<img src="/themes/<?= $g['theme'];?>/images/icons/icon_down.gif" title="<?=gettext("Export CRL") . " " . htmlspecialchars($tmpcrl['descr']);?>" alt="<?=gettext("Export CRL") . " " . htmlspecialchars($tmpcrl['descr']);?>" width="17" height="17" border="0" />
 							</a>
-							<?php endif; ?>
 							<?php if ($internal): ?>
 							<a href="system_crlmanager.php?act=edit&amp;id=<?=$tmpcrl['refid'];?>">
 								<img src="/themes/<?= $g['theme'];?>/images/icons/icon_e.gif" title="<?=gettext("Edit CRL") . " " . htmlspecialchars($tmpcrl['descr']);?>" alt="<?=gettext("Edit CRL") . " " . htmlspecialchars($tmpcrl['descr']);?>" width="17" height="17" border="0" />

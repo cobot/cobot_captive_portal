@@ -36,10 +36,9 @@
 
 function dump_rrd_to_xml($rrddatabase, $xmldumpfile) {
 	$rrdtool = "/usr/bin/nice -n20 /usr/local/bin/rrdtool";
-	if(file_exists($xmldumpfile))
-		mwexec("rm {$xmldumpfile}");
+	unlink_if_exists($xmldumpfile);
 
-	exec("$rrdtool dump {$rrddatabase} {$xmldumpfile} 2>&1", $dumpout, $dumpret);
+	exec("$rrdtool dump " . escapeshellarg($rrddatabase) . " {$xmldumpfile} 2>&1", $dumpout, $dumpret);
 	if ($dumpret <> 0) {
 		$dumpout = implode(" ", $dumpout);
 		log_error(sprintf(gettext('RRD dump failed exited with %1$s, the error is: %2$s'), $dumpret, $dumpout));
@@ -800,7 +799,7 @@ function enable_rrd_graphing() {
 				/* the Captive Portal stats gathering function. */
 				$rrdupdatesh .= "\n";
 				$rrdupdatesh .= "# polling Captive Portal for number of concurrent users\n";
-				$rrdupdatesh .= "CP=`$php -q $captiveportal_gather '$cpkey' $concurrent`\n";
+				$rrdupdatesh .= "CP=`${php} -q ${captiveportal_gather} '${cpkey}' 'concurrent'`\n";
 				$rrdupdatesh .= "$rrdtool update $concurrent_filename \${CP}\n";
 
 				$loggedin_filename = $rrddbpath . $ifname . '-' . $cpkey . $captiveportalloggedin;
@@ -836,7 +835,7 @@ function enable_rrd_graphing() {
 				/* the Captive Portal stats gathering function. */
 				$rrdupdatesh .= "\n";
 				$rrdupdatesh .= "# polling Captive Portal for number of logged in users\n";
-				$rrdupdatesh .= "CP=`$php -q $captiveportal_gather $cpkey loggedin`\n";
+				$rrdupdatesh .= "CP=`${php} -q ${captiveportal_gather} '${cpkey}' 'loggedin'`\n";
 				$rrdupdatesh .= "$rrdtool update $loggedin_filename \${CP}\n";
 
 			}

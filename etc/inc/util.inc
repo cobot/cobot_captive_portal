@@ -1,7 +1,7 @@
 <?php 
 /*
 	util.inc
-	part of the pfSense project (http://www.pfsense.com)
+	part of the pfSense project (https://www.pfsense.org)
 
 	originally part of m0n0wall (http://m0n0.ch/wall)
 	Copyright (C) 2003-2004 Manuel Kasper <mk@neon1.net>.
@@ -52,7 +52,7 @@ function isvalidpid($pidfile) {
 
 function is_process_running($process) {
 	$output = "";
-	exec("/bin/pgrep -anx {$process}", $output, $retval);
+	exec("/bin/pgrep -anx " . escapeshellarg($process), $output, $retval);
 
 	return (intval($retval) == 0);
 }
@@ -65,7 +65,7 @@ function isvalidproc($proc) {
 /* return 1 for success and 0 for a failure */
 function sigkillbypid($pidfile, $sig) {
 	if (file_exists($pidfile))
-		return mwexec("/bin/pkill -{$sig} -F {$pidfile}", true);
+		return mwexec("/bin/pkill " . escapeshellarg("-{$sig}") . " -F {$pidfile}", true);
 
 	return 0;
 }
@@ -73,7 +73,7 @@ function sigkillbypid($pidfile, $sig) {
 /* kill a process by name */
 function sigkillbyname($procname, $sig) {
 	if(isvalidproc($procname))
-		return mwexec("/usr/bin/killall -{$sig} " . escapeshellarg($procname), true);
+		return mwexec("/usr/bin/killall " . escapeshellarg("-{$sig}") . " " . escapeshellarg($procname), true);
 }
 
 /* kill a process by name */
@@ -500,7 +500,7 @@ function is_ipaddrv4($ipaddr) {
 
 /* returns true if $ipaddr is a valid linklocal address */
 function is_linklocal($ipaddr) {
-	return (substr($ipaddr, 0, 5) == "fe80:");
+	return (strtolower(substr($ipaddr, 0, 5)) == "fe80:");
 }
 
 /* returns scope of a linklocal address */
@@ -711,6 +711,11 @@ function is_inrange_v6($test, $start, $end) {
 		return true;
 	else
 		return false;
+}
+
+/* returns true if $test is in the range between $start and $end */
+function is_inrange($test, $start, $end) {
+	return is_ipaddrv6($test) ? is_inrange_v6($test, $start, $end) : is_inrange_v4($test, $start, $end);
 }
 
 /* return the configured carp interface list */
@@ -1065,7 +1070,7 @@ function log_auth($error) {
  ******/
 function exec_command($command) {
 	$output = array();
-	exec($command . ' 2>&1 ', $output);
+	exec($command . ' 2>&1', $output);
 	return(implode("\n", $output));
 }
 
@@ -1291,9 +1296,9 @@ function verify_digital_signature($fname) {
 
 /* obtain MAC address given an IP address by looking at the ARP table */
 function arp_get_mac_by_ip($ip) {
-	mwexec("/sbin/ping -c 1 -t 1 {$ip}", true);
+	mwexec("/sbin/ping -c 1 -t 1 " . escapeshellarg($ip), true);
 	$arpoutput = "";
-	exec("/usr/sbin/arp -n {$ip}", $arpoutput);
+	exec("/usr/sbin/arp -n " . escapeshellarg($ip), $arpoutput);
 
 	if ($arpoutput[0]) {
 		$arpi = explode(" ", $arpoutput[0]);

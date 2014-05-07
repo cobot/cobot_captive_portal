@@ -95,6 +95,19 @@ if(!$ignorefirmwarelock) {
 	}
 }
 
+/* Reserved table names to avoid colision */
+$reserved_table_names = array(
+        "bogons",
+        "bogonsv6",
+        "negate_networks",
+        "snort2c",
+        "sshlockout",
+        "tonatsubnets",
+        "virusprot",
+        "vpn_networks",
+        "webConfiguratorlockout"
+);
+
 $firewall_rules_dscp_types = array("af11",
 				"af12",
 				"af13",
@@ -107,6 +120,7 @@ $firewall_rules_dscp_types = array("af11",
 				"af41",
 				"af42",
 				"af43",
+				"VA",
 				"EF",
 				"cs1",
 				"cs2",
@@ -335,7 +349,7 @@ function print_info_box_np($msg, $name="apply",$value="", $showapply=false) {
 								&nbsp;&nbsp;&nbsp;<img class="infoboxnpimg" src="/themes/{$g['theme']}/images/icons/icon_exclam.gif" alt="exclamation" />
 							</td>
 							<td class="infoboxnptd2">
-								<b>{$msg}</b>
+								{$msg}
 							</td>
 							{$savebutton}
 						</tr>
@@ -481,6 +495,10 @@ function pprint_port($port) {
 
 function firewall_check_for_advanced_options(&$item) {
 	$item_set = "";
+	if($item['os'])
+		$item_set .= "os {$item['os']} ";
+	if($item['dscp'])
+		$item_set .= "dscp {$item['dscp']} ";
 	if($item['max'])
 		$item_set .= "max {$item['max']} ";
 	if($item['max-src-nodes'])
@@ -489,22 +507,32 @@ function firewall_check_for_advanced_options(&$item) {
 		$item_set .= "max-src-conn {$item['max-src-conn']} ";
 	if($item['max-src-states'])
 		$item_set .= "max-src-states {$item['max-src-states']} ";
+	if(isset($item['nopfsync']))
+		$item_set .= "nopfsync ";
 	if($item['statetype'] != "keep state" && $item['statetype'] != "")
 		$item_set .= "statetype {$item['statetype']} ";
 	if($item['statetimeout'])
 		$item_set .= "statetimeout {$item['statetimeout']} ";
-	if($item['nosync'])
-		$item_set .= "nosync ";
+	if(isset($item['nosync']))
+		$item_set .= "no XMLRPC Sync ";
 	if($item['max-src-conn-rate'])
 		$item_set .= "max-src-conn-rate {$item['max-src-conn-rate']} ";
 	if($item['max-src-conn-rates'])
 		$item_set .= "max-src-conn-rates {$item['max-src-conn-rates']} ";
+	if($item['vlanprio'])
+		$item_set .= "vlanprio {$item['vlanprio']} ";
+	if($item['vlanprioset'])
+		$item_set .= "vlanprioset {$item['vlanprioset']} ";
 	if($item['gateway'])
 		$item_set .= "gateway {$item['gateway']} ";
 	if($item['dnpipe'])
 		$item_set .= "limiter {$item['dnpipe']} ";
 	if($item['pdnpipe'])
 		$item_set .= "limiter {$item['pdnpipe']} ";
+	if($item['ackqueue'])
+		$item_set .= "ackqueue {$item['ackqueue']} ";
+	if($item['defaultqueue'])
+		$item_set .= "defaultqueue {$item['defaultqueue']} ";
 	if($item['l7container'])
 		$item_set .= "layer7 {$item['l7container']} ";
 	if($item['tag'])
@@ -551,9 +579,9 @@ function clear_log_file($logfile = "/var/log/system.log") {
 		touch($logfile);
 	} else {
 		if(isset($config['system']['usefifolog']))
-			exec("/usr/sbin/fifolog_create -s 511488 {$logfile}");
+			exec("/usr/sbin/fifolog_create -s 511488 " . escapeshellarg($logfile));
 		else
-			exec("/usr/sbin/clog -i -s 511488 {$logfile}");
+			exec("/usr/local/sbin/clog -i -s 511488 " . escapeshellarg($logfile));
 	}
 	system_syslogd_start();
 }
@@ -564,21 +592,19 @@ function dump_clog($logfile, $tail, $withorig = true, $grepfor = "", $grepinvert
 	$logarr = "";
 	$grepline = "  ";
 	if(is_array($grepfor))
-		foreach($grepfor as $agrep)
-			$grepline .= " | grep \"$agrep\"";
+		$grepline .= " | /usr/bin/egrep " . escapeshellarg(implode("|", $grepfor));
 	if(is_array($grepinvert))
-		foreach($grepinvert as $agrep)
-			$grepline .= " | grep -v \"$agrep\"";
+		$grepline .= " | /usr/bin/egrep -v " . escapeshellarg(implode("|", $grepinvert));
 	if(file_exists($logfile) && filesize($logfile) == 0) {
 		$logarr = array("Log file started.");
 	} else {
 		if($config['system']['disablesyslogclog']) {
-			exec("cat {$logfile}{$grepline} | /usr/bin/tail {$sor} -n {$tail}", $logarr);
+			exec("cat " . escapeshellarg($logfile) . "{$grepline} | /usr/bin/tail {$sor} -n " . escapeshellarg($tail), $logarr);
 		} else {
 			if(isset($config['system']['usefifolog']))
-				exec("/usr/sbin/fifolog_reader {$logfile}{$grepline} | /usr/bin/tail {$sor} -n {$tail}", $logarr);
+				exec("/usr/sbin/fifolog_reader " . escapeshellarg($logfile) . "{$grepline} | /usr/bin/tail {$sor} -n " . escapeshellarg($tail), $logarr);
 			else
-				exec("/usr/sbin/clog {$logfile}{$grepline}| grep -v \"CLOG\" | grep -v \"\033\" | /usr/bin/tail {$sor} -n {$tail}", $logarr);
+				exec("/usr/local/sbin/clog " . escapeshellarg($logfile) . "{$grepline}| grep -v \"CLOG\" | grep -v \"\033\" | /usr/bin/tail {$sor} -n " . escapeshellarg($tail), $logarr);
 		}
 	}
 	foreach ($logarr as $logent) {
@@ -609,18 +635,16 @@ function return_clog($logfile, $tail, $withorig = true, $grepfor = "", $grepinve
 	$logarr = "";
 	$grepline = "  ";
 	if(is_array($grepfor))
-		foreach($grepfor as $agrep)
-			$grepline .= " | grep \"$agrep\"";
+		$grepline .= " | /usr/bin/egrep " . escapeshellarg(implode("|", $grepfor));
 	if(is_array($grepinvert))
-		foreach($grepinvert as $agrep)
-			$grepline .= " | grep -v \"$agrep\"";
+		$grepline .= " | /usr/bin/egrep -v " . escapeshellarg(implode("|", $grepinvert));
 	if($config['system']['disablesyslogclog']) {
-		exec("cat {$logfile}{$grepline} | /usr/bin/tail {$sor} -n {$tail}", $logarr);
+		exec("cat " . escapeshellarg($logfile) . "{$grepline} | /usr/bin/tail {$sor} -n " . escapeshellarg($tail), $logarr);
 	} else {
 		if(isset($config['system']['usefifolog'])) {
-			exec("/usr/sbin/fifolog_reader {$logfile}{$grepline} | /usr/bin/tail {$sor} -n {$tail}", $logarr);
+			exec("/usr/sbin/fifolog_reader " . escapeshellarg($logfile) . "{$grepline} | /usr/bin/tail {$sor} -n " . escapeshellarg($tail), $logarr);
 		} else {
-			exec("/usr/sbin/clog {$logfile}{$grepline}| grep -v \"CLOG\" | grep -v \"\033\" | /usr/bin/tail {$sor} -n {$tail}", $logarr);
+			exec("/usr/local/sbin/clog " . escapeshellarg($logfile) . "{$grepline}| grep -v \"CLOG\" | grep -v \"\033\" | /usr/bin/tail {$sor} -n " . escapeshellarg($tail), $logarr);
 		}
 	}
 	return($logarr);
@@ -1093,7 +1117,7 @@ function rule_popup($src,$srcport,$dst,$dstport){
 	if ($config['aliases']['alias'] <> "" and is_array($config['aliases']['alias'])) {
 		$descriptions = array ();
 		foreach ($config['aliases']['alias'] as $alias_id=>$alias_name){
-			$loading_image="<a><img src=\'/themes/{$g['theme']}/images/misc/loader.gif\' alt=\'loader\' /> " .gettext("loading...")."</a>";
+			$loading_image= htmlspecialchars("<a><img src=\'/themes/{$g['theme']}/images/misc/loader.gif\' alt=\'loader\' /> " .gettext("loading...")."</a>");
 			switch ($alias_name['type']){
 			case "port":
 				$width="250";

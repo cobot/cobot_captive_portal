@@ -53,6 +53,7 @@ function xmlrpc_sync_voucher_expire($vouchers, $syncip, $port, $password, $usern
 	/* Construct code that is run on remote machine */
 	$method = 'pfsense.exec_php';
 	$execcmd  = <<<EOF
+	global \$cpzone;
 	require_once('/etc/inc/captiveportal.inc');
 	require_once('/etc/inc/voucher.inc');
 	\$cpzone = "$cpzone";
@@ -108,6 +109,7 @@ function xmlrpc_sync_voucher_disconnect($dbent, $syncip, $port, $password, $user
 	$tmp_stop_time = (isset($stop_time)) ? $stop_time : "null";
 	$method = 'pfsense.exec_php';
 	$execcmd  = <<<EOF
+	global \$cpzone;
 	require_once('/etc/inc/captiveportal.inc');
 	require_once('/etc/inc/voucher.inc');
 	\$cpzone = "$cpzone";
@@ -163,6 +165,7 @@ function xmlrpc_sync_used_voucher($voucher_received, $syncip, $port, $password, 
 	/* Construct code that is run on remote machine */
 	$method = 'pfsense.exec_php';
 	$execcmd  = <<<EOF
+	global \$cpzone;
 	require_once('/etc/inc/voucher.inc');
 	\$cpzone = "$cpzone";
 	\$timeleft = voucher_auth("$voucher_received");
@@ -188,23 +191,26 @@ EOF;
 		$error = "A communications error occurred while attempting CaptivePortalVoucherSync XMLRPC sync with {$url}:{$port} (pfsense.exec_php).";
 		log_error($error);
 		file_notice("CaptivePortalVoucherSync", $error, "Communications error occurred", "");
-		return 0; // $timeleft
+		return null; // $timeleft
 	} elseif($resp->faultCode()) {
 		$error = "An error code was received while attempting CaptivePortalVoucherSync XMLRPC sync with {$url}:{$port} - Code " . $resp->faultCode() . ": " . $resp->faultString();
 		log_error($error);
 		file_notice("CaptivePortalVoucherSync", $error, "Error code received", "");
-		return 0; // $timeleft
+		return null; // $timeleft
 	} else {
 		log_error("CaptivePortalVoucherSync XMLRPC reload data success with {$url}:{$port} (pfsense.exec_php).");
 	}
 	$toreturn =  XML_RPC_Decode($resp->value());
 	if (!is_array($config['voucher']))
 		$config['voucher'] = array();
-	if (is_array($toreturn['voucher']) && (count($toreturn['voucher'][$cpzone]['roll']) <> count($config['voucher'][$cpzone]['roll']))) {
+
+	if (is_array($toreturn['voucher']) && is_array($toreturn['voucher']['roll'])) {
 		$config['voucher'][$cpzone]['roll'] = $toreturn['voucher']['roll'];
 		write_config("Captive Portal Voucher database synchronized with {$url}");
 		voucher_configure_zone(true);
-	}
+		unset($toreturn['voucher']);
+	} else if (!isset($toreturn['timeleft']))
+		return null;
 
 	return $toreturn['timeleft'];
 }
@@ -436,9 +442,12 @@ function voucher_auth($voucher_received, $test = 0) {
 	}
 
 	// If we did a XMLRPC sync earlier check the timeleft
-	if (!empty($config['voucher'][$cpzone]['vouchersyncdbip'])) 
-		if($remote_time_used < $total_minutes) 
+	if (!empty($config['voucher'][$cpzone]['vouchersyncdbip'])) {
+		if (!is_null($remote_time_used))
 			$total_minutes = $remote_time_used;
+		else if ($remote_time_used < $total_minutes) 
+			$total_minutes -= $remote_time_used;
+	}
 
 	// All given vouchers were valid and this isn't simply a test.
 	// Write back the used DB's

@@ -32,7 +32,7 @@
 ##|+PRIV
 ##|*IDENT=page-interfacess-qinq
 ##|*NAME=Interfaces: QinQ: Edit page
-##|*DESCR=Edit Interface qinq
+##|*DESCR=Allow access to 'Interfaces: QinQ: Edit' page
 ##|*MATCH=interfaces_qinq_edit.php*
 ##|-PRIV
 
@@ -59,8 +59,9 @@ if (count($portlist) < 1) {
 	exit;
 }
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && $a_qinqs[$id]) {

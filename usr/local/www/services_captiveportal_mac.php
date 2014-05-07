@@ -150,7 +150,7 @@ include("head.inc");
 <?php include("fbegin.inc"); ?>
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
 <form action="services_captiveportal_mac.php" method="post">
-<input type="hidden" name="zone" id="zone" value="<?=$cpzone;?>"/>
+<input type="hidden" name="zone" id="zone" value="<?=htmlspecialchars($cpzone);?>"/>
 <?php if ($savemsg) print_info_box($savemsg); ?>
 <?php if (is_subsystem_dirty('passthrumac')): ?><p>
 <?php print_info_box_np(gettext("The captive portal MAC address configuration has been changed.<br>You must apply the changes in order for them to take effect."));?><br>
@@ -180,7 +180,7 @@ include("head.inc");
 		$i = 0; foreach ($a_cp[$cpzone]['passthrumac'] as $mac): ?>
 	<tr ondblclick="document.location='services_captiveportal_mac_edit.php?zone=<?=$cpzone;?>&id=<?=$i;?>'">
 	  <td class="listlr">
-		<?=strtolower($mac['mac']);?>
+		<?=$mac['mac'];?>
 	  </td>
 	  <td class="listbg">
 		<?=htmlspecialchars($mac['descr']);?>&nbsp;

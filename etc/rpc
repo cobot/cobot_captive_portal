@@ -1,5 +1,5 @@
 #
-# $FreeBSD: src/etc/rpc,v 1.11.30.1.8.2 2012/11/17 08:24:37 svnexp Exp $
+# $FreeBSD$
 # rpc 88/08/01 4.0 RPCSRC; from 1.12   99/07/25 SMI
 #
 rpcbind		100000  portmap sunrpc rpcbind

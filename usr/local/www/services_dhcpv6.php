@@ -7,7 +7,7 @@
 	Copyright (C) 2003-2004 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 
-	part of pfSense (http://www.pfsense.org)
+	part of pfSense (https://www.pfsense.org)
 	Copyright (C) 2010 Seth Mos <seth.mos@dds.nl>.
 	All rights reserved.
 
@@ -45,6 +45,7 @@
 ##|-PRIV
 
 require("guiconfig.inc");
+require_once("filter.inc");
 
 if(!$g['services_dhcp_server_enable']) {
 	Header("Location: /");
@@ -107,16 +108,13 @@ if (is_array($config['dhcpdv6'][$if])){
 	list($pconfig['wins1'],$pconfig['wins2']) = $config['dhcpdv6'][$if]['winsserver'];
 	list($pconfig['dns1'],$pconfig['dns2']) = $config['dhcpdv6'][$if]['dnsserver'];
 	$pconfig['enable'] = isset($config['dhcpdv6'][$if]['enable']);
-	$pconfig['denyunknown'] = isset($config['dhcpdv6'][$if]['denyunknown']);
 	$pconfig['ddnsdomain'] = $config['dhcpdv6'][$if]['ddnsdomain'];
 	$pconfig['ddnsupdate'] = isset($config['dhcpdv6'][$if]['ddnsupdate']);
 	list($pconfig['ntp1'],$pconfig['ntp2']) = $config['dhcpdv6'][$if]['ntpserver'];
 	$pconfig['tftp'] = $config['dhcpdv6'][$if]['tftp'];
 	$pconfig['ldap'] = $config['dhcpdv6'][$if]['ldap'];
 	$pconfig['netboot'] = isset($config['dhcpdv6'][$if]['netboot']);
-	$pconfig['nextserver'] = $config['dhcpdv6'][$if]['nextserver'];
-	$pconfig['filename'] = $config['dhcpdv6'][$if]['filename'];
-	$pconfig['rootpath'] = $config['dhcpdv6'][$if]['rootpath'];
+	$pconfig['bootfile_url'] = $config['dhcpdv6'][$if]['bootfile_url'];
 	$pconfig['netmask'] = $config['dhcpdv6'][$if]['netmask'];
 	$pconfig['numberoptions'] = $config['dhcpdv6'][$if]['numberoptions'];
 	$pconfig['dhcpv6leaseinlocaltime'] = $config['dhcpdv6'][$if]['dhcpv6leaseinlocaltime'];
@@ -147,6 +145,10 @@ if(is_array($dhcrelaycfg)) {
 if ($_POST) {
 
 	unset($input_errors);
+
+	$old_dhcpdv6_enable = ($pconfig['enable'] == true);
+	$new_dhcpdv6_enable = ($_POST['enable'] ? true : false);
+	$dhcpdv6_enable_changed = ($old_dhcpdv6_enable != $new_dhcpdv6_enable);
 
 	$pconfig = $_POST;
 
@@ -204,8 +206,8 @@ if ($_POST) {
 			$input_errors[] = gettext("A valid domain name must be specified for the DNS domain.");
 		if ($_POST['tftp'] && !is_ipaddr($_POST['tftp']) && !is_domain($_POST['tftp']) && !is_URL($_POST['tftp']))
 			$input_errors[] = gettext("A valid IPv6 address or hostname must be specified for the TFTP server.");
-		if (($_POST['nextserver'] && !is_ipaddrv6($_POST['nextserver'])))
-			$input_errors[] = gettext("A valid IPv6 address must be specified for the network boot server.");
+		if (($_POST['bootfile_url'] && !is_URL($_POST['bootfile_url'])))
+			$input_errors[] = gettext("A valid URL must be specified for the network bootfile.");
 
 		// Disallow a range that includes the virtualip
 		if (is_array($config['virtualip']['vip'])) {
@@ -288,7 +290,6 @@ if ($_POST) {
 
 		$config['dhcpdv6'][$if]['domain'] = $_POST['domain'];
 		$config['dhcpdv6'][$if]['domainsearchlist'] = $_POST['domainsearchlist'];
-		$config['dhcpdv6'][$if]['denyunknown'] = ($_POST['denyunknown']) ? true : false;
 		$config['dhcpdv6'][$if]['enable'] = ($_POST['enable']) ? true : false;
 		$config['dhcpdv6'][$if]['ddnsdomain'] = $_POST['ddnsdomain'];
 		$config['dhcpdv6'][$if]['ddnsupdate'] = ($_POST['ddnsupdate']) ? true : false;
@@ -302,9 +303,7 @@ if ($_POST) {
 		$config['dhcpdv6'][$if]['tftp'] = $_POST['tftp'];
 		$config['dhcpdv6'][$if]['ldap'] = $_POST['ldap'];
 		$config['dhcpdv6'][$if]['netboot'] = ($_POST['netboot']) ? true : false;
-		$config['dhcpdv6'][$if]['nextserver'] = $_POST['nextserver'];
-		$config['dhcpdv6'][$if]['filename'] = $_POST['filename'];
-		$config['dhcpdv6'][$if]['rootpath'] = $_POST['rootpath'];
+		$config['dhcpdv6'][$if]['bootfile_url'] = $_POST['bootfile_url'];
 		$config['dhcpdv6'][$if]['dhcpv6leaseinlocaltime'] = $_POST['dhcpv6leaseinlocaltime'];
 
 		// Handle the custom options rowhelper
@@ -334,7 +333,9 @@ if ($_POST) {
 			if ($retvaldhcp == 0)
 				clear_subsystem_dirty('staticmaps');
 		}
-		if($retvaldhcp == 1 || $retvaldns == 1)
+		if ($dhcpdv6_enable_changed)
+			$retvalfc = filter_configure();
+		if($retvaldhcp == 1 || $retvaldns == 1 || $retvalfc == 1)
 			$retval = 1;
 		$savemsg = get_std_save_message($retval);
 	}
@@ -397,10 +398,7 @@ include("head.inc");
 		//document.iform.tftp.disabled = endis;
 		document.iform.ldap.disabled = endis;
 		document.iform.netboot.disabled = endis;
-		document.iform.nextserver.disabled = endis;
-		document.iform.filename.disabled = endis;
-		document.iform.rootpath.disabled = endis;
-		document.iform.denyunknown.disabled = endis;
+		document.iform.bootfile_url.disabled = endis;
 	}
 
 	function show_shownumbervalue() {
@@ -520,13 +518,6 @@ display_top_tabs($tab_array);
 			<strong><?php printf(gettext("Enable DHCPv6 server on " .
 			"%s " .
 			"interface"),htmlspecialchars($iflist[$if]));?></strong></td>
-			</tr>
-			<tr>
-			<td width="22%" valign="top" class="vtable">&nbsp;</td>
-			<td width="78%" class="vtable">
-				<input name="denyunknown" id="denyunknown" type="checkbox" value="yes" <?php if ($pconfig['denyunknown']) echo "checked"; ?>>
-				<strong><?=gettext("Deny unknown clients");?></strong><br>
-				<?=gettext("If this is checked, only the clients defined below will get DHCP leases from this server. ");?></td>
 			</tr>
 			<tr>
 			<?php
@@ -736,15 +727,8 @@ display_top_tabs($tab_array);
 					<input valign="middle" type="checkbox" value="yes" name="netboot" id="netboot" <?php if($pconfig['netboot']) echo " checked"; ?>>&nbsp;
 					<b><?=gettext("Enables network booting.");?></b>
 					<p>
-					<?=gettext("Enter the IP of the"); ?> <b><?=gettext("next-server"); ?></b>
-					<input name="nextserver" type="text" class="formfld unknown" id="nextserver" size="28" value="<?=htmlspecialchars($pconfig['nextserver']);?>">
-					<?=gettext("and the filename");?>
-					<input name="filename" type="text" class="formfld unknown" id="filename" size="28" value="<?=htmlspecialchars($pconfig['filename']);?>"><br>
-					<?=gettext("Note: You need both a filename and a boot server configured for this to work!");?>
-					<p>
-					<?=gettext("Enter the"); ?> <b><?=gettext("root-path"); ?></b>-<?=gettext("string");?>
-					<input name="rootpath" type="text" class="formfld unknown" id="rootpath" size="90" value="<?=htmlspecialchars($pconfig['rootpath']);?>"><br>
-					<?=gettext("Note: string-format: iscsi:(servername):(protocol):(port):(LUN):targetname");?>
+					<?=gettext("Enter the Bootfile URL");?>
+					<input name="bootfile_url" type="text" class="formfld unknown" id="bootfile_url" size="28" value="<?=htmlspecialchars($pconfig['bootfile_url']);?>">
 				</div>
 			</td>
 			</tr>

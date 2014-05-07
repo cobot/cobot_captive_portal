@@ -295,8 +295,10 @@ if ($pkg['custom_php_after_head_command'])
 		//delete current line jQuery function
 		jQuery('#maintable td .delete').live('click', function() {
 			//do not remove first line
-			if (jQuery("#maintable tr").length > 2)
+			if (jQuery("#maintable tr").length > 2){
 				jQuery(this).parent().parent().remove();
+				return false;
+			}
 	    });
 	    
 		//add new line jQuery function
@@ -306,6 +308,7 @@ if ($pkg['custom_php_after_head_command'])
 			var new_row=jQuery("table#maintable tr:last").html().replace(/(name|id)="(\w+)(\d+)"/g,"$1='$2"+c_id+"'");
 			//apply new id to created line rowhelperid
 			jQuery("table#maintable tr:last").after("<tr>"+new_row+"<\/tr>");
+			return false;
 	    });
 		// Call enablechange function
 		enablechange();
@@ -719,7 +722,9 @@ if ($pkg['tabs'] <> "") {
 				if (is_array($config['interfaces']))
 					foreach ($config['interfaces'] as $iface_key=>$iface_value){
 						if (isset($iface_value['enable']) && ! preg_match("/$interface_regex/",$iface_key)){
-							$iface_description=(isset($pkga['showips']) ? strtoupper($iface_key)." address" : strtoupper($iface_key));
+							$iface_description=($iface_value['descr'] !="" ? strtoupper($iface_value['descr']) : strtoupper($iface_key));
+							if (isset($pkga['showips']))
+								$iface_description .= " address";
 							$ips[]=array('ip'=> $iface_key, 'description'=> $iface_description);
 							}
 					}

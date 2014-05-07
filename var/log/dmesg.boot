@@ -2,27 +2,27 @@ Copyright (c) 1992-2012 The FreeBSD Project.
 Copyright (c) 1979, 1980, 1983, 1986, 1988, 1989, 1991, 1992, 1993, 1994
 	The Regents of the University of California. All rights reserved.
 FreeBSD is a registered trademark of The FreeBSD Foundation.
-FreeBSD 8.3-RELEASE-p11 #0: Wed Sep 11 19:51:14 EDT 2013
-    root@snapshots-8_3-i386.builders.pfsense.org:/usr/obj.pfSense/usr/pfSensesrc/src/sys/pfSense_wrap_vga.8.i386 i386
+FreeBSD 8.3-RELEASE-p16 #0: Thu May  1 16:19:39 EDT 2014
+    root@pf2_1_1_i386.pfsense.org:/usr/obj.i386/usr/pfSensesrc/src/sys/pfSense_wrap_vga.8.i386 i386
 Timecounter "i8254" frequency 1193182 Hz quality 0
-CPU: Intel(R) Core(TM) i7-3667U CPU @ 2.00GHz (2503.20-MHz 686-class CPU)
+CPU: Intel(R) Core(TM) i7-3667U CPU @ 2.00GHz (2529.55-MHz 686-class CPU)
   Origin = "GenuineIntel"  Id = 0x306a9  Family = 6  Model = 3a  Stepping = 9
-  Features=0x783fbff<FPU,VME,DE,PSE,TSC,MSR,PAE,MCE,CX8,APIC,SEP,MTRR,PGE,MCA,CMOV,PAT,PSE36,MMX,FXSR,SSE,SSE2>
+  Features=0x783fbbf<FPU,VME,DE,PSE,TSC,MSR,MCE,CX8,APIC,SEP,MTRR,PGE,MCA,CMOV,PAT,PSE36,MMX,FXSR,SSE,SSE2>
   Features2=0x209<SSE3,MON,SSSE3>
-  AMD Features=0x28100800<SYSCALL,NX,RDTSCP,LM>
-  AMD Features2=0x1<LAHF>
+  AMD Features=0x8000000<RDTSCP>
   TSC: P-state invariant
 real memory  = 536805376 (511 MB)
 avail memory = 502190080 (478 MB)
+pnpbios: Bad PnP BIOS data checksum
 ipw_bss: You need to read the LICENSE file in /usr/share/doc/legal/intel_ipw/.
 ipw_bss: If you agree with the license, set legal.intel_ipw.license_ack=1 in /boot/loader.conf.
-module_register_init: MOD_LOAD (ipw_bss_fw, 0xc0734c30, 0) error 1
+module_register_init: MOD_LOAD (ipw_bss_fw, 0xc073aa90, 0) error 1
 ipw_ibss: You need to read the LICENSE file in /usr/share/doc/legal/intel_ipw/.
 ipw_ibss: If you agree with the license, set legal.intel_ipw.license_ack=1 in /boot/loader.conf.
-module_register_init: MOD_LOAD (ipw_ibss_fw, 0xc0734cd0, 0) error 1
+module_register_init: MOD_LOAD (ipw_ibss_fw, 0xc073ab30, 0) error 1
 ipw_monitor: You need to read the LICENSE file in /usr/share/doc/legal/intel_ipw/.
 ipw_monitor: If you agree with the license, set legal.intel_ipw.license_ack=1 in /boot/loader.conf.
-module_register_init: MOD_LOAD (ipw_monitor_fw, 0xc0734d70, 0) error 1
+module_register_init: MOD_LOAD (ipw_monitor_fw, 0xc073abd0, 0) error 1
 wlan: mac acl policy registered
 kbd1 at kbdmux0
 cryptosoft0: <software crypto> on motherboard
@@ -44,14 +44,11 @@ ata0: [ITHREAD]
 ata1: <ATA channel> at channel 1 on atapci0
 ata1: [ITHREAD]
 vgapci0: <VGA-compatible display> mem 0xe0000000-0xe07fffff irq 11 at device 2.0 on pci0
-em0: <Intel(R) PRO/1000 Legacy Network Connection 1.0.4> port 0xd010-0xd017 mem 0xf0000000-0xf001ffff irq 10 at device 3.0 on pci0
+em0: <Intel(R) PRO/1000 Legacy Network Connection 1.0.6> port 0xd010-0xd017 mem 0xf0000000-0xf001ffff irq 10 at device 3.0 on pci0
 em0: [FILTER]
 pci0: <base peripheral> at device 4.0 (no driver attached)
-ohci0: <OHCI (generic) USB controller> mem 0xf0804000-0xf0804fff irq 11 at device 6.0 on pci0
-ohci0: [ITHREAD]
-usbus0: <OHCI (generic) USB controller> on ohci0
 pci0: <bridge> at device 7.0 (no driver attached)
-em1: <Intel(R) PRO/1000 Legacy Network Connection 1.0.4> port 0xd040-0xd047 mem 0xf0820000-0xf083ffff irq 9 at device 8.0 on pci0
+em1: <Intel(R) PRO/1000 Legacy Network Connection 1.0.6> port 0xd040-0xd047 mem 0xf0820000-0xf083ffff irq 9 at device 8.0 on pci0
 em1: [FILTER]
 battery0: <ACPI Control Method Battery> on acpi0
 acpi_acad0: <AC Adapter> on acpi0
@@ -60,20 +57,15 @@ atkbd0: <AT Keyboard> irq 1 on atkbdc0
 kbd0 at atkbd0
 atkbd0: [GIANT-LOCKED]
 atkbd0: [ITHREAD]
-orm0: <ISA Option ROMs> at iomem 0xc0000-0xc7fff,0xe2000-0xe6fff pnpid ORM0000 on isa0
+orm0: <ISA Option ROM> at iomem 0xc0000-0xc7fff pnpid ORM0000 on isa0
 sc0: <System console> at flags 0x100 on isa0
 sc0: VGA <16 virtual consoles, flags=0x300>
 vga0: <Generic ISA VGA> at port 0x3c0-0x3df iomem 0xa0000-0xbffff on isa0
 atrtc0: <AT Real Time Clock> at port 0x70 irq 8 on isa0
 ppc0: parallel port not found.
-Timecounter "TSC" frequency 2503201390 Hz quality 800
+Timecounter "TSC" frequency 2529552669 Hz quality 800
 Timecounters tick every 10.000 msec
 IPsec: Initialized Security Association Processing.
-usbus0: 12Mbps Full Speed USB v1.0
 ad0: 3805MB <VBOX HARDDISK 1.0> at ata0-master UDMA33
-ugen0.1: <Apple> at usbus0
-uhub0: <Apple OHCI root HUB, class 9/0, rev 1.00/1.00, addr 1> on usbus0
 acd0: DVDROM <VBOX CD-ROM/1.0> at ata1-master UDMA33
-Root mount waiting for: usbus0
-uhub0: 8 ports with 8 removable, self powered
 Trying to mount root from ufs:/dev/ufs/pfsense0

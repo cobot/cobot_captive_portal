@@ -46,9 +46,9 @@ if (!is_array($config['gres']['gre']))
 
 $a_gres = &$config['gres']['gre'];
 
-
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && $a_gres[$id]) {
@@ -131,6 +131,7 @@ include("head.inc");
 ?>
 
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
+<script type="text/javascript" src="/javascript/jquery.ipv4v6ify.js"></script>
 <?php include("fbegin.inc"); ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
             <form action="interfaces_gre_edit.php" method="post" name="iform" id="iform">
@@ -175,8 +176,8 @@ include("head.inc");
 				<tr>
                   <td valign="top" class="vncellreq"><?=gettext("GRE tunnel remote address ");?></td>
                   <td class="vtable">
-                    <input name="tunnel-remote-addr" type="text" class="formfld unknown" id="tunnel-remote-addr" size="16" value="<?=htmlspecialchars($pconfig['tunnel-remote-addr']);?>" />
-                    <select name="tunnel-remote-net" class="formselect" id="tunnel-remote-net">
+                    <input name="tunnel-remote-addr" type="text" class="formfld unknown ipv4v6" id="tunnel-remote-addr" size="16" value="<?=htmlspecialchars($pconfig['tunnel-remote-addr']);?>" />
+                    <select name="tunnel-remote-net" class="formselect ipv4v6" id="tunnel-remote-net">
                                         <?php
                                         for ($i = 128; $i > 0; $i--) {
 						echo "<option value=\"{$i}\"";

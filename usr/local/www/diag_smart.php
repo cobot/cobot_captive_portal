@@ -98,7 +98,7 @@ function update_email($email)
 function smartmonctl($action)
 {
 	global $start_script;
-	shell_exec($start_script . $action);
+	shell_exec($start_script . escapeshellarg($action));
 }
 
 // What page, aka. action is being wanted

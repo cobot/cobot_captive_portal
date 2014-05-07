@@ -30,7 +30,7 @@
 	POSSIBILITY OF SUCH DAMAGE.
 */
 /*
-	pfSense_BUILDER_BINARIES:	/usr/sbin/fifolog_reader	/usr/bin/tail	/usr/sbin/clog
+	pfSense_BUILDER_BINARIES:	/usr/sbin/fifolog_reader	/usr/bin/tail	/usr/local/sbin/clog
 	pfSense_MODULE:	filter
 */
 
@@ -55,9 +55,9 @@ function conv_log_filter($logfile, $nentries, $tail = 50, $filtertext = "", $fil
 	$logarr = "";
 
 	if(isset($config['system']['usefifolog']))
-		exec("/usr/sbin/fifolog_reader {$logfile} | /usr/bin/tail -r -n {$tail}", $logarr);
+		exec("/usr/sbin/fifolog_reader " . escapeshellarg($logfile) . " | /usr/bin/tail -r -n {$tail}", $logarr);
 	else
-		exec("/usr/sbin/clog {$logfile} | grep -v \"CLOG\" | grep -v \"\033\" | /usr/bin/tail -r -n {$tail}", $logarr);
+		exec("/usr/local/sbin/clog " . escapeshellarg($logfile) . " | grep -v \"CLOG\" | grep -v \"\033\" | /usr/bin/tail -r -n {$tail}", $logarr);
 
 	$filterlog = array();
 	$counter = 0;
@@ -207,7 +207,7 @@ function parse_filter_line($line) {
 }
 
 function parse_ipport($addr) {
-	$addr = rtrim($addr, ":");
+	$addr = trim(rtrim($addr, ":"));
 	if (substr($addr, 0, 4) == "kip ")
 		$addr = substr($addr, 4);
 	$port = '';
@@ -294,7 +294,7 @@ function find_rule_by_number_buffer($rulenum, $type){
 	} else {
 		$ruleString = $buffer_rules_normal["@".$rulenum];
 		list(,$rulename,) = explode("\"",$ruleString);
-		$rulename = str_replace("USER_RULE: ",'<img src="/themes/'.$g['theme'].'/images/icons/icon_frmfld_user.png" width="11" height="12" title="USER_RULE" alt="USER_RULE"/> ',$rulename);
+		$rulename = str_replace("USER_RULE: ",'<img src="/themes/'.$g['theme'].'/images/icons/icon_frmfld_user.png" width="11" height="12" title="USER_RULE" alt="USER_RULE"/> ',htmlspecialchars($rulename));
 	}
 	return $rulename." (@".$rulenum.")";
 }

@@ -1,0 +1,11 @@
+lease {
+  interface "em1";
+  fixed-address 192.168.56.101;
+  option subnet-mask 255.255.255.0;
+  option dhcp-lease-time 1200;
+  option dhcp-message-type 5;
+  option dhcp-server-identifier 192.168.56.100;
+  renew 3 2014/5/7 11:18:19;
+  rebind 3 2014/5/7 11:25:49;
+  expire 3 2014/5/7 11:28:19;
+}

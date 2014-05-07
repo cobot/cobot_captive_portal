@@ -3,7 +3,7 @@
 # This file, originally written by Garrett A. Wollman, is in the public
 # domain.
 #
-# $FreeBSD: src/etc/rc.d/gbde,v 1.13.10.1.8.2 2012/11/17 08:24:38 svnexp Exp $
+# $FreeBSD$
 #
 
 # PROVIDE: disks

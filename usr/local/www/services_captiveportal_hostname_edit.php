@@ -36,8 +36,8 @@
 
 ##|+PRIV
 ##|*IDENT=page-services-captiveportal-editallowedhostnames
-##|*NAME=Services: Captive portal: Edit Allowed IPs page
-##|*DESCR=Allow access to the 'Services: Captive portal: Edit Allowed IPs' page.
+##|*NAME=Services: Captive portal: Edit Allowed Hostnames page
+##|*DESCR=Allow access to the 'Services: Captive portal: Edit Allowed Hostnames' page.
 ##|*MATCH=services_captiveportal_hostname_edit.php*
 ##|-PRIV
 
@@ -72,8 +72,9 @@ if (!is_array($config['captiveportal']))
         $config['captiveportal'] = array();
 $a_cp =& $config['captiveportal'];
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (!is_array($a_cp[$cpzone]['allowedhostname']))

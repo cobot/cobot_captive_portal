@@ -37,9 +37,9 @@
 */
 
 ##|+PRIV
-##|*IDENT=page-services-igmpproxy
+##|*IDENT=page-services-igmpproxy-edit
 ##|*NAME=Firewall: Igmpproxy: Edit page
-##|*DESCR=Allow access to the 'Firewall: Igmpproxy' page.
+##|*DESCR=Allow access to the 'Services: Igmpproxy: Edit' page.
 ##|*MATCH=services_igmpproxy_edit.php*
 ##|-PRIV
 
@@ -53,8 +53,9 @@ if (!is_array($config['igmpproxy']['igmpentry']))
 //igmpproxy_sort();
 $a_igmpproxy = &$config['igmpproxy']['igmpentry'];
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && $a_igmpproxy[$id]) {

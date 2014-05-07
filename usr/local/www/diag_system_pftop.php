@@ -32,15 +32,13 @@
 */
 
 ##|+PRIV
-##|*IDENT=page-diag-system-activity
-##|*NAME=Diagnostics: System Activity
-##|*DESCR=Allows access to the 'Diagnostics: System Activity' page
+##|*IDENT=page-diagnostics-system-pftop
+##|*NAME=Diagnostics: pfTop
+##|*DESCR=Allows access to the 'Diagnostics: pfTop' page
 ##|*MATCH=diag_system_pftop.php*
 ##|-PRIV
 
 require("guiconfig.inc");
-
-$pfSversion = str_replace("\n", "", file_get_contents("/etc/version"));
 
 $pgtitle = gettext("Diagnostics: pfTop");
 
@@ -115,8 +113,6 @@ if($_REQUEST['sorttype'] && in_array($_REQUEST['sorttype'], $sorttypes)
 <div id='maincontent'>
 <?php
 	include("fbegin.inc"); 
-	if(strstr($pfSversion, "1.2")) 
-		echo "<p class=\"pgtitle\">{$pgtitle}</p>";
 	if($savemsg) {
 		echo "<div id='savemsg'>";
 		print_info_box($savemsg);

@@ -65,8 +65,9 @@ function clone_compare($a, $b) {
 
 $portlist = get_interface_list();
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && $a_clones[$id]) {
@@ -162,8 +163,10 @@ include("head.inc");
                   <td width="78%" class="vtable">
                     <select name="if" class="formselect">
                       <?php
+					  $rowIndex = 0;
                       foreach ($portlist as $ifn => $ifinfo)
                         if (preg_match($g['wireless_regex'], $ifn)) {
+							$rowIndex++;
                             echo "<option value=\"{$ifn}\"";
                             if ($ifn == $pconfig['if'])
                                 echo " selected=\"selected\"";
@@ -171,6 +174,8 @@ include("head.inc");
                             echo htmlspecialchars($ifn . " (" . $ifinfo['mac'] . ")");
                             echo "</option>";
                         }
+					  if ($rowIndex == 0)
+						echo "<option></option>";
                       ?>
                     </select></td>
                 </tr>

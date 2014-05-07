@@ -44,10 +44,6 @@
 ##|*MATCH=firewall_aliases_edit.php*
 ##|-PRIV
 
-
-// Keywords not allowed in names
-$reserved_keywords = array("all", "pass", "block", "out", "queue", "max", "min", "pptp", "pppoe", "L2TP", "OpenVPN", "IPsec");
-
 require("guiconfig.inc");
 require_once("functions.inc");
 require_once("filter.inc");
@@ -55,8 +51,16 @@ require_once("shaper.inc");
 
 $pgtitle = array(gettext("Firewall"),gettext("Aliases"),gettext("Edit"));
 
+// Keywords not allowed in names
+$reserved_keywords = array("all", "pass", "block", "out", "queue", "max", "min", "pptp", "pppoe", "L2TP", "OpenVPN", "IPsec");
+
+// Add all Load balance names to resrved_keywords
+if (is_array($config['load_balancer']['lbpool']))
+	foreach ($config['load_balancer']['lbpool'] as $lbpool)
+		$reserved_keywords[] = $lbpool['name'];
+
 $reserved_ifs = get_configured_interface_list(false, true);
-$reserved_keywords = array_merge($reserved_keywords, $reserved_ifs);
+$reserved_keywords = array_merge($reserved_keywords, $reserved_ifs, $reserved_table_names);
 
 if (!is_array($config['aliases']['alias']))
 	$config['aliases']['alias'] = array();
@@ -69,7 +73,7 @@ if($_POST)
 
 // Debugging
 if($debug)
-	exec("rm -f {$g['tmp_path']}/alias_rename_log.txt");
+	unlink_if_exists("{$g['tmp_path']}/alias_rename_log.txt");
 
 function alias_same_type($name, $type) {
 	global $config;
@@ -88,8 +92,9 @@ function alias_same_type($name, $type) {
 	return true;
 }
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && $a_aliases[$id]) {
@@ -180,10 +185,8 @@ if ($_POST) {
 			$alias['updatefreq'] = $_POST['address_subnet0'] ? $_POST['address_subnet0'] : 7;
 			if (!is_URL($alias['url']) || empty($alias['url'])) {
 				$input_errors[] = gettext("You must provide a valid URL.");
-				$dont_update = true;
 			} elseif (! process_alias_urltable($alias['name'], $alias['url'], 0, true)) {
 				$input_errors[] = gettext("Unable to fetch usable data.");
-				$dont_update = true;
 			}
 			if ($_POST["detail0"] <> "")
 				$final_address_details[] = $_POST["detail0"];
@@ -201,9 +204,9 @@ if ($_POST) {
 				/* fetch down and add in */
 				$isfirst = 0;
 				$temp_filename = tempnam("{$g['tmp_path']}/", "alias_import");
-				unlink($temp_filename);
+				unlink_if_exists($temp_filename);
 				mwexec("/bin/mkdir -p {$temp_filename}");
-				mwexec("/usr/bin/fetch -q -o \"{$temp_filename}/aliases\" \"" . $_POST['address' . $x] . "\"");
+				mwexec("/usr/bin/fetch -q -o \"{$temp_filename}/aliases\" " . escapeshellarg($_POST['address' . $x]));
 				/* if the item is tar gzipped then extract */
 				if(stristr($_POST['address' . $x], ".tgz"))
 					process_alias_tgz($temp_filename);
@@ -242,12 +245,10 @@ if ($_POST) {
 					if($isfirst == 0) {
 						/* nothing was found */
 						$input_errors[] = sprintf(gettext("You must provide a valid URL. Could not fetch usable data from '%s'."), $_POST['address' . $x]);
-						$dont_update = true;
 					}
-					mwexec("/bin/rm -rf {$temp_filename}");
+					mwexec("/bin/rm -rf " . escapeshellarg($temp_filename));
 				} else {
 					$input_errors[] = sprintf(gettext("URL '%s' is not valid."), $_POST['address' . $x]);
-					$dont_update = true;
 				}
 			}
 		}
@@ -289,9 +290,9 @@ if ($_POST) {
 					if (!is_port($_POST["address{$x}"]))
 						$input_errors[] = $_POST["address{$x}"] . " " . gettext("is not a valid port or alias.");
 				} else if ($_POST['type'] == "host" || $_POST['type'] == "network") {
-					if (!is_ipaddr($_POST["address{$x}"])
+					if (is_subnet($_POST["address{$x}"]) || (!is_ipaddr($_POST["address{$x}"])
 					 && !is_hostname($_POST["address{$x}"])
-					 && !is_iprange($_POST["address{$x}"]))
+					 && !is_iprange($_POST["address{$x}"])))
 						$input_errors[] = sprintf(gettext('%1$s is not a valid %2$s alias.'), $_POST["address{$x}"], $_POST['type']);
 					if (($used_for_routes === 1)
 					 && !is_ipaddr($_POST["address{$x}"])
@@ -305,8 +306,12 @@ if ($_POST) {
 					$address = array_merge($address, $rangesubnets);
 				} else {
 					$tmpaddress = $_POST["address{$x}"];
-					if(is_ipaddr($_POST["address{$x}"]) && $_POST["address_subnet{$x}"] <> "")
-						$tmpaddress .= "/" . $_POST["address_subnet{$x}"];
+					if($_POST['type'] != "host" && is_ipaddr($_POST["address{$x}"]) && $_POST["address_subnet{$x}"] <> "") {
+						if (!is_subnet($_POST["address{$x}"] . "/" . $_POST["address_subnet{$x}"]))
+							$input_errors[] = sprintf(gettext('%s/%s is not a valid subnet.'), $_POST["address{$x}"], $_POST["address_subnet{$x}"]);
+						else
+							$tmpaddress .= "/" . $_POST["address_subnet{$x}"];
+					}
 					$address[] = $tmpaddress;
 				}
 				if ($_POST["detail{$x}"] <> "")
@@ -417,68 +422,35 @@ $jscriptstr = <<<EOD
 //<![CDATA[
 var objAlias = new Array(4999);
 function typesel_change() {
+	var field_disabled = 0;
+	var field_value = "";
+	var set_value = false;
 	switch (document.iform.type.selectedIndex) {
 		case 0:	/* host */
-			var cmd;
-
-			newrows = totalrows;
-			for(i=0; i<newrows; i++) {
-				comd = 'document.iform.address_subnet' + i + '.disabled = 1;';
-				eval(comd);
-				comd = 'document.iform.address_subnet' + i + '.value = "";';
-				eval(comd);
-			}
+			field_disabled = 1;
+			field_value = "";
+			set_value = true;
 			break;
 		case 1:	/* network */
-			var cmd;
-
-			newrows = totalrows;
-			for(i=0; i<newrows; i++) {
-				comd = 'document.iform.address_subnet' + i + '.disabled = 0;';
-				eval(comd);
-			}
+			field_disabled = 0;
 			break;
 		case 2:	/* port */
-			var cmd;
-
-			newrows = totalrows;
-			for(i=0; i<newrows; i++) {
-				comd = 'document.iform.address_subnet' + i + '.disabled = 1;';
-				eval(comd);
-				comd = 'document.iform.address_subnet' + i + '.value = "128";';
-				eval(comd);
-			}
+			field_disabled = 1;
+			field_value = "128";
+			set_value = true;
 			break;
-/*		case 3:	// OpenVPN Users
-			var cmd;
-
-			newrows = totalrows;
-			for(i=0; i<newrows; i++) {
-				comd = 'document.iform.address_subnet' + i + '.disabled = 1;';
-				eval(comd);
-				comd = 'document.iform.address_subnet' + i + '.value = "";';
-				eval(comd);
-			}
-			break;
-*/
 		case 3:	/* url */
-			var cmd;
-			newrows = totalrows;
-			for(i=0; i<newrows; i++) {
-				comd = 'document.iform.address_subnet' + i + '.disabled = 1;';
-				eval(comd);
-			}
+			field_disabled = 1;
 			break;
 
 		case 4:	/* urltable */
-			var cmd;
-			newrows = totalrows;
-			for(i=0; i<newrows; i++) {
-				comd = 'document.iform.address_subnet' + i + '.disabled = 0;';
-				eval(comd);
-			}
+			field_disabled = 0;
 			break;
 	}
+
+	jQuery("select[id^='address_subnet']").prop("disabled", field_disabled);
+	if (set_value == true)
+		jQuery("select[id^='address_subnet']").prop("value", field_value);
 }
 
 function add_alias_control() {
@@ -500,7 +472,7 @@ $ports_str = gettext("Port(s)");
 $port_str = gettext("Port");
 $url_str = gettext("URL");
 $urltable_str = gettext("URL Table");
-$update_freq_str = gettext("Update Freq.");
+$update_freq_str = gettext("Update Freq. (days)");
 
 $networks_help = gettext("Networks are specified in CIDR format.  Select the CIDR mask that pertains to each entry. /32 specifies a single IPv4 host, /128 specifies a single IPv6 host, /24 specifies 255.255.255.0, /64 specifies a normal IPv6 network, etc. Hostnames (FQDNs) may also be specified, using a /32 mask for IPv4 or /128 for IPv6. You may also enter an IP range such as 192.168.1.1-192.168.1.254 and a list of CIDR networks will be derived to fill the range.");
 $hosts_help = gettext("Enter as many hosts as you would like.  Hosts must be specified by their IP address or fully qualified domain name (FQDN). FQDN hostnames are periodically re-resolved and updated. If multiple IPs are returned by a DNS query, all are used.");
@@ -681,30 +653,23 @@ if (empty($tab)) {
 
 					<?php
 					$counter = 0;
-					$address = $pconfig['address'];
-					if ($address <> "") {
-						$item = explode(" ", $address);
-						$item3 = explode("||", $pconfig['detail']);
-						foreach($item as $ww) {
-							$address = $item[$counter];
-							$address_subnet = "";
-							$item2 = explode("/", $address);
-							foreach($item2 as $current) {
-								if($item2[1] <> "") {
-									$address = $item2[0];
-									$address_subnet = $item2[1];
-								}
-
+					if ($pconfig['address'] <> ""):
+						$addresses = explode(" ", $pconfig['address']);
+						$details = explode("||", $pconfig['detail']);
+						while ($counter < count($addresses)):
+							if (is_subnet($addresses[$counter])) {
+								list($address, $address_subnet) = explode("/", $addresses[$counter]);
+							} else {
+								$address = $addresses[$counter];
+								$address_subnet = "";
 							}
-							$item4 = $item3[$counter];
-							$tracker = $counter;
 					?>
 					<tr>
 						<td>
-							<input autocomplete="off" name="address<?php echo $tracker; ?>" type="text" class="formfldalias ipv4v6" id="address<?php echo $tracker; ?>" size="30" value="<?=htmlspecialchars($address);?>" />
+							<input style="autocomplete:off" name="address<?php echo $counter; ?>" type="text" class="formfldalias ipv4v6" id="address<?php echo $counter; ?>" size="30" value="<?=htmlspecialchars($address);?>" />
 						</td>
 						<td>
-							<select name="address_subnet<?php echo $tracker; ?>" class="formselect ipv4v6" id="address_subnet<?php echo $tracker; ?>">
+							<select name="address_subnet<?php echo $counter; ?>" class="formselect ipv4v6" id="address_subnet<?php echo $counter; ?>">
 								<option></option>
 								<?php for ($i = 128; $i >= 1; $i--): ?>
 									<option value="<?=$i;?>" <?php if (($i == $address_subnet) || ($i == $pconfig['updatefreq'])) echo "selected=\"selected\""; ?>><?=$i;?></option>
@@ -712,7 +677,7 @@ if (empty($tab)) {
 							</select>
 						</td>
 						<td>
-							<input name="detail<?php echo $tracker; ?>" type="text" class="formfld unknown" id="detail<?php echo $tracker; ?>" size="50" value="<?=$item4;?>" />
+							<input name="detail<?php echo $counter; ?>" type="text" class="formfld unknown" id="detail<?php echo $counter; ?>" size="50" value="<?=$details[$counter];?>" />
 						</td>
 						<td>
 							<a onclick="removeRow(this); return false;" href="#"><img border="0" src="/themes/<?echo $g['theme'];?>/images/icons/icon_x.gif" alt="" title="<?=gettext("remove this entry"); ?>" /></a>
@@ -721,8 +686,8 @@ if (empty($tab)) {
 					<?php
 						$counter++;
 
-						} // end foreach
-					} // end if
+						endwhile;
+					endif;
 					?>
 				</tbody>
 			</table>
@@ -742,6 +707,16 @@ if (empty($tab)) {
 	</tr>
 </table>
 </form>
+
+<script type="text/javascript">
+//<![CDATA[
+var autocomplete_off = ['address'];
+for (var i = 0; i < autocomplete_off.length; i++) {
+	var node = document.getElementById(autocomplete_off[i]);
+	node.setAttribute("autocomplete",node.style.autocomplete);
+}
+//]]>
+</script>
 
 <script type="text/javascript">
 //<![CDATA[

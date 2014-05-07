@@ -2,7 +2,7 @@
 /* $Id$ */
 /*
 	firewall_rules_edit.php
-	part of pfSense (http://www.pfsense.com)
+	part of pfSense (https://www.pfsense.org)
 	Copyright (C) 2005 Scott Ullrich (sullrich@gmail.com)
 
 	originally part of m0n0wall (http://m0n0.ch/wall)
@@ -45,6 +45,29 @@ require("guiconfig.inc");
 require_once("filter.inc");
 require("shaper.inc");
 
+function is_posnumericint($arg) {
+	// Note that to be safe we do not allow any leading zero - "01", "007"
+	return (is_numericint($arg) && $arg[0] != '0' && $arg > 0);
+}
+
+function is_aoadv_used($rule_config) {
+	// Note that the user could set "tag" or "tagged" to the string "0", which is valid but empty().
+	// And if the user enters "0" in other fields, we want to present an error message, and keep the Advanced Options section open.
+	if ((isset($rule_config['allowopts'])) ||
+	    (isset($rule_config['disablereplyto'])) ||
+	    ($rule_config['tag'] != "") ||
+	    ($rule_config['tagged'] != "") ||
+	    ($rule_config['max'] != "") ||
+	    ($rule_config['max-src-nodes'] != "") ||
+	    ($rule_config['max-src-conn'] != "") ||
+	    ($rule_config['max-src-states'] != "") ||
+	    ($rule_config['max-src-conn-rate'] != "") ||
+	    ($rule_config['max-src-conn-rates'] != "") ||
+	    ($rule_config['statetimeout'] != ""))
+		return true;
+	return false;
+}
+
 $specialsrcdst = explode(" ", "any pptp pppoe l2tp openvpn");
 $ifdisp = get_configured_interface_with_descr();
 foreach ($ifdisp as $kif => $kdescr) {
@@ -58,18 +81,19 @@ if (!is_array($config['filter']['rule'])) {
 filter_rules_sort();
 $a_filter = &$config['filter']['rule'];
 
-$id = $_GET['id'];
-if (is_numeric($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
-$after = $_GET['after'];
-
-if (isset($_POST['after']))
+if (is_numericint($_GET['after']) || $_GET['after'] == "-1")
+	$after = $_GET['after'];
+if (isset($_POST['after']) && (is_numericint($_POST['after']) || $_POST['after'] == "-1"))
 	$after = $_POST['after'];
 
-if (isset($_GET['dup'])) {
-	$id = $_GET['dup'];
-	$after = $_GET['dup'];
+if (isset($_GET['dup']) && is_numericint($_GET['dup'])) {
+        $id = $_GET['dup'];
+        $after = $_GET['dup'];
 }
 
 if (isset($id) && $a_filter[$id]) {
@@ -179,7 +203,7 @@ if (isset($id) && $a_filter[$id]) {
 	$pconfig['sched'] = (($a_filter[$id]['sched'] == "none") ? '' : $a_filter[$id]['sched']);
 	$pconfig['vlanprio'] = (($a_filter[$id]['vlanprio'] == "none") ? '' : $a_filter[$id]['vlanprio']);
 	$pconfig['vlanprioset'] = (($a_filter[$id]['vlanprioset'] == "none") ? '' : $a_filter[$id]['vlanprioset']);
-	if (!isset($_GET['dup']))
+	if (!isset($_GET['dup']) || !is_numericint($_GET['dup']))
 		$pconfig['associated-rule-id'] = $a_filter[$id]['associated-rule-id'];
 
 } else {
@@ -193,7 +217,7 @@ if (isset($id) && $a_filter[$id]) {
 /* Allow the FloatingRules to work */
 $if = $pconfig['interface'];
 
-if (isset($_GET['dup']))
+if (isset($_GET['dup']) && is_numericint($_GET['dup']))
 	unset($id);
 
 read_altq_config(); /* XXX: */
@@ -202,6 +226,7 @@ read_dummynet_config(); /* XXX: */
 $dnqlist =& get_unique_dnqueue_list();
 read_layer7_config();
 $l7clist =& get_l7_unique_list();
+$a_gatewaygroups = return_gateway_groups_array();
 
 if ($_POST) {
 	unset($input_errors);
@@ -213,7 +238,6 @@ if ($_POST) {
 	}
 
 	if (($_POST['ipprotocol'] <> "") && ($_POST['gateway'] <> "")) {
-		$a_gatewaygroups = return_gateway_groups_array();
 		if(is_array($config['gateways']['gateway_group'])) {
 			foreach($config['gateways']['gateway_group'] as $gw_group) {
 				if($gw_group['name'] == $_POST['gateway']) {
@@ -420,10 +444,10 @@ if ($_POST) {
 			$input_errors[] = gettext("You can not use IPv6 addresses in IPv4 rules.");
 		if((is_ipaddrv4($_POST['src']) || is_ipaddrv4($_POST['dst'])) && ($_POST['ipprotocol'] == "inet6"))
 			$input_errors[] = gettext("You can not use IPv4 addresses in IPv6 rules.");
-		if((is_ipaddr($_POST['src']) || is_ipaddr($_POST['dst'])) && ($_POST['ipprotocol'] == "inet46"))
-			$input_errors[] = gettext("You can not use a IPv4 or IPv6 address in combined IPv4 + IPv6 rules.");
-
 	}
+
+	if((is_ipaddr($_POST['src']) || is_ipaddr($_POST['dst'])) && ($_POST['ipprotocol'] == "inet46"))
+		$input_errors[] = gettext("You can not use a IPv4 or IPv6 address in combined IPv4 + IPv6 rules.");
 
 	if ($_POST['srcbeginport'] > $_POST['srcendport']) {
 		/* swap */
@@ -510,6 +534,28 @@ if ($_POST) {
 		if (!empty($_POST['statetimeout']))
 			$input_errors[] = gettext("You cannot specify the state timeout (advanced option) if statetype is none and no L7 container is selected.");
 	}
+
+	if (($_POST['max'] != "") && !is_posnumericint($_POST['max']))
+		$input_errors[] = gettext("Maximum state entries (advanced option) must be a positive integer");
+
+	if (($_POST['max-src-nodes'] != "") && !is_posnumericint($_POST['max-src-nodes']))
+		$input_errors[] = gettext("Maximum number of unique source hosts (advanced option) must be a positive integer");
+
+	if (($_POST['max-src-conn'] != "") && !is_posnumericint($_POST['max-src-conn']))
+		$input_errors[] = gettext("Maximum number of established connections per host (advanced option) must be a positive integer");
+
+	if (($_POST['max-src-states'] != "") && !is_posnumericint($_POST['max-src-states']))
+		$input_errors[] = gettext("Maximum state entries per host (advanced option) must be a positive integer");
+
+	if (($_POST['max-src-conn-rate'] != "") && !is_posnumericint($_POST['max-src-conn-rate']))
+		$input_errors[] = gettext("Maximum new connections per host / per second(s) (advanced option) must be a positive integer");
+
+	if (($_POST['statetimeout'] != "") && !is_posnumericint($_POST['statetimeout']))
+		$input_errors[] = gettext("State timeout (advanced option) must be a positive integer");
+
+	if ((($_POST['max-src-conn-rate'] <> "" and $_POST['max-src-conn-rates'] == "")) || 
+	    (($_POST['max-src-conn-rate'] == "" and $_POST['max-src-conn-rates'] <> "")))
+		$input_errors[] = gettext("Both maximum new connections per host and the interval (per second(s)) must be specified");
 
 	if (!$_POST['tcpflags_any']) {
 		$settcpflags = array();
@@ -791,7 +837,7 @@ include("head.inc");
 				<?=gettext("You cannot edit the interface, protocol, source, or destination of associated filter rules.");?><br />
 				<br />
 				<?php
-					$edit_disabled = "disabled";
+					$edit_disabled = "disabled=\"disabled\"";
 					if (is_array($config['nat']['rule'])) {
 						foreach( $config['nat']['rule'] as $index => $nat_rule ) {
 							if( isset($nat_rule['associated-rule-id']) && $nat_rule['associated-rule-id']==$pconfig['associated-rule-id'] ) {
@@ -874,7 +920,7 @@ include("head.inc");
 				</select>
 				<input type="hidden" id="floating" name="floating" value="floating" />
 			</td>
-		<tr>
+		</tr>
 <?php endif; ?>
 		<tr>
 			<td width="22%" valign="top" class="vncellreq"><?=gettext("TCP/IP Version");?></td>
@@ -976,7 +1022,7 @@ include("head.inc");
 <?php
 								foreach ($ifdisp as $ifent => $ifdesc): ?>
 								<?php if(have_ruleint_access($ifent)): ?>
-									<option value="<?=$ifent;?>" <?php if ($pconfig['src'] == $ifent) { echo "selected=\"selected\""; } ?>><?=htmlspecialchars($ifdesc);?><?=gettext(" subnet");?></option>
+									<option value="<?=$ifent;?>" <?php if ($pconfig['src'] == $ifent) { echo "selected=\"selected\""; } ?>><?=htmlspecialchars($ifdesc);?> <?=gettext("net");?></option>
 									<option value="<?=$ifent;?>ip"<?php if ($pconfig['src'] ==  $ifent . "ip") { echo "selected=\"selected\""; } ?>>
 										<?=$ifdesc?> <?=gettext("address");?>
 									</option>
@@ -988,7 +1034,7 @@ include("head.inc");
 					<tr>
 						<td><?=gettext("Address:");?>&nbsp;&nbsp;</td>
 						<td>
-							<input <?=$edit_disabled;?> autocomplete='off' name="src" type="text" class="formfldalias ipv4v6" id="src" size="20" value="<?php if (!is_specialnet($pconfig['src'])) echo htmlspecialchars($pconfig['src']);?>" /> /
+							<input <?=$edit_disabled;?> style="autocomplete:off" name="src" type="text" class="formfldalias ipv4v6" id="src" size="20" value="<?php if (!is_specialnet($pconfig['src'])) echo htmlspecialchars($pconfig['src']);?>" /> /
 							<select <?=$edit_disabled;?> name="srcmask" class="formselect ipv4v6" id="srcmask">
 <?php						for ($i = 127; $i > 0; $i--): ?>
 								<option value="<?=$i;?>" <?php if ($i == $pconfig['srcmask']) echo "selected=\"selected\""; ?>><?=$i;?></option>
@@ -1018,7 +1064,7 @@ include("head.inc");
 									<option value="<?=$wkport;?>" <?php if ($wkport == $pconfig['srcbeginport']) { echo "selected=\"selected\""; $bfound = 1; } ?>><?=htmlspecialchars($wkportdesc);?></option>
 <?php 							endforeach; ?>
 							</select>
-							<input <?=$edit_disabled;?> autocomplete='off' class="formfldalias" name="srcbeginport_cust" id="srcbeginport_cust" type="text" size="5" value="<?php if (!$bfound && $pconfig['srcbeginport']) echo htmlspecialchars($pconfig['srcbeginport']); ?>" />
+							<input <?=$edit_disabled;?> style="autocomplete:off" class="formfldalias" name="srcbeginport_cust" id="srcbeginport_cust" type="text" size="5" value="<?php if (!$bfound && $pconfig['srcbeginport']) echo htmlspecialchars($pconfig['srcbeginport']); ?>" />
 						</td>
 					</tr>
 					<tr>
@@ -1031,7 +1077,7 @@ include("head.inc");
 									<option value="<?=$wkport;?>" <?php if ($wkport == $pconfig['srcendport']) { echo "selected=\"selected\""; $bfound = 1; } ?>><?=htmlspecialchars($wkportdesc);?></option>
 <?php							endforeach; ?>
 							</select>
-							<input <?=$edit_disabled;?> autocomplete='off' class="formfldalias" name="srcendport_cust" id="srcendport_cust" type="text" size="5" value="<?php if (!$bfound && $pconfig['srcendport']) echo htmlspecialchars($pconfig['srcendport']); ?>" />
+							<input <?=$edit_disabled;?> style="autocomplete:off" class="formfldalias" name="srcendport_cust" id="srcendport_cust" type="text" size="5" value="<?php if (!$bfound && $pconfig['srcendport']) echo htmlspecialchars($pconfig['srcendport']); ?>" />
 						</td>
 					</tr>
 				</table>
@@ -1076,7 +1122,7 @@ include("head.inc");
 
 <?php 							foreach ($ifdisp as $if => $ifdesc): ?>
 								<?php if(have_ruleint_access($if)): ?>
-									<option value="<?=$if;?>" <?php if ($pconfig['dst'] == $if) { echo "selected=\"selected\""; } ?>><?=htmlspecialchars($ifdesc);?> <?=gettext("subnet");?></option>
+									<option value="<?=$if;?>" <?php if ($pconfig['dst'] == $if) { echo "selected=\"selected\""; } ?>><?=htmlspecialchars($ifdesc);?> <?=gettext("net");?></option>
 									<option value="<?=$if;?>ip"<?php if ($pconfig['dst'] == $if . "ip") { echo "selected=\"selected\""; } ?>>
 										<?=$ifdesc;?> <?=gettext("address");?>
 									</option>
@@ -1088,7 +1134,7 @@ include("head.inc");
 					<tr>
 						<td><?=gettext("Address:");?>&nbsp;&nbsp;</td>
 						<td>
-							<input <?=$edit_disabled;?> autocomplete='off' name="dst" type="text" class="formfldalias ipv4v6" id="dst" size="20" value="<?php if (!is_specialnet($pconfig['dst'])) echo htmlspecialchars($pconfig['dst']);?>" />
+							<input <?=$edit_disabled;?> style="autocomplete:off" name="dst" type="text" class="formfldalias ipv4v6" id="dst" size="20" value="<?php if (!is_specialnet($pconfig['dst'])) echo htmlspecialchars($pconfig['dst']);?>" />
 							/
 							<select <?=$edit_disabled;?> name="dstmask" class="formselect ipv4v6" id="dstmask">
 <?php
@@ -1116,7 +1162,7 @@ $i--): ?>
 									<option value="<?=$wkport;?>" <?php if ($wkport == $pconfig['dstbeginport']) { echo "selected=\"selected\""; $bfound = 1; }?>><?=htmlspecialchars($wkportdesc);?></option>
 <?php 							endforeach; ?>
 							</select>
-							<input <?=$edit_disabled;?> autocomplete='off' class="formfldalias" name="dstbeginport_cust" id="dstbeginport_cust" type="text" size="5" value="<?php if (!$bfound && $pconfig['dstbeginport']) echo htmlspecialchars($pconfig['dstbeginport']); ?>" />
+							<input <?=$edit_disabled;?> style="autocomplete:off" class="formfldalias" name="dstbeginport_cust" id="dstbeginport_cust" type="text" size="5" value="<?php if (!$bfound && $pconfig['dstbeginport']) echo htmlspecialchars($pconfig['dstbeginport']); ?>" />
 						</td>
 					</tr>
 					<tr>
@@ -1129,7 +1175,7 @@ $i--): ?>
 									<option value="<?=$wkport;?>" <?php if ($wkport == $pconfig['dstendport']) { echo "selected=\"selected\""; $bfound = 1; } ?>><?=htmlspecialchars($wkportdesc);?></option>
 <?php 							endforeach; ?>
 							</select>
-								<input <?=$edit_disabled;?> autocomplete='off' class="formfldalias" name="dstendport_cust" id="dstendport_cust" type="text" size="5" value="<?php if (!$bfound && $pconfig['dstendport']) echo htmlspecialchars($pconfig['dstendport']); ?>" />
+								<input <?=$edit_disabled;?> style="autocomplete:off" class="formfldalias" name="dstendport_cust" id="dstendport_cust" type="text" size="5" value="<?php if (!$bfound && $pconfig['dstendport']) echo htmlspecialchars($pconfig['dstendport']); ?>" />
 						</td>
 					</tr>
 				</table>
@@ -1230,10 +1276,10 @@ $i--): ?>
 		<tr>
 			<td width="22%" valign="top" class="vncell"><?=gettext("Advanced Options");?></td>
 			<td width="78%" class="vtable">
-			<div id="aoadv">
+			<div id="aoadv" <?php if (is_aoadv_used($pconfig)) echo "style='display:none'"; ?>>
 				<input type="button" onclick="show_aodiv();" value="<?=gettext("Advanced"); ?>" /> - <?=gettext("Show advanced option");?>
 			</div>
-			<div id="aodivmain" style="display:none">
+			<div id="aodivmain" <?php if (!is_aoadv_used($pconfig)) echo "style='display:none'"; ?>>
 				<input type="checkbox" id="allowopts" value="yes" name="allowopts"<?php if($pconfig['allowopts'] == true) echo " checked=\"checked\""; ?> />
 				<br/><span class="vexpl"><?=gettext("This allows packets with IP options to pass. Otherwise they are blocked by default. This is usually only seen with multicast traffic.");?>
 				</span><p>
@@ -1274,7 +1320,7 @@ $i--): ?>
 				<input type="button" onclick="show_advanced_tcpflags()" value="<?=gettext("Advanced"); ?>" /> - <?=gettext("Show advanced option");?>
 			</div>
 			<div id="showtcpflagsadv" <?php if (empty($pconfig['tcpflags_any']) && empty($pconfig['tcpflags1']) && empty($pconfig['tcpflags2'])) echo "style='display:none'"; ?>>
-			<div id="tcpheader" align="center">
+			<div id="tcpflagsadv" align="center">
 			<table border="0" cellspacing="0" cellpadding="0">
 			<?php
 				$setflags = explode(",", $pconfig['tcpflags1']);
@@ -1450,26 +1496,20 @@ $i--): ?>
 						} else {
 							$selected = "";
 						}
-						echo "<option value=\"{$gwname}\" {$selected}>{$gw['name']} - {$gw['gateway']}</option>\n";
+						$gateway_addr_str = empty($gw['gateway']) ? "" : " - " . $gw[gateway];
+						echo "<option value=\"{$gwname}\" {$selected}>{$gw['name']}{$gateway_addr_str}</option>\n";
 					}
 					/* add gateway groups to the list */
-					if (is_array($config['gateways']['gateway_group'])) {
-						foreach($config['gateways']['gateway_group'] as $gw_group) {
-							$af = explode("|", $gw_group['item'][0]);
-							if(($pconfig['ipprotocol'] == "inet46"))
-								continue;
-							if(($pconfig['ipprotocol'] == "inet6") && !is_ipaddrv6(lookup_gateway_ip_by_name($af[0])))
-								continue;
-							if(($pconfig['ipprotocol'] == "inet") && !is_ipaddrv4(lookup_gateway_ip_by_name($af[0])))
-								continue;
-							if($gw_group['name'] == "")
-								continue;
-							if($pconfig['gateway'] == $gw_group['name']) {
-								$selected = " selected=\"selected\"";
-							} else {
-								$selected = "";
+					if (is_array($a_gatewaygroups)) {
+						foreach($a_gatewaygroups as $gwg_name => $gwg_data) {
+							if((empty($pconfig['ipprotocol'])) || ($pconfig['ipprotocol'] == $gwg_data['ipprotocol'])) {
+								if($pconfig['gateway'] == $gwg_name) {
+									$selected = " selected=\"selected\"";
+								} else {
+									$selected = "";
+								}
+								echo "<option value=\"{$gwg_name}\" $selected>{$gwg_name}</option>\n";
 							}
-							echo "<option value=\"{$gw_group['name']}\" $selected>{$gw_group['name']}</option>\n";
 						}
 					}
 ?>
@@ -1658,6 +1698,15 @@ $has_updated_time = (isset($a_filter[$id]['updated']) && is_array($a_filter[$id]
 		</tr>
 	</table>
 </form>
+<script type="text/javascript">
+//<![CDATA[
+var autocomplete_off = ['src', 'srcbeginport_cust', 'srcendport_cust', 'dst', 'dstbeginport_cust', 'dstendport_cust'];
+for (var i = 0; i < autocomplete_off.length; i++) {
+	var node = document.getElementById(autocomplete_off[i]);
+	node.setAttribute("autocomplete",node.style.autocomplete);
+}
+//]]>
+</script>
 <script type="text/javascript">
 //<![CDATA[
 	ext_change();

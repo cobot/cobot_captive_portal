@@ -1,7 +1,7 @@
 <?php
 /*
 	diag_arp.php
-	part of the pfSense project	(http://www.pfsense.org)
+	part of the pfSense project	(https://www.pfsense.org)
 	Copyright (C) 2004-2009 Scott Ullrich <sullrich@gmail.com>
 
 	originally part of m0n0wall (http://m0n0.ch/wall)
@@ -249,7 +249,7 @@ function _getHostName($mac,$ip) {
 	else if ($dhcpip[$ip])
 		return $dhcpip[$ip];
 	else{
-		exec("host -W 1 $ip", $output);
+		exec("host -W 1 " . escapeshellarg($ip), $output);
 		if (preg_match('/.*pointer ([A-Za-z0-9.-]+)\..*/',$output[0],$matches)) {
 			if ($matches[1] <> $ip)
 				return $matches[1]; 

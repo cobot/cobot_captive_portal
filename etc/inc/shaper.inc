@@ -1225,7 +1225,7 @@ class priq_queue {
 		$tmpvalue = $this->GetCodel();
 		if(!empty($tmpvalue)) 
 			$form .=  " checked=\"checked\"";
-		$form .= " /> <a target=\"_new\" href=\"http://http://www.bufferbloat.net/projects/codel/wiki\">" . gettext("Codel Active Queue") . "</a><br/>";
+		$form .= " /> <a target=\"_new\" href=\"http://www.bufferbloat.net/projects/codel/wiki\">" . gettext("Codel Active Queue") . "</a><br/>";
 		$form .= "<span class=\"vexpl\"><br/>" . gettext("Select options for this queue");
 		$form .= "</span></td></tr><tr>";
 		$form .= "<td width=\"22%\" class=\"vncellreq\">" . gettext("Description") . "</td>";
@@ -2046,6 +2046,9 @@ class hfsc_queue extends priq_queue {
 		$cflink['ecn'] = trim($this->GetEcn());
 		if (empty($cflink['ecn']))
 			unset($cflink['ecn']);
+		$cflink['codel'] = trim($this->GetCodel());
+		if (empty($cflink['codel']))
+			unset($cflink['codel']);
 		if ($this->GetLinkshare() <> "") {
 			if ($this->GetL_m1() <> "") {
 				$cflink['linkshare1'] = $this->GetL_m1();
@@ -2465,6 +2468,9 @@ class cbq_queue extends priq_queue {
 		$cflink['ecn'] = trim($this->GetEcn());
 		if (empty($cflink['ecn']))
 			unset($cflink['ecn']);
+		$cflink['codel'] = trim($this->GetCodel());
+		if (empty($cflink['codel']))
+			unset($cflink['codel']);
 		$cflink['borrow'] = trim($this->GetBorrow());
 		if (empty($cflink['borrow']))
 			unset($cflink['borrow']);
@@ -2743,6 +2749,9 @@ class fairq_queue extends priq_queue {
 		$cflink['ecn'] = trim($this->GetEcn());
 		if (empty($cflink['ecn']))
 			unset($cflink['ecn']);
+		$cflink['codel'] = trim($this->GetCodel());
+		if (empty($cflink['codel']))
+			unset($cflink['codel']);
 		$cflink['buckets'] = trim($this->GetBuckets());
 		if (empty($cflink['buckets']))
 			unset($cflink['buckets']);
@@ -2885,11 +2894,11 @@ class dummynet_class {
 
 		shaper_do_input_validation($data, $reqdfields, $reqdfieldsn, $input_errors);
 
-		if ($data['plr'] && ((!is_numeric($data['plr'])) ||
-			($data['plr'] < 0 && $data['plr'] > 1))) 
+		if ($data['plr'] && (!is_numeric($data['plr']) ||
+			($data['plr'] < 0) || ($data['plr'] > 1))) 
 				$input_errors[] = gettext("Plr must be a value between 0 and 1.");
-		if (($data['buckets'] && (!is_numeric($data['buckets']))) ||
-			($data['buckets'] < 16 && $data['buckets'] > 65535)) 
+		if ($data['buckets'] && (!is_numeric($data['buckets']) ||
+			($data['buckets'] < 16) || ($data['buckets'] > 65535)))
 				$input_errors[] = gettext("Buckets must be an integer between 16 and 65535.");
 		if ($data['qlimit'] && (!is_numeric($data['qlimit']))) 
             		$input_errors[] = gettext("Queue limit must be an integer");
@@ -3380,7 +3389,7 @@ EOD;
 		$form .= $mask['bits'];
 		$form .= "\"";
 		if ($mask['type'] == "none")
-			$form .= " disabled";
+			$form .= " disabled=\"disabled\"";
 		$form .= " />";
 		$form .= "&nbsp; IPV4 mask bits (1-32)<br/>";
 		$form .= "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/&nbsp;<input type=\"text\" class=\"formfld unknown\" size=\"2\" id=\"maskbitsv6\" name=\"maskbitsv6\" value=\"";
@@ -3388,7 +3397,7 @@ EOD;
 		$form .= $mask['bitsv6'];
 		$form .= "\"";
 		if ($mask['type'] == "none")
-			$form .= " disabled";
+			$form .= " disabled=\"disabled\"";
 		$form .= " />";
 		$form .= "&nbsp; IPV6 mask bits (1-128)<br/>";
 		$form .= "<span class=\"vexpl\">" . gettext("If 'source' or 'destination' slots is chosen, \n"
@@ -3562,6 +3571,14 @@ class dnqueue_class extends dummynet_class {
 		else
 			$maskbitsv6 = "";
 		$this->SetMask(array("type" => $masktype, "bits" => $maskbits, "bitsv6" => $maskbitsv6));
+		if (isset($q['buckets']) && $q['buckets'] <> "")
+			$this->SetBuckets($q['buckets']);
+		else
+			$this->SetBuckets("");
+		if (isset($q['plr']) && $q['plr'] <> "")
+			$this->SetPlr($q['plr']);
+		else
+			$this->SetPlr("");
        		if (isset($q['weight']) && $q['weight'] <> "")
             		$this->SetWeight($q['weight']);
 		else
@@ -3653,7 +3670,7 @@ class dnqueue_class extends dummynet_class {
 		$form .= $mask['bits'];
 		$form .= "\"";
 		if ($mask['type'] == "none")
-			$form .= " disabled";
+			$form .= " disabled=\"disabled\"";
 		$form .= " />";
 		$form .= "&nbsp; IPV4 mask bits (1-32)<br/>";
 		$form .= "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/&nbsp;<input type=\"text\" class=\"formfld unknown\" size=\"2\" id=\"maskbitsv6\" name=\"maskbitsv6\" value=\"";
@@ -3661,7 +3678,7 @@ class dnqueue_class extends dummynet_class {
 		$form .= $mask['bitsv6'];
 		$form .= "\"";
 		if ($mask['type'] == "none")
-			$form .= " disabled";
+			$form .= " disabled=\"disabled\"";
 		$form .= " />";
 		$form .= "&nbsp; IPV6 mask bits (1-128)<br/>";
 		$form .= "<span class=\"vexpl\">" . gettext("If 'source' or 'destination' slots is chosen, \n"
@@ -3689,7 +3706,7 @@ class dnqueue_class extends dummynet_class {
 		$form .= "<input name=\"weight\" type=\"text\" id=\"weight\" size=\"5\" value=\"";
 		$form .= $this->GetWeight() . "\" />";
 		$form .= "&nbsp;<br/> <span class=\"vexpl\">" . gettext("Hint: For queues under the same parent "
-		      .  "this specifies the share that a queue gets(values range from 1 to 100, you can leave it blank otherwise)") . "</span>";
+		      .  "this specifies the share that a queue gets (values range from 1 to 100, higher values get a larger share. Can be left blank.)") . "</span>";
 		$form .= "</td></tr>";
 		$form .= "<tr style=\"display:none\" id=\"sprtable1\">";
 		$form .= "<td valign=\"middle\" class=\"vncellreq\">" . gettext("Packet loss rate") . "</td>";
@@ -4076,7 +4093,7 @@ function generate_layer7_files() {
 	if (!is_module_loaded("ipdivert.ko"))
 		mwexec("/sbin/kldload ipdivert.ko");
 
-	mwexec("rm -f {$g['tmp_path']}/*.l7");
+	array_map('unlink', glob("{$g['tmp_path']}/*.l7"));
     }
     
     foreach($layer7_rules_list as $l7rules) {

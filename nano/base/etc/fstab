@@ -1,2 +1,0 @@
-/dev/ufs/pfsense0 / ufs ro,sync,noatime 1 1
-/dev/ufs/cf /cf ufs ro,sync,noatime 1 1

@@ -1,4 +1,4 @@
-# $FreeBSD: src/share/syscons/keymaps/jp.106x.kbd,v 1.8.36.1.8.2 2012/11/17 08:25:04 svnexp Exp $
+# $FreeBSD$
 #
 # (this one has capslock and control swapped)
 #                                                         alt

@@ -3,7 +3,7 @@
 /*
 
     firewall_virtual_ip_edit.php
-    part of pfSense (http://www.pfsense.com/)
+    part of pfSense (https://www.pfsense.org/)
 
     Copyright (C) 2005 Bill Marquette <bill.marquette@gmail.com>.
     All rights reserved.
@@ -58,10 +58,10 @@ if (!is_array($config['virtualip']['vip'])) {
 }
 $a_vip = &$config['virtualip']['vip'];
 
-if (isset($_POST['id']))
-	$id = $_POST['id'];
-else
+if (is_numericint($_GET['id']))
 	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
+	$id = $_POST['id'];
 
 function return_first_two_octets($ip) {
 	$ip_split = explode(".", $ip);
@@ -194,7 +194,8 @@ if ($_POST) {
 				$parent_sn = get_interface_subnetv6($_POST['interface']);
 				$subnet = gen_subnetv6($parent_ip, $parent_sn);
 			}
-			if (isset($parent_ip) && !ip_in_subnet($_POST['subnet'], "{$subnet}/{$parent_sn}") && !ip_in_interface_alias_subnet($_POST['interface'], $_POST['subnet'])) {
+			if (isset($parent_ip) && !ip_in_subnet($_POST['subnet'], "{$subnet}/{$parent_sn}") &&
+			    !ip_in_interface_alias_subnet(link_carp_interface_to_parent($_POST['interface']), $_POST['subnet'])) {
 				$cannot_find = $_POST['subnet'] . "/" . $_POST['subnet_bits'] ;
 				$input_errors[] = sprintf(gettext("Sorry, we could not locate an interface with a matching subnet for %s.  Please add an IP alias in this subnet on this interface."),$cannot_find);
 			}
@@ -388,7 +389,8 @@ function typesel_change() {
 					$interfaces = get_configured_interface_with_descr(false, true);
 					$carplist = get_configured_carp_interface_list();
 					foreach ($carplist as $cif => $carpip)
-						$interfaces[$cif] = $carpip." (".get_vip_descr($carpip).")";
+						if ($carpip != $pconfig['subnet'])
+							$interfaces[$cif] = $carpip." (".get_vip_descr($carpip).")";
 					$interfaces['lo0'] = "Localhost";
 					foreach ($interfaces as $iface => $ifacename): ?>
 						<option value="<?=$iface;?>" <?php if ($iface == $pconfig['interface']) echo "selected=\"selected\""; ?>>

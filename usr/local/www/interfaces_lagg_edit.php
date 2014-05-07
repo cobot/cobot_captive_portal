@@ -34,7 +34,7 @@
 ##|+PRIV
 ##|*IDENT=page-interfacess-lagg
 ##|*NAME=Interfaces: LAGG: Edit page
-##|*DESCR=Edit Interface LAGG
+##|*DESCR=Allow access to the 'Interfaces: LAGG: Edit' page.
 ##|*MATCH=interfaces_lagg_edit.php*
 ##|-PRIV
 
@@ -64,8 +64,9 @@ foreach ($checklist as $tmpif)
 
 $laggprotos = array("none", "lacp", "failover", "fec", "loadbalance", "roundrobin");
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && $a_laggs[$id]) {

@@ -22,7 +22,7 @@
 \ OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 \ SUCH DAMAGE.
 \
-\ $FreeBSD: src/sys/boot/forth/loader.4th,v 1.26.2.1.8.2 2012/11/17 08:25:07 svnexp Exp $
+\ $FreeBSD$
 
 s" arch-i386" environment? [if] [if]
 	s" loader_version" environment?  [if]

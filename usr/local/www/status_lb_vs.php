@@ -2,7 +2,7 @@
 /* $Id$ */
 /*
 	status_lb_vs.php
-	part of pfSense (http://www.pfsense.com/)
+	part of pfSense (https://www.pfsense.org/)
 
 	Copyright (C) 2010 Seth Mos <seth.mos@dds.nl>.
 	All rights reserved.
@@ -93,7 +93,7 @@ include("head.inc");
 			<table border="0" cellpadding="0" cellspacing="2">
                         <?php
 			foreach ($a_pool as $vipent) {
-				if ($vipent['name'] == $vsent['pool']) {
+				if ($vipent['name'] == $vsent['poolname']) {
 					foreach ((array) $vipent['servers'] as $server) {
 						print "<tr><td> {$server} </td></tr>";
 					}
@@ -137,6 +137,8 @@ include("head.inc");
 		<?php $i++; endforeach; ?>
              </table>
 	   </div>
+		</td>
+		</tr>
 	</table>
 
 <?php include("fend.inc"); ?>

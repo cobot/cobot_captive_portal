@@ -1,4 +1,4 @@
-# $FreeBSD: src/share/syscons/keymaps/swissfrench.iso.kbd,v 1.6.36.1.8.2 2012/11/17 08:25:04 svnexp Exp $
+# $FreeBSD$
 #
 # swissfrench ISO 8859-1 keymap, no dead keys
 # created 14.11.1999 by Martin Blapp <mb@imp.ch>

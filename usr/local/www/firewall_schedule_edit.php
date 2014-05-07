@@ -60,12 +60,6 @@ require_once("shaper.inc");
 
 $pgtitle = array(gettext("Firewall"),gettext("Schedules"),gettext("Edit"));
 
-$starttimehr = 00;
-$starttimemin = 00;
-
-$stoptimehr = 23;
-$stoptimemin = 59;
-
 $dayArray = array (gettext('Mon'),gettext('Tues'),gettext('Wed'),gettext('Thur'),gettext('Fri'),gettext('Sat'),gettext('Sun'));
 $monthArray = array (gettext('January'),gettext('February'),gettext('March'),gettext('April'),gettext('May'),gettext('June'),gettext('July'),gettext('August'),gettext('September'),gettext('October'),gettext('November'),gettext('December'));
 
@@ -74,9 +68,9 @@ if (!is_array($config['schedules']['schedule']))
 
 $a_schedules = &$config['schedules']['schedule'];
 
-
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && $a_schedules[$id]) {
@@ -215,7 +209,15 @@ var month_array = ['January','February','March','April','May','June','July','Aug
 var day_array = ['Mon','Tues','Wed','Thur','Fri','Sat','Sun'];
 var schCounter = 0;
 
-
+function rgb2hex(rgb) {
+	var parts = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+	if (parts == null)
+		return;
+	function hex(x) {
+		return ("0" + parseInt(x).toString(16)).slice(-2);
+	}
+	return ("#" + hex(parts[1]) + hex(parts[2]) + hex(parts[3])).toUpperCase();
+}
 
 function repeatExistingDays(){
 	var tempstr, tempstrdaypos, week, daypos, dayposdone = "";
@@ -234,7 +236,7 @@ function repeatExistingDays(){
 		tempstr = 'w' + week + 'p' + daypos;
 		daycell = eval('document.getElementById(tempstr)');
 		if (daydone == "-1"){
-			if (daycell.style.backgroundColor == "#F08080")  // lightcoral
+			if (rgb2hex(daycell.style.backgroundColor) == "#F08080")  // lightcoral
 				daytogglerepeating(week,daypos,true);
 			else
 				daytogglerepeating(week,daypos,false);
@@ -274,7 +276,7 @@ function daytogglerepeating(week,daypos,bExists){
 		}			
 	}	
 }
-	
+
 function daytoggle(id) {
 	var runrepeat, tempstr = "";
 	var bFoundValid = false;
@@ -302,12 +304,12 @@ function daytoggle(id) {
 		var daycell = document.getElementById(idmod);		
 	
 		if (daycell != null){
-			if (daycell.style.backgroundColor == "#FF0000"){  // red
+			if (rgb2hex(daycell.style.backgroundColor) == "#FF0000"){  // red
 				daycell.style.backgroundColor = "#FFFFFF";  // white
 				str = id + ",";
 				daysSelected = daysSelected.replace(str, "");
 			}
-			else if (daycell.style.backgroundColor == "#F08080")  // lightcoral
+			else if (rgb2hex(daycell.style.backgroundColor) == "#F08080")  // lightcoral
 			{
 				daytogglerepeating(week,daypos,true);
 			}
@@ -661,10 +663,10 @@ function clearCalendar(){
 }
 
 function clearTime(){
-	document.getElementById("starttimehour").value = $starttimehr;
-	document.getElementById("starttimemin").value = $starttimemin;
-	document.getElementById("stoptimehour").value = $stoptimehr;
-	document.getElementById("stoptimemin").value = $stoptimemin;
+	document.getElementById("starttimehour").value = "0";
+	document.getElementById("starttimemin").value = "00";
+	document.getElementById("stoptimehour").value = "23";
+	document.getElementById("stoptimemin").value = "59";
 }
 
 function clearDescr(){

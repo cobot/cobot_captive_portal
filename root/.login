@@ -1,4 +1,4 @@
-# $FreeBSD: src/etc/root/dot.login,v 1.22.36.1.8.2 2012/11/17 08:24:38 svnexp Exp $
+# $FreeBSD$
 #
 # .login - csh login script, read by login shell, after `.cshrc' at login.
 #

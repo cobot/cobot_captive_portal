@@ -1,22 +1,22 @@
-Status: Enabled for 49710 days 05:30:26       Debug: Urgent
+Status: Enabled for 49710 days 04:28:41       Debug: Urgent
 
-Interface Stats for em0               IPv4             IPv6
-  Bytes In                            8478                0
-  Bytes Out                           5244              112
+Interface Stats for em1               IPv4             IPv6
+  Bytes In                            1344                0
+  Bytes Out                              0              556
   Packets In
-    Passed                              70                0
-    Blocked                             19                0
+    Passed                               0                0
+    Blocked                              3                0
   Packets Out
-    Passed                              70                2
+    Passed                               0                6
     Blocked                              0                0
 
 State Table                          Total             Rate
-  current entries                       10               
-  searches                             217               
-  inserts                               33               
-  removals                              23               
+  current entries                       25               
+  searches                             131               
+  inserts                               25               
+  removals                               0               
 Counters
-  match                                 58               
+  match                                 34               
   bad-offset                             0               
   fragment                               0               
   short                                  0               

@@ -19,6 +19,18 @@ END {print b4pi ":" b4po ":" b4bi ":" b4bo ":" b6pi ":" b6po ":" b6bi ":" b6bo};
 /In6\/Pass/ { b6pi = $4 };/Out6\/Pass/ { b6po = $4 };/In6\/Block/ { b6bi = $4 };/Out6\/Block/ { b6bo = $4 };\
 END {print b4pi ":" b4po ":" b4bi ":" b4bo ":" b6pi ":" b6po ":" b6bi ":" b6bo};'`
 
+# polling traffic for interface lan em1 IPv4/IPv6 counters 
+/usr/bin/nice -n20 /usr/local/bin/rrdtool update /var/db/rrd/lan-traffic.rrd N:`/sbin/pfctl -vvsI -i em1 | awk '\
+/In4\/Pass/ { b4pi = $6 };/Out4\/Pass/ { b4po = $6 };/In4\/Block/ { b4bi = $6 };/Out4\/Block/ { b4bo = $6 };\
+/In6\/Pass/ { b6pi = $6 };/Out6\/Pass/ { b6po = $6 };/In6\/Block/ { b6bi = $6 };/Out6\/Block/ { b6bo = $6 };\
+END {print b4pi ":" b4po ":" b4bi ":" b4bo ":" b6pi ":" b6po ":" b6bi ":" b6bo};'`
+
+# polling packets for interface lan em1 
+/usr/bin/nice -n20 /usr/local/bin/rrdtool update /var/db/rrd/lan-packets.rrd N:`/sbin/pfctl -vvsI -i em1 | awk '\
+/In4\/Pass/ { b4pi = $4 };/Out4\/Pass/ { b4po = $4 };/In4\/Block/ { b4bi = $4 };/Out4\/Block/ { b4bo = $4 };\
+/In6\/Pass/ { b6pi = $4 };/Out6\/Pass/ { b6po = $4 };/In6\/Block/ { b6bi = $4 };/Out6\/Block/ { b6bo = $4 };\
+END {print b4pi ":" b4po ":" b4bi ":" b4bo ":" b6pi ":" b6po ":" b6bi ":" b6bo};'`
+
 # polling traffic for interface ipsec enc0 IPv4/IPv6 counters 
 /usr/bin/nice -n20 /usr/local/bin/rrdtool update /var/db/rrd/ipsec-traffic.rrd N:`/sbin/pfctl -vvsI -i enc0 | awk '\
 /In4\/Pass/ { b4pi = $6 };/Out4\/Pass/ { b4po = $6 };/In4\/Block/ { b4bi = $6 };/Out4\/Block/ { b4bo = $6 };\

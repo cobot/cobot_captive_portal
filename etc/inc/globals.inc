@@ -2,8 +2,8 @@
 /* $Id$ */
 /*
     globals.inc
-    part of pfSense (www.pfsense.com)
-    Copyright (C) 2004-2010 Scott Ullrich
+    part of pfSense (www.pfsense.org)
+    Copyright (C) 2004-2014 Electric Sheep Fencing LLC 
 
     Originally Part of m0n0wall
     Copyright (C) 2003-2004 Manuel Kasper <mk@neon1.net>.
@@ -59,9 +59,9 @@ $g = array(
 	"product_name" => "pfSense",
 	"product_copyright" => "Electric Sheep Fencing LLC",
 	"product_copyright_url" => "http://www.electricsheepfencing.com",
-	"product_copyright_years" => "2004 - 2013",
+	"product_copyright_years" => "2004 - 2014",
 	"product_website" => "www.pfsense.org",
-	"product_website_footer" => "http://www.pfsense.org/?gui21",
+	"product_website_footer" => "https://www.pfsense.org/?gui211",
 	"product_email" => "coreteam@pfsense.org",
 	"hideplatform" => false,
 	"hidedownloadbackup" => false,
@@ -70,9 +70,9 @@ $g = array(
 	"disablehelpmenu" => false,
 	"disablehelpicon" => false,
 	"disablecrashreporter" => false,
-	"crashreporterurl" => "http://crashreporter.pfsense.org/crash_reporter.php",
+	"crashreporterurl" => "https://crashreporter.pfsense.org/crash_reporter.php",
 	"debug" => false,
-	"latest_config" => "9.8",
+	"latest_config" => "10.1",
 	"nopkg_platforms" => array("cdrom"),
 	"minimum_ram_warning" => "101",
 	"minimum_ram_warning_text" => "128 MB",
@@ -80,11 +80,11 @@ $g = array(
 	"minimum_nic_count_text" => "*AT LEAST* 1",	
 	"wan_interface_name" => "wan", 
 	"nopccard_platforms" => array("wrap", "net48xx"),
-	"xmlrpcbaseurl" => "www.pfsense.com",
+	"xmlrpcbaseurl" => "https://packages.pfsense.org",
 	"captiveportal_path" => "/usr/local/captiveportal",
 	"captiveportal_element_path" => "/var/db/cpelements",
 	"captiveportal_element_sizelimit" => 1048576,
-	"xmlrpcpath" => "/pfSense/xmlrpc.php",
+	"xmlrpcpath" => "/xmlrpc.php",
 	"embeddedbootupslice" => "/dev/ad0a",
 	"services_dhcp_server_enable" => true,
 	"wireless_regex" => "/^(ndis|wi|ath|an|ral|ural|iwi|wlan|rum|run|bwn|zyd|mwl|bwi|ipw|iwn|malo|uath|upgt|urtw|wpi)/",
@@ -102,8 +102,8 @@ if(file_exists("/etc/platform")) {
 	$arch = ($arch == "i386") ? "" : '/' . $arch;
 
 	/* Full installs and NanoBSD use the same update directory and manifest in 2.x */
-	$g['update_url']="http://updates.pfsense.org/_updaters{$arch}";
-	$g['update_manifest']="http://updates.pfSense.com/manifest";
+	$g['update_url']="https://updates.pfsense.org/_updaters{$arch}";
+	$g['update_manifest']="https://updates.pfsense.org/manifest";
 
 	$g['platform'] = trim(file_get_contents("/etc/platform"));
 	if($g['platform'] == "nanobsd") {

@@ -1,6 +1,6 @@
 #pt.iso.acc.kbd
 #by: pm@dee.uc.pt
-# $FreeBSD: src/share/syscons/keymaps/pt.iso.acc.kbd,v 1.5.36.1.8.2 2012/11/17 08:25:04 svnexp Exp $
+# $FreeBSD$
 #                                                         alt
 # scan                       cntrl          alt    alt   cntrl lock
 # code  base   shift  cntrl  shift  alt    shift  cntrl  shift state

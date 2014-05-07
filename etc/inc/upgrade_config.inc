@@ -1991,7 +1991,7 @@ function upgrade_054_to_055() {
 		/* restore the databases, if we have one */
 		if (restore_rrd()) {
 			/* Make sure to move the rrd backup out of the way. We will make a new one after converting. */
-			exec("/bin/mv {$g['cf_conf_path']}/rrd.tgz {$g['cf_conf_path']}/backup");
+			rename("{$g['cf_conf_path']}/rrd.tgz", "{$g['cf_conf_path']}/backup");
 		}
 	}
 
@@ -2657,7 +2657,7 @@ function upgrade_080_to_081() {
 		/* restore the databases, if we have one */
 		if (restore_rrd()) {
 			/* Make sure to move the rrd backup out of the way. We will make a new one after converting. */
-			exec("/bin/mv {$g['cf_conf_path']}/rrd.tgz {$g['cf_conf_path']}/backup");
+			rename("{$g['cf_conf_path']}/rrd.tgz", "{$g['cf_conf_path']}/backup");
 		}
 	}
 
@@ -2787,7 +2787,9 @@ function upgrade_080_to_081() {
 		file_put_contents("{$g['tmp_path']}/{$xmldumpnew}", $xml);
 		mwexec("$rrdtool restore -f {$g['tmp_path']}/{$xmldumpnew} {$rrddbpath}/{$database} 2>&1");
 		unset($xml);
-
+		# Default /tmp tmpfs is ~40mb, do not leave temp files around
+		unlink_if_exists("{$g['tmp_path']}/{$xmldump}");
+		unlink_if_exists("{$g['tmp_path']}/{$xmldumpnew}");
 	}
 	enable_rrd_graphing();
 	/* Let's save the RRD graphs after we run enable RRD graphing */
@@ -2816,6 +2818,9 @@ function upgrade_082_to_083() {
 		$config['captiveportal']['cpzone'] = array();
 		$config['captiveportal']['cpzone'] = $tmpcp;
 		$config['captiveportal']['cpzone']['zoneid'] = 8000;
+		$config['captiveportal']['cpzone']['zone'] = "cpzone";
+		if ($config['captiveportal']['cpzone']['auth_method'] == "radius")
+			$config['captiveportal']['cpzone']['radius_protocol'] = "PAP";
 	}
 	if (!empty($config['voucher'])) {
 		$tmpcp = $config['voucher'];
@@ -3102,7 +3107,7 @@ function upgrade_095_to_096() {
 		/* restore the databases, if we have one */
 		if (restore_rrd()) {
 			/* Make sure to move the rrd backup out of the way. We will make a new one after converting. */
-			exec("/bin/mv {$g['cf_conf_path']}/rrd.tgz {$g['cf_conf_path']}/backup");
+			rename("{$g['cf_conf_path']}/rrd.tgz", "{$g['cf_conf_path']}/backup");
 		}
 	}
 
@@ -3141,5 +3146,36 @@ function upgrade_097_to_098() {
 	global $config, $g;
 	/* Disable kill_states by default */
 	$config['system']['kill_states'] = true;
+}
+
+function upgrade_098_to_099() {
+	global $config;
+	foreach ($config['dhcpd'] as & $dhcpifconf) {
+		if (isset($dhcpifconf['next-server'])) {
+			$dhcpifconf['nextserver'] = $dhcpifconf['next-server'];
+			unset($dhcpifconf['next-server']);
+		}
+	}
+}
+
+function upgrade_099_to_100() {
+	require_once("/etc/inc/services.inc");
+	install_cron_job("/usr/bin/nice -n20 newsyslog", false);
+}
+
+function upgrade_100_to_101() {
+	global $config, $g;
+
+	if (!is_array($config['voucher']))
+		return;
+
+	foreach ($config['voucher'] as $cpzone => $cp) {
+		if (!is_array($cp['roll']))
+			continue;
+		foreach ($cp['roll'] as $ridx => $rcfg) {
+			if (!empty($rcfg['comment']))
+				$config['voucher'][$cpzone]['roll'][$ridx]['descr'] = $rcfg['comment'];
+		}
+	}
 }
 ?>

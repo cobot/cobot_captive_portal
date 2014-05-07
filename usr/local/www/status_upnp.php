@@ -2,7 +2,7 @@
 /* $Id$ */
 /*
 	status_upnp.php
-	part of pfSense (http://www.pfsense.com/)
+	part of pfSense (https://www.pfsense.org/)
 
 	Copyright (C) 2010 Seth Mos <seth.mos@dds.nl>.
 	All rights reserved.
@@ -67,6 +67,7 @@ if(!$config['installedpackages'] || !$config['installedpackages']['miniupnpd']['
 	!$config['installedpackages']['miniupnpd']['config'][0]['enable']) {
 	echo gettext("UPnP is currently disabled.");
 	include("fend.inc");
+	echo '</body></html>';
 	exit;
 }
 ?>

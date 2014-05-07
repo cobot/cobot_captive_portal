@@ -30,7 +30,7 @@
 # SUCH DAMAGE.
 #
 #	@(#)termcap.src	8.2 (Berkeley) 11/17/93
-# $FreeBSD: src/share/termcap/termcap.src,v 1.156.2.3.2.2 2012/11/17 08:25:04 svnexp Exp $
+# $FreeBSD$
 
 #	Termcap source file
 #	John Kunze, Berkeley

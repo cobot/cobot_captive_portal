@@ -5,7 +5,7 @@
 #
 #   -Satoshi
 #
-# $FreeBSD: src/share/syscons/keymaps/us.dvorakx.kbd,v 1.7.36.1.8.2 2012/11/17 08:25:04 svnexp Exp $
+# $FreeBSD$
 #                                                         alt
 # scan                       cntrl          alt    alt   cntrl lock
 # code  base   shift  cntrl  shift  alt    shift  cntrl  shift state

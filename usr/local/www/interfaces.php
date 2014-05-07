@@ -4,7 +4,7 @@
 	interfaces.php
 	Copyright (C) 2004-2008 Scott Ullrich
 	Copyright (C) 2006 Daniel S. Haischt.
-	Copyright (C) 2008-2010 Ermal Lu�i
+	Copyright (C) 2008-2010 Ermal Luci
 	All rights reserved.
 
 	originally part of m0n0wall (http://m0n0.ch/wall)
@@ -559,6 +559,14 @@ if ($_POST['apply']) {
 			if (is_ipaddr_configured($_POST['ipaddr'], $if, true))
 				$input_errors[] = gettext("This IPv4 address is being used by another interface or VIP.");
 
+			/* Do not accept network or broadcast address, except if subnet is 31 or 32 */
+			if ($_POST['subnet'] < 31) {
+				if ($_POST['ipaddr'] == gen_subnet($_POST['ipaddr'], $_POST['subnet']))
+					$input_errors[] = gettext("This IPv4 address is the network address and cannot be used");
+				else if ($_POST['ipaddr'] == gen_subnet_max($_POST['ipaddr'], $_POST['subnet']))
+					$input_errors[] = gettext("This IPv4 address is the broadcast address and cannot be used");
+			}
+
 			foreach ($staticroutes as $route_subnet) {
 				list($network, $subnet) = explode("/", $route_subnet);
 				if ($_POST['subnet'] == $subnet && $network == gen_subnet($_POST['ipaddr'], $_POST['subnet'])) {
@@ -636,17 +644,15 @@ if ($_POST['apply']) {
 		$input_errors[] = gettext("A valid MAC address must be specified.");
 	if ($_POST['mtu']) {
 		if ($_POST['mtu'] < 576 || $_POST['mtu'] > 9000)
-			$input_errors[] = gettext("The MTU must be greater than 576 bytes.");
+			$input_errors[] = gettext("The MTU must be greater than 576 bytes and less than 9000.");
 
 		if (stristr($wancfg['if'], "_vlan")) {
 			$realhwif_array = get_parent_interface($wancfg['if']);
 			// Need code to handle MLPPP if we ever use $realhwif for MLPPP handling
 			$parent_realhwif = $realhwif_array[0];
 			$parent_if = convert_real_interface_to_friendly_interface_name($parent_realhwif);
-			if (!empty($parent_if) && isset($config['interfaces'][$parent_if]['mtu'])) {
-				$parent_mtu = $config['interfaces'][$parent_if]['mtu'];
-
-				if ($_POST['mtu'] > $parent_mtu)
+			if (!empty($parent_if) && !empty($config['interfaces'][$parent_if]['mtu'])) {
+				if ($_POST['mtu'] > intval($config['interfaces'][$parent_if]['mtu']))
 					$input_errors[] = gettext("MTU of a vlan should not be bigger than parent interface.");
 			}
 		} else {
@@ -1145,7 +1151,7 @@ function check_wireless_mode() {
 		if (!interface_wireless_clone("{$wlanif}_", $wancfg)) {
 			$input_errors[] = sprintf(gettext("Unable to change mode to %s.  You may already have the maximum number of wireless clones supported in this mode."), $wlan_modes[$wancfg['wireless']['mode']]);
 		} else {
-			mwexec("/sbin/ifconfig {$wlanif}_ destroy");
+			mwexec("/sbin/ifconfig " . escapeshellarg($wlanif) . "_ destroy");
 		}
 		$wancfg['wireless']['mode'] = $old_wireless_mode;
 	}
@@ -1182,6 +1188,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 <link href="/javascript/datepicker/css/datepicker.css" rel="stylesheet" type="text/css"/>
 
 <script type="text/javascript">
+//<![CDATA[
 	function updateType(t) {
 		switch(t) {
 			case "none": {
@@ -1216,33 +1223,34 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 			jQuery('#'+t).show();
 	}
 	function updateTypeSix(t) {
+		if (!isNaN(t[0])) t = '_' + t;
 		switch(t) {
 			case "none": {
-				jQuery('#staticv6, #dhcp6, #6rd, #6to4, #track6, #slaac').hide();
+				jQuery('#staticv6, #dhcp6, #_6rd, #_6to4, #track6, #slaac').hide();
 				break;
 			}
 			case "staticv6": {
-				jQuery('#none, #dhcp6, #6rd, #6to4, #track6, #slaac').hide();
+				jQuery('#none, #dhcp6, #_6rd, #_6to4, #track6, #slaac').hide();
 				break;
 			}
 			case "slaac": {
-				jQuery('#none, #staticv6, #6rd, #6to4, #track6, #dhcp6').hide();
+				jQuery('#none, #staticv6, #6_rd, #_6to4, #track6, #dhcp6').hide();
 				break;
 			}
 			case "dhcp6": {
-				jQuery('#none, #staticv6, #6rd, #6to4, #track6, #slaac').hide();
+				jQuery('#none, #staticv6, #_6rd, #_6to4, #track6, #slaac').hide();
 				break;
 			}
-			case "6rd": {
-				jQuery('#none, #dhcp6, #staticv6, #6to4, #track6, #slaac').hide();
+			case "_6rd": {
+				jQuery('#none, #dhcp6, #staticv6, #_6to4, #track6, #slaac').hide();
 				break;
 			}
-			case "6to4": {
-				jQuery('#none, #dhcp6, #staticv6, #6rd, #track6, #slaac').hide();
+			case "_6to4": {
+				jQuery('#none, #dhcp6, #staticv6, #_6rd, #track6, #slaac').hide();
 				break;
 			}
 			case "track6": {
-				jQuery('#none, #dhcp6, #staticv6, #6rd, #6to4, #slaac').hide();
+				jQuery('#none, #dhcp6, #staticv6, #_6rd, #_6to4, #slaac').hide();
 				break;
 			}
 		}
@@ -1284,7 +1292,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 	}
 	function country_list() {
 		jQuery('#country').children().remove();
-		jQuery('#provider').children().remove();
+		jQuery('#provider_list').children().remove();
 		jQuery('#providerplan').children().remove();
 		jQuery.ajax("getserviceproviders.php",{
 			success: function(response) {
@@ -1303,7 +1311,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 	}
 
 	function providers_list() {
-		jQuery('#provider').children().remove();
+		jQuery('#provider_list').children().remove();
 		jQuery('#providerplan').children().remove();
 		jQuery.ajax("getserviceproviders.php",{
 			type: 'post',
@@ -1315,7 +1323,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 					var option = new Element('option');
 					option.text = value;
 					option.value = value;
-					jQuery('#provider').append(option);
+					jQuery('#provider_list').append(option);
 				});
 			}
 		});
@@ -1328,7 +1336,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 		jQuery('#providerplan').append( new Element('option') );
 		jQuery.ajax("getserviceproviders.php",{
 			type: 'post',
-			data: {country : jQuery('#country').val(), provider : jQuery('#provider').val()},
+			data: {country : jQuery('#country').val(), provider : jQuery('#provider_list').val()},
 			success: function(response) {
 				var responseTextArr = response.split("\n");
 				responseTextArr.sort();
@@ -1350,7 +1358,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 	function prefill_provider() {
 		jQuery.ajax("getserviceproviders.php",{
 			type: 'post',
-			data: {country : jQuery('#country').val(), provider : jQuery('#provider').val(), plan : jQuery('#providerplan').val()},
+			data: {country : jQuery('#country').val(), provider : jQuery('#provider_list').val(), plan : jQuery('#providerplan').val()},
 			success: function(data,textStatus,response) {
 				var xmldoc = response.responseXML;
 				var provider = xmldoc.getElementsByTagName('connection')[0];
@@ -1371,6 +1379,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 		});
 	}
 
+//]]>
 </script>
 </head>
 	<body link="#0000CC" vlink="#0000CC" alink="#0000CC">
@@ -1397,7 +1406,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 							</td>
 						</tr>
 					</table>
-					<div style="display:none;" name="allcfg" id="allcfg">
+					<div style="display:none;" id="allcfg">
 					<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="allcfg">
 						<tr>
 							<td width="22%" valign="top" class="vncell"><?=gettext("Description"); ?></td>
@@ -1513,8 +1522,8 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 						<tr>
 							<td colspan="2" valign="top" height="16"></td>
 						</tr>
-						<tr style="display:none;" name="none" id="none"><td style="display:none;"></td></tr>
-						<tr style="display:none;" name="staticv4" id="staticv4">
+						<tr style="display:none;" id="none"><td style="display:none;"></td></tr>
+						<tr style="display:none;" id="staticv4">
 							<td colspan="2" style="padding:0px;">
 								<a name="gatewaysection"></a>
 								<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="staticv4">
@@ -1540,7 +1549,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 										</td>
 									</tr>
 									<tr>
-										<td width="22%" valign="top" class="vncell"><?=gettext("Gateway"); ?></td>
+										<td width="22%" valign="top" class="vncell"><?=gettext("IPv4 Upstream Gateway"); ?></td>
 										<td width="78%" class="vtable">
 											<select name="gateway" class="formselect" id="gateway">
 												<option value="none" selected="selected"><?=gettext("None"); ?></option>
@@ -1561,13 +1570,14 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 											- or  <strong><a onclick="show_add_gateway();" href="#gatewaysection"><?=gettext("add a new one."); ?></a></strong>
 											<br/>
 											<div id='addgwbox'>
-												<?=gettext("If this interface is an Internet connection, select an existing Gateway from the list or add one using the link above"); ?>
+												<?=gettext("If this interface is an Internet connection, select an existing Gateway from the list or add a new one using the link above."); ?><br/>
+												<?=gettext("On local LANs the upstream gateway should be \"none\"."); ?>
 											</div>
 											<div id='notebox'>
 											</div>
 											<div id="status">
 											</div>
-											<div style="display:none" id="addgateway" name="addgateway">
+											<div style="display:none" id="addgateway">
 												<p>&nbsp;</p>
 												<table border="1" class="addgatewaybox" summary="addgateway">
 													<tr>
@@ -1619,7 +1629,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 								</table>
 							</td>
 						</tr>
-						<tr style="display:none;" name="staticv6" id="staticv6">
+						<tr style="display:none;" id="staticv6">
 							<td colspan="2" style="padding:0px;">
 								<a name="gatewayv6section"></a>
 								<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="staticv6">
@@ -1645,7 +1655,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 										</td>
 									</tr>
 									<tr>
-										<td width="22%" valign="top" class="vncell"><?=gettext("Gateway IPv6"); ?></td>
+										<td width="22%" valign="top" class="vncell"><?=gettext("IPv6 Upstream Gateway"); ?></td>
 										<td width="78%" class="vtable">
 											<select name="gatewayv6" class="formselect" id="gatewayv6">
 												<option value="none" selected="selected"><?=gettext("None"); ?></option>
@@ -1666,13 +1676,14 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 											- or <strong><a onclick="show_add_gateway_v6();" href="#gatewayv6section"><?=gettext("add a new one."); ?></a></strong>
 											<br/>
 											<div id='addgwboxv6'>
-											<?=gettext("If this interface is an Internet connection, select an existing Gateway from the list or add a new one using the link above"); ?>
+												<?=gettext("If this interface is an Internet connection, select an existing Gateway from the list or add a new one using the link above."); ?><br/>
+												<?=gettext("On local LANs the upstream gateway should be \"none\"."); ?>
 											</div>
 											<div id='noteboxv6'>
 											</div>
 											<div id="statusv6">
 											</div>
-											<div style="display:none" id="addgatewayv6" name="addgatewayv6">
+											<div style="display:none" id="addgatewayv6">
 												<p>&nbsp;</p>
 												<table border="1" class="addgatewaybox" summary="addgatewayv6">
 													<tr>
@@ -1724,7 +1735,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 								</table>
 							</td>
 						</tr>
-						<tr style="display:none;" name="dhcp" id="dhcp">
+						<tr style="display:none;" id="dhcp">
 							<td colspan="2" style="padding: 0px;">
 								<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="dhcp">
 									<tr>
@@ -1785,7 +1796,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 								</table>
 							</td>
 						</tr>
-						<tr style="display:none;" name="dhcp6" id="dhcp6">
+						<tr style="display:none;" id="dhcp6">
 							<td colspan="2" style="padding: 0px;">
 								<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="dhcp6">
 									<tr>
@@ -1852,7 +1863,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 								</table>
 							</td>
 						</tr>
-						<tr style="display:none;" name="6rd" id="6rd">
+						<tr style="display:none;" id="_6rd">
 							<td colspan="2" style="padding: 0px;">
 								<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="6rd">
 									<tr>
@@ -1896,7 +1907,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 								</table>
 							</td>
 						</tr>
-						<tr style="display:none;" name="track6" id="track6">
+						<tr style="display:none;" id="track6">
 							<td colspan="2" style="padding: 0px;">
 								<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="track6">
 									<tr>
@@ -1920,12 +1931,16 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 														continue;
 												}
 											}
+											$rowIndex = 0;
 											foreach($dynv6ifs as $iface => $ifacename) {
+												$rowIndex++;
 												echo "<option value=\"{$iface}\"";
 												if ($iface == $pconfig['track6-interface'])
 													echo " selected=\"selected\"";
 												echo ">" . htmlspecialchars($ifacename) . "</option>";
 											}
+											if ($rowIndex == 0)
+												echo "<option></option>";
 										?>
 										</select> <br/>
 											<br/>
@@ -1953,13 +1968,13 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 								</table>
 							</td>
 						</tr>
-						<tr style="display:none;" name="ppp" id="ppp">
+						<tr style="display:none;" id="ppp">
 							<td colspan="2" style="padding: 0px;">
 								<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="ppp">
 									<tr>
 										<td colspan="2" valign="top" class="listtopic"><?=gettext("PPP configuration"); ?></td>
 									</tr>
-									<tr name="ppp_provider" id="ppp_provider">
+									<tr id="ppp_provider">
 										<td width="22%" valign="top" class="vncell"><?=gettext("Service Provider"); ?></td>
 										<td width="78%" class="vtable">
 											<table border="0" cellpadding="0" cellspacing="0" summary="service provider">
@@ -1974,7 +1989,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 												<tr id="trprovider" style="display:none">
 													<td><?=gettext("Provider:"); ?> &nbsp;&nbsp;</td>
 													<td>
-														<select class="formselect" name="provider" id="provider" onchange="providerplan_list()">
+														<select class="formselect" name="provider_list" id="provider_list" onchange="providerplan_list()">
 															<option></option>
 														</select>
 													</td>
@@ -2003,19 +2018,19 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 										<input name="password" type="password" class="formfld pwd" id="password" size="20" value="<?=htmlspecialchars($pconfig['password']);?>" />
 										</td>
 									</tr>
-									<tr name="phone_num" id="phone_num">
+									<tr id="phone_num">
 										<td width="22%" valign="top" class="vncellreq"><?=gettext("Phone Number"); ?></td>
 										<td width="78%" class="vtable">
 											<input name="phone" type="text" class="formfld unknown" id="phone" size="12" value="<?=htmlspecialchars($pconfig['phone']);?>" />
 										</td>
 									</tr>
-									<tr name="apn_" id="apn_">
+									<tr id="apn_">
 										<td width="22%" valign="top" class="vncell"><?=gettext("Access Point Name (APN)"); ?></td>
 										<td width="78%" class="vtable">
 											<input name="apn" type="text" class="formfld unknown" id="apn" size="40" value="<?=htmlspecialchars($pconfig['apn']);?>" />
 										</td>
 									</tr>
-									<tr name="interface" id="interface" >
+									<tr id="interface" >
 										<td width="22%" valign="top" class="vncellreq"><?=gettext("Modem Port"); ?></td>
 										<td width="78%" class="vtable">
 											<select name="port" id="port" class="formselect">
@@ -2023,14 +2038,19 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 												$portlist = glob("/dev/cua*");
 												$modems = glob("/dev/modem*");
 												$portlist = array_merge($portlist, $modems);
+												$rowIndex = 0;
 												foreach ($portlist as $port) {
 													if(preg_match("/\.(lock|init)$/", $port))
 														continue;
+													$rowIndex++;
 													echo "<option value=\"".trim($port)."\"";
 													if ($pconfig['port'] == $port)
 														echo " selected=\"selected\"";
 													echo ">{$port}</option>";
-												}?>
+												}
+												if ($rowIndex == 0)
+													echo "<option></option>";
+											?>
 											</select>
 										</td>
 									</tr>
@@ -2054,7 +2074,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 								</table>
 							</td>
 						</tr>
-						<tr style="display:none;" name="pppoe" id="pppoe">
+						<tr style="display:none;" id="pppoe">
 							<td colspan="2" style="padding:0px;">
 								<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="pppoe">
 									<tr>
@@ -2163,7 +2183,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 								</table>
 							</td>
 						</tr>
-						<tr style="display:none;" name="pptp" id="pptp">
+						<tr style="display:none;" id="pptp">
 							<td colspan="2" style="padding:0px;">
 								<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="pptp">
 									<tr>
@@ -2253,12 +2273,16 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 							<td class="vtable">
 							<select name="standard" class="formselect" id="standard">
 								<?php
+								$rowIndex = 0;
 								foreach($wl_modes as $wl_standard => $wl_channels) {
+									$rowIndex++;
 									echo "<option ";
 									if ($pconfig['standard'] == "$wl_standard")
 										echo "selected=\"selected\" ";
 									echo "value=\"$wl_standard\">802.$wl_standard</option>\n";
 								}
+								if ($rowIndex == 0)
+									echo "<option></option>";
 								?>
 							</select>
 							</td>
@@ -2524,7 +2548,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 											<input name="key1" type="text" class="formfld unknown" id="key1" size="30" value="<?=htmlspecialchars($pconfig['key1']);?>" />
 										</td>
 										<td align="center">
-											<input name="txkey" type="radio" value="1" <?php if ($pconfig['txkey'] == 1) echo "checked=\"checked\"";?>>
+											<input name="txkey" type="radio" value="1" <?php if ($pconfig['txkey'] == 1) echo "checked=\"checked\"";?> />
 										</td>
 									</tr>
 									<tr>
@@ -2745,7 +2769,7 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 								<br/>
 								<input id="save" name="Submit" type="submit" class="formbtn" value="<?=gettext("Save"); ?>" />
 								<input id="cancel" type="button" class="formbtn" value="<?=gettext("Cancel"); ?>" onclick="history.back()" />
-								<input name="if" type="hidden" id="if" value="<?=$if;?>" />
+								<input name="if" type="hidden" id="if" value="<?=htmlspecialchars($if);?>" />
 								<?php if ($wancfg['if'] == $a_ppps[$pppid]['if']) : ?>
 								<input name="ppp_port" type="hidden" value="<?=htmlspecialchars($pconfig['port']);?>" />
 								<?php endif; ?>
@@ -2812,9 +2836,11 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 			var descr = jQuery('#gatewaydescr').val();
 			gatewayip = jQuery('#gatewayip').val();
 
-			var defaultgw = jQuery('#defaultgw').val();
+			var defaultgw = '';
+			if (jQuery('#defaultgw').is(':checked'))
+				defaultgw = '&defaultgw=on';
 			var url = "system_gateways_edit.php";
-			var pars = 'isAjax=true&ipprotocol=inet&defaultgw=' + escape(defaultgw) + '&interface=' + escape(iface) + '&name=' + escape(name) + '&descr=' + escape(descr) + '&gateway=' + escape(gatewayip);
+			var pars = 'isAjax=true&ipprotocol=inet' + defaultgw + '&interface=' + escape(iface) + '&name=' + escape(name) + '&descr=' + escape(descr) + '&gateway=' + escape(gatewayip);
 			jQuery.ajax(
 				url,
 				{
@@ -2831,9 +2857,11 @@ $types6 = array("none" => gettext("None"), "staticv6" => gettext("Static IPv6"),
 			name = jQuery('#namev6').val();
 			var descr = jQuery('#gatewaydescrv6').val();
 			gatewayip = jQuery('#gatewayipv6').val();
-			var defaultgw = jQuery('#defaultgwv6').val();
+			var defaultgw = '';
+			if (jQuery('#defaultgwv6').is(':checked'))
+				defaultgw = '&defaultgw=on';
 			var url_v6 = "system_gateways_edit.php";
-			var pars_v6 = 'isAjax=true&ipprotocol=inet6&defaultgw=' + escape(defaultgw) + '&interface=' + escape(iface) + '&name=' + escape(name) + '&descr=' + escape(descr) + '&gateway=' + escape(gatewayip);
+			var pars_v6 = 'isAjax=true&ipprotocol=inet6' + defaultgw + '&interface=' + escape(iface) + '&name=' + escape(name) + '&descr=' + escape(descr) + '&gateway=' + escape(gatewayip);
 			jQuery.ajax(
 				url_v6,
 				{

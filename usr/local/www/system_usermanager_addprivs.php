@@ -42,21 +42,13 @@ function admusercmp($a, $b) {
 	return strcasecmp($a['name'], $b['name']);
 }
 
-function admin_users_sort() {
-        global $g, $config;
-
-        if (!is_array($config['system']['user']))
-                return;
-
-        usort($config['system']['user'], "admusercmp");
-}
-
 require("guiconfig.inc");
 
 $pgtitle = array("System","User manager","Add privileges");
 
-$userid = $_GET['userid'];
-if (isset($_POST['userid']))
+if (is_numericint($_GET['userid']))
+	$userid = $_GET['userid'];
+if (isset($_POST['userid']) && is_numericint($_POST['userid']))
 	$userid = $_POST['userid'];
 
 $a_user = & $config['system']['user'][$userid];
@@ -102,7 +94,6 @@ if ($_POST) {
 			$a_user['priv'] = array_merge($a_user['priv'], $pconfig['sysprivs']);
 
 		$a_user['priv'] = sort_user_privs($a_user['priv']);
-		admin_users_sort();
 		local_user_set($a_user);
 		$retval = write_config();
 		$savemsg = get_std_save_message($retval);
@@ -205,7 +196,7 @@ function update_description() {
 								<input id="submitt"  name="Submit" type="submit" class="formbtn" value="<?=gettext("Save");?>" />
 								<input id="cancelbutton" class="formbtn" type="button" value="<?=gettext("Cancel");?>" onclick="history.back()" />
 								<?php if (isset($userid)): ?>
-								<input name="userid" type="hidden" value="<?=$userid;?>" />
+								<input name="userid" type="hidden" value="<?=htmlspecialchars($userid);?>" />
 								<?php endif; ?>
 							</td>
 						</tr>

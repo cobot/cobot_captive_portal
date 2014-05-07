@@ -33,15 +33,13 @@
 */
 
 ##|+PRIV
-##|*IDENT=page-diag-system-activity
-##|*NAME=Diagnostics: System Activity
-##|*DESCR=Allows access to the 'Diagnostics: System Activity' page
-##|*MATCH=diag_system_activity*
+##|*IDENT=page-diagnostics-pf-info
+##|*NAME=Diagnostics: pfInfo
+##|*DESCR=Allows access to the 'Diagnostics: pfInfo' page
+##|*MATCH=diag_pf_info.php*
 ##|-PRIV
 
 require("guiconfig.inc");
-
-$pfSversion = str_replace("\n", "", file_get_contents("/etc/version"));
 
 $pgtitle = gettext("Diagnostics: pfInfo");
 
@@ -80,8 +78,6 @@ jQuery(document).ready(function() {setTimeout('getpfinfo()', 5000);});
 <div id='maincontent'>
 <?php
 	include("fbegin.inc"); 
-	if(strstr($pfSversion, "1.2")) 
-		echo "<p class=\"pgtitle\">{$pgtitle}</p>";
 	if($savemsg) {
 		echo "<div id='savemsg'>";
 		print_info_box($savemsg);

@@ -33,7 +33,7 @@
 ##|+PRIV
 ##|*IDENT=page-interfacess-groups
 ##|*NAME=Interfaces: Groups: Edit page
-##|*DESCR=Edit Interface groups
+##|*DESCR=Allow access to the 'Interfaces: Groups: Edit' page.
 ##|*MATCH=interfaces_groups_edit.php*
 ##|-PRIV
 
@@ -49,9 +49,9 @@ if (!is_array($config['ifgroups']['ifgroupentry']))
 
 $a_ifgroups = &$config['ifgroups']['ifgroupentry'];
 
-if (isset($_GET['id']))
+if (is_numericint($_GET['id']))
 	$id = $_GET['id'];
-if (isset($_POST['id']))
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && $a_ifgroups[$id]) {

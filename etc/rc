@@ -39,29 +39,6 @@ if [ -e /root/force_fsck ]; then
 	fi
 fi
 
-if [ -e /root/TRIM_set -o -e /root/TRIM_unset ]; then
-	TUNEFS_STATUS=`/sbin/tunefs -p / 2>&1 | /usr/bin/grep trim: | /usr/bin/awk '{print $4;}'`
-	if [ -e /root/TRIM_set ] && [ "${TUNEFS_STATUS}" = "disabled" ]; then
-		echo "Enabling TRIM support"
-		/sbin/tunefs -t enable /
-		if [ "$PLATFORM" = "nanobsd" ]; then
-			/sbin/tunefs -t enable /cf
-		fi
-		echo "Rebooting in 5 seconds after enabling TRIM..."
-		sleep 5
-		/sbin/reboot
-	elif [ -e /root/TRIM_unset ] && [ "${TUNEFS_STATUS}" = "enabled" ]; then
-		echo "Disabling TRIM support"
-		/sbin/tunefs -t disable /
-		if [ "$PLATFORM" = "nanobsd" ]; then
-			/sbin/tunefs -t disable /cf
-		fi
-		echo "Rebooting in 5 seconds after disabling TRIM..."
-		sleep 5
-		/sbin/reboot
-	fi
-fi
-
 # Mount memory file system if it exists
 echo "Mounting filesystems..."
 
@@ -310,7 +287,7 @@ for logfile in $LOG_FILES; do
 				# generate fifolog files
 				/usr/sbin/fifolog_create -s 511488 /var/log/$logfile.log
 			else 
-				/usr/sbin/clog -i -s 512144 /var/log/$logfile.log
+				/usr/local/sbin/clog -i -s 512144 /var/log/$logfile.log
 			fi
 		fi
 	fi 
@@ -358,8 +335,8 @@ echo "done."
 
 # Ensure gettytab is of a sane size
 if [ `/bin/ls -la /etc/gettytab | /usr/bin/awk '{ print $5'}` -lt 512 ]; then
-	echo ">>> Restoring /etc/gettytab due to unusal size"
-	echo ">>> Restoring /etc/gettytab due to unusal size" | /usr/bin/logger
+	echo ">>> Restoring /etc/gettytab due to unusual size"
+	echo ">>> Restoring /etc/gettytab due to unusual size" | /usr/bin/logger
 	/bin/cp /etc/gettytab.bak /etc/gettytab
 fi
 
@@ -400,6 +377,10 @@ echo -n "Launching the init system..."
 /usr/bin/touch $varrunpath/booting
 /etc/rc.bootup
 
+# /etc/rc.bootup unset $g['booting'], remove file right now to be
+# consistent
+/bin/rm $varrunpath/booting
+
 # If a shell was selected from recovery 
 # console then just drop to the shell now.
 if [ -f "/tmp/donotbootup" ]; then
@@ -428,7 +409,6 @@ echo "done."
 /bin/chmod a+rw /tmp/.
 
 echo "Bootup complete"
-/bin/rm $varrunpath/booting
 
 /usr/local/bin/beep.sh start 2>&1 >/dev/null
 
