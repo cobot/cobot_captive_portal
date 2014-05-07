@@ -197,7 +197,7 @@ EOD;
 			$user = $_POST['auth_user'];
 		else if (!empty($_POST['auth_user2']))
 			$user = $_POST['auth_user2'];
-		else 
+		else
 			$user = 'unknown';
 		captiveportal_logportalauth($user ,$clientmac,$clientip,"ERROR");
 		portal_reply_page($redirurl, "error", $errormsg);
@@ -220,6 +220,30 @@ EOD;
 		}
 	} else
 		portal_reply_page($redirurl, "error", $errormsg);
+
+} else if (!$_POST['accept'] && $clientmac && $cpcfg['auth_method'] == "webapi" && ($time = webapi_backend_mac($clientmac, $cpcfg['webapi_space'], $cpcfg['webapi_token']))) {
+
+    captiveportal_logportalauth(null, $clientmac, $clientip, "LOGIN");
+    portal_allow($clientip, $clientmac, null, null, array(
+        'session_terminate_time' => intval(strtotime($time))
+    ));
+
+} else if ($_POST['accept'] && $cpcfg['auth_method'] == "webapi") {
+
+    if ($_POST['auth_user'] && $_POST['auth_pass']) {
+        $response = webapi_backend($_POST['auth_user'], $_POST['auth_pass'], $clientmac, $cpcfg['webapi_space'], $cpcfg['webapi_token']);
+        if ($response['success']) {
+            captiveportal_logportalauth($_POST['auth_user'], $clientmac, $clientip, "LOGIN");
+            portal_allow($clientip, $clientmac, $_POST['auth_user'], null, array(
+                'session_terminate_time' => intval(strtotime($response['message']))
+            ));
+        } else {
+            captiveportal_logportalauth($_POST['auth_user'], $clientmac, $clientip, "FAILURE");
+            portal_reply_page($redirurl, "error", $response['message']);
+        }
+    } else {
+        portal_reply_page($redirurl, "error", $errormsg);
+    }
 
 } else if ($_POST['accept'] && $clientip && $cpcfg['auth_method'] == "none") {
 	captiveportal_logportalauth("unauthenticated",$clientmac,$clientip,"ACCEPT");
