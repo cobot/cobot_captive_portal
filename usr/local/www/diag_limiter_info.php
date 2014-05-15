@@ -33,17 +33,16 @@
 */
 
 ##|+PRIV
-##|*IDENT=page-diag-system-activity
-##|*NAME=Diagnostics: System Activity
-##|*DESCR=Allows access to the 'Diagnostics: System Activity' page
-##|*MATCH=diag_system_activity*
+##|*IDENT=page-diagnostics-limiter-info
+##|*NAME=Diagnostics: Limiter Info
+##|*DESCR=Allows access to the 'Diagnostics: Limiter Info' page
+##|*MATCH=diag_limiter_info.php*
 ##|-PRIV
 
 require("guiconfig.inc");
 
-$pfSversion = str_replace("\n", "", file_get_contents("/etc/version"));
-
 $pgtitle = gettext("Diagnostics: Limiter Info");
+$shortcut_section = "trafficshaper-limiters";
 
 if($_REQUEST['getactivity']) {
 	$text = `/sbin/ipfw pipe show`;
@@ -68,16 +67,16 @@ include("head.inc");
 	function getlimiteractivity() {
 		var url = "/diag_limiter_info.php";
 		var pars = 'getactivity=yes';
-		var myAjax = new Ajax.Request(
+		jQuery.ajax(
 			url,
 			{
-				method: 'post',
-				parameters: pars,
-				onComplete: activitycallback
+				type: 'post',
+				data: pars,
+				complete: activitycallback
 			});
 	}
 	function activitycallback(transport) {
-		$('limiteractivitydiv').innerHTML = '<font face="Courier"><font size="2"><b><pre style="text-align:left;">' + transport.responseText  + '</pre></font>';
+		jQuery('#limiteractivitydiv').html('<font face="Courier"><font size="2"><b><pre style="text-align:left;">' + transport.responseText  + '</pre></font>');
 		setTimeout('getlimiteractivity()', 2000);		
 	}
 	setTimeout('getlimiteractivity()', 5000);	
@@ -85,8 +84,6 @@ include("head.inc");
 <div id='maincontent'>
 <?php
 	include("fbegin.inc"); 
-	if(strstr($pfSversion, "1.2")) 
-		echo "<p class=\"pgtitle\">{$pgtitle}</p>";
 	if($savemsg) {
 		echo "<div id='savemsg'>";
 		print_info_box($savemsg);

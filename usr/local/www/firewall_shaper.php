@@ -52,7 +52,7 @@ if($_GET['reset'] <> "") {
 }
 
 $pgtitle = array(gettext("Firewall"),gettext("Traffic Shaper"));
-$statusurl = "status_queues.php";
+$shortcut_section = "trafficshaper";
 
 $shaperIFlist = get_configured_interface_with_descr();
 read_altq_config();
@@ -94,8 +94,8 @@ if ($_GET) {
 	case "delete":
 			if ($queue) {
 				$queue->delete_queue();
-				write_config();
-				mark_subsystem_dirty('shaper');
+				if (write_config())
+					mark_subsystem_dirty('shaper');
 			}
 			header("Location: firewall_shaper.php");
 			exit;
@@ -118,17 +118,18 @@ if ($_GET) {
 				if (isset($rule['wizard']) && $rule['wizard'] == "yes")
 					unset($config['filter']['rule'][$key]);
 			}
-			write_config();
-			
-			$retval = 0;
-                        $retval |= filter_configure();
-                        $savemsg = get_std_save_message($retval);
+			if (write_config()) {
+				$retval = 0;
+				$retval |= filter_configure();
+				$savemsg = get_std_save_message($retval);
 
-                        if (stristr($retval, "error") <> true)
-	                        $savemsg = get_std_save_message($retval);
-                        else
-       	                	$savemsg = $retval;
-			
+				if (stristr($retval, "error") <> true)
+					$savemsg = get_std_save_message($retval);
+				else
+					$savemsg = $retval;
+			} else {
+				$savemsg = gettext("Unable to write config.xml (Access Denied?)");
+			}
 			$output_form = $default_shaper_message;
 
 		break;
@@ -162,7 +163,7 @@ if ($_GET) {
 				$q->SetInterface($interface);
 				$output_form .= $q->build_form();
 				$output_form .= "<input type=\"hidden\" name=\"parentqueue\" id=\"parentqueue\"";
-				$output_form .= " value=\"".$qname."\">";
+				$output_form .= " value=\"".$qname."\" />";
 				$newjavascript = $q->build_javascript();
                 unset($q);
 				$newqueue = true;
@@ -178,8 +179,8 @@ if ($_GET) {
 			if ($queue) {
 					$queue->SetEnabled("on");
 					$output_form .= $queue->build_form();
-					write_config();
-					mark_subsystem_dirty('shaper');
+					if (write_config())
+						mark_subsystem_dirty('shaper');
 			} else
 					$input_errors[] = gettext("Queue not found!");
 		break;
@@ -187,13 +188,13 @@ if ($_GET) {
 			if ($queue) {
 					$queue->SetEnabled("");
 					$output_form .= $queue->build_form();
-					write_config();
-					mark_subsystem_dirty('shaper');
+					if (write_config())
+						mark_subsystem_dirty('shaper');
 			} else
 					$input_errors[] = gettext("Queue not found!");
 		break;
 		default:
-			$output_form .= "<p class=\"pgtitle\">" . $default_shaper_msg."</p>";
+			$output_form .= $default_shaper_msg;
 			$dontshow = true;
 			break;
 	}
@@ -230,8 +231,8 @@ if ($_GET) {
 			$tmppath[] = $altq->GetInterface();
 			$altq->SetLink(&$tmppath);	
 			$altq->wconfig();
-			write_config();
-			mark_subsystem_dirty('shaper');
+			if (write_config())
+				mark_subsystem_dirty('shaper');
 			$can_enable = true;
                         $can_add = true;
 		}
@@ -255,8 +256,8 @@ if ($_GET) {
                              			$can_add = true;
 				} else
 					$can_add = false;
-				write_config();
-				mark_subsystem_dirty('shaper');
+				if (write_config())
+					mark_subsystem_dirty('shaper');
 				$can_enable = true;
 				if ($altq->GetScheduler() != "PRIQ") /* XXX */
 					if ($tmp->GetDefault() <> "")
@@ -301,18 +302,19 @@ if ($_GET) {
                 if (!$input_errors) {
                             $queue->update_altq_queue_data($_POST);
                             $queue->wconfig();
-							write_config();
-				mark_subsystem_dirty('shaper');
+				if (write_config())
+					mark_subsystem_dirty('shaper');
 				$dontshow = false;
                 } 
 		read_altq_config();
 		$output_form .= $queue->build_form();
 	} else  {
-		$output_form .= "<p class=\"pgtitle\">" . $default_shaper_msg."</p>";
+		$output_form .= $default_shaper_msg;
 		$dontshow = true;
 	}
+	mwexec("killall qstats");
 } else {
-	$output_form .= "<p class=\"pgtitle\">" . $default_shaper_msg."</p>";
+	$output_form .= $default_shaper_msg;
 	$dontshow = true;
 }
 
@@ -341,50 +343,51 @@ $tree .= "</ul>";
 
 if (!$dontshow || $newqueue) {
 
-$output_form .= "<tr><td width=\"22%\" valign=\"center\" class=\"vncellreq\">";
+$output_form .= "<tr><td width=\"22%\" valign=\"middle\" class=\"vncellreq\">";
 $output_form .= "<br />" . gettext("Queue Actions") . "<br />";
-$output_form .= "</td><td valign=\"center\" class=\"vncellreq\" width=\"78%\"><br />";
+$output_form .= "</td><td valign=\"middle\" class=\"vncellreq\" width=\"78%\"><br />";
 
 $output_form .= "<input type=\"submit\" name=\"Submit\" value=\"" . gettext("Save") . "\" class=\"formbtn\" />";
 if ($can_add || $addnewaltq) {
 	$output_form .= "<a href=\"firewall_shaper.php?interface=";
 	$output_form .= $interface; 
 	if ($queue) {
-		$output_form .= "&queue=" . $queue->GetQname();
+		$output_form .= "&amp;queue=" . $queue->GetQname();
 	}
-	$output_form .= "&action=add\">";
-	$output_form .= "<input type=\"button\" class=\"formbtn\" name=\"add\" value=\"" . gettext("Add new queue") . "\">";
+	$output_form .= "&amp;action=add\">";
+	$output_form .= "<input type=\"button\" class=\"formbtn\" name=\"add\" value=\"" . gettext("Add new queue") . "\" />";
 	$output_form .= "</a>";
-	$output_form .= "<a href=\"firewall_shaper.php?interface=";
-	$output_form .= $interface . "&queue=";
-	if ($queue) {
-		$output_form .= "&queue=" . $queue->GetQname();
-	}
-	$output_form .= "&action=delete\">";
-	$output_form .= "<input type=\"button\" class=\"formbtn\" name=\"delete\"";
-	if ($queue)
-		$output_form .= " value=\"" . gettext("Delete this queue") . "\">";
-	else
-		$output_form .= " value=\"" . gettext("Disable shaper on interface") . "\">";
-	$output_form .= "</a>";  
 }
+$output_form .= "<a href=\"firewall_shaper.php?interface=";
+$output_form .= $interface . "&amp;queue=";
+if ($queue) {
+	$output_form .= "&amp;queue=" . $queue->GetQname();
+}
+$output_form .= "&amp;action=delete\">";
+$output_form .= "<input type=\"button\" class=\"formbtn\" name=\"delete\"";
+if ($queue)
+	$output_form .= " value=\"" . gettext("Delete this queue") . "\" />";
+else
+	$output_form .= " value=\"" . gettext("Disable shaper on interface") . "\" />";
+$output_form .= "</a>";
 $output_form .= "<br /></td></tr>";
-$output_form .= "</div>";
+$output_form .= "</table>";
 }
 else 
-	$output_form .= "</div>";
+	$output_form .= "</table>";
 
-$output = "<div id=\"shaperarea\" style=\"position:relative\">";
+$output = "<table  summary=\"output form\">";
 $output .= $output_form;
 
 //$pgtitle = "Firewall: Shaper: By Interface View";
-
+$closehead = false;
 include("head.inc");
 ?>
-
-<body link="#0000CC" vlink="#0000CC" alink="#0000CC" >
 <link rel="stylesheet" type="text/css" media="all" href="./tree/tree.css" />
 <script type="text/javascript" src="./tree/tree.js"></script>
+</head>
+
+<body link="#0000CC" vlink="#0000CC" alink="#0000CC" >
 <?php
 if ($queue)
         echo $queue->build_javascript();
@@ -399,9 +402,9 @@ include("fbegin.inc");
 
 <?php if ($savemsg) print_info_box($savemsg); ?>
 <?php if (is_subsystem_dirty('shaper')): ?><p>
-<?php print_info_box_np(gettext("The traffic shaper configuration has been changed.")."<br>".gettext("You must apply the changes in order for them to take effect."));?><br>
+<?php print_info_box_np(gettext("The traffic shaper configuration has been changed.")."<br/>".gettext("You must apply the changes in order for them to take effect."));?><br/></p>
 <?php endif; ?>
-<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="traffic shaper">
   <tr><td>
 <?php
 	$tab_array = array();
@@ -416,26 +419,26 @@ include("fbegin.inc");
   <tr>
     <td>
 	<div id="mainarea">
-              <table class="tabcont" width="100%" border="0" cellpadding="0" cellspacing="0">
+              <table class="tabcont" width="100%" border="0" cellpadding="0" cellspacing="0" summary="main area">
 <?php if (count($altq_list_queues) > 0): ?>
                         <tr class="tabcont"><td width="25%" align="left">
                                 <a href="firewall_shaper.php?action=resetall" >
-                                        <input type="button" value="<?=gettext("Remove Shaper")?>" class="formbtn">
+                                        <input type="button" value="<?=gettext("Remove Shaper")?>" class="formbtn" />
                                 </a>
                         </td><td width="75%"> </td></tr>
 <?php endif; ?>
 			<tr>
-			<td width="25%" valign="top" algin="left">
+			<td width="25%" valign="top" align="left">
 			<?php
 				echo $tree; 
 			?>
 			</td>
 			<td width="75%" valign="top" align="center">
-			<table>
-			<?
+			<div id="shaperarea" style="position:relative">
+			<?php
 				echo $output;
 			?>	
-			</table>
+			</div>
 
 		      </td></tr>
                     </table>
@@ -444,7 +447,6 @@ include("fbegin.inc");
 	</tr>
 </table>
             </form>
-<?php include("fend.inc"); 
-?>
+<?php include("fend.inc"); ?>
 </body>
 </html>

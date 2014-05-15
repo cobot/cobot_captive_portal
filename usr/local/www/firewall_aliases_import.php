@@ -1,7 +1,7 @@
 <?php
 /* $Id$ */
 /*
-	firewall_aliases_edit.php
+	firewall_aliases_import.php
 	Copyright (C) 2005 Scott Ullrich
 	All rights reserved.
 
@@ -38,17 +38,23 @@
 ##|-PRIV
 
 
-$reserved_keywords = array("pass", "out", "queue", "max", "min", "pptp", "pppoe", "L2TP", "OpenVPN", "IPsec");
+// Keywords not allowed in names
+$reserved_keywords = array("all", "pass", "block", "out", "queue", "max", "min", "pptp", "pppoe", "L2TP", "OpenVPN", "IPsec");
 
 require("guiconfig.inc");
 require_once("util.inc");
-require("filter.inc");
+require_once("filter.inc");
 require("shaper.inc");
 
 $pgtitle = array(gettext("Firewall"),gettext("Aliases"),gettext("Bulk import"));
 
+// Add all Load balance names to reserved_keywords
+if (is_array($config['load_balancer']['lbpool']))
+	foreach ($config['load_balancer']['lbpool'] as $lbpool)
+		$reserved_keywords[] = $lbpool['name'];
+
 $reserved_ifs = get_configured_interface_list(false, true);
-$reserved_keywords = array_merge($reserved_keywords, $reserved_ifs);
+$reserved_keywords = array_merge($reserved_keywords, $reserved_ifs, $reserved_table_names);
 
 if (!is_array($config['aliases']['alias']))
         $config['aliases']['alias'] = array();
@@ -89,7 +95,7 @@ if($_POST['aliasimport'] <> "") {
 			if (is_iprange($impip)) {
 				list($startip, $endip) = explode('-', $impip);
 				$rangesubnets = ip_range_to_subnet_array($startip, $endip);
-				$address .= implode(" ", $rangesubnets);
+				$imported = array_merge($imported, $rangesubnets);
 			} else if (!is_ipaddr($impip) && !is_subnet($impip) && !empty($impip)) {
 				$input_errors[] = sprintf(gettext("%s is not an IP address. Please correct the error to continue"), $impip);
 			} elseif (!empty($impip)) {
@@ -109,8 +115,8 @@ if($_POST['aliasimport'] <> "") {
 		// Sort list
 		$a_aliases = msort($a_aliases, "name");
 
-		write_config();
-		
+		if (write_config())
+			mark_subsystem_dirty('aliases');
 		pfSenseHeader("firewall_aliases.php");
 		
 		exit;
@@ -126,7 +132,7 @@ include("head.inc");
 <div id="niftyOutter">
 <form action="firewall_aliases_import.php" method="post" name="iform" id="iform">
 <div id="inputerrors"></div>
-<table width="100%" border="0" cellpadding="6" cellspacing="0">
+<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="firewall alias import">
 	<tr>
 	  <td colspan="2" valign="top" class="listtopic"><?=gettext("Alias Import"); ?></td>
 	</tr>
@@ -144,7 +150,7 @@ include("head.inc");
 	</tr>
 	<tr>
 	  <td valign="top" class="vncellreq"><?=gettext("Aliases to import"); ?></td>
-	  <td class="vtable"><textarea name="aliasimport" ROWS="15" COLS="40"><?php echo $_POST['aliasimport']; ?></textarea>
+	  <td class="vtable"><textarea name="aliasimport" rows="15" cols="40"><?php echo $_POST['aliasimport']; ?></textarea>
 	    <br /> <span class="vexpl"><?=gettext("Paste in the aliases to import separated by a carriage return.  Common examples are lists of IPs, networks, blacklists, etc."); ?> 
 	    <br /> <?=gettext("The list may contain only IP addresses."); ?> </span></td>
 	</tr>
@@ -153,7 +159,7 @@ include("head.inc");
 	  <td width="78%">
       <input id="submit" name="Submit" type="submit" class="formbtn" value="<?=gettext("Save"); ?>" />
       <input class="formbtn" type="button" value="<?=gettext("Cancel"); ?>" onclick="history.back()" />
-	</tr>
+	</td></tr>
 </table>
 
 
@@ -163,10 +169,11 @@ include("head.inc");
 <?php include("fend.inc"); ?>
 	    
 <script type="text/javascript">
+//<![CDATA[
 	NiftyCheck();
 	Rounded("div#nifty","top","#FFF","#EEEEEE","smooth");
+//]]>
 </script>
-
 
 </body>
 </html>

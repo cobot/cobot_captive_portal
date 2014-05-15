@@ -38,7 +38,7 @@
 ##|+PRIV
 ##|*IDENT=page-status-systemlogs-wireless
 ##|*NAME=Status: System logs: Wireless page
-##|*DESCR=Allow access to the 'Status: System logs: Wireless' page.
+##|*DESCR=Allow access to the 'Status: System logs: System: Wireless' page.
 ##|*MATCH=diag_logs_wireless.php*
 ##|-PRIV
 
@@ -54,6 +54,7 @@ if ($_POST['clear'])
 	clear_log_file($wireless_logfile);
 
 $pgtitle = array(gettext("Status"),gettext("System logs"),gettext("Wireless"));
+$shortcut_section = "wireless";
 include("head.inc");
 
 ?>
@@ -64,7 +65,7 @@ include("head.inc");
   <tr><td>
 <?php
 	$tab_array = array();
-	$tab_array[] = array(gettext("System"), false, "diag_logs.php");
+	$tab_array[] = array(gettext("System"), true, "diag_logs.php");
 	$tab_array[] = array(gettext("Firewall"), false, "diag_logs_filter.php");
 	$tab_array[] = array(gettext("DHCP"), false, "diag_logs_dhcp.php");
 	$tab_array[] = array(gettext("Portal Auth"), false, "diag_logs_auth.php");
@@ -73,12 +74,23 @@ include("head.inc");
 	$tab_array[] = array(gettext("VPN"), false, "diag_logs_vpn.php");
 	$tab_array[] = array(gettext("Load Balancer"), false, "diag_logs_relayd.php");
 	$tab_array[] = array(gettext("OpenVPN"), false, "diag_logs_openvpn.php");
-	$tab_array[] = array(gettext("OpenNTPD"), false, "diag_logs_ntpd.php");
-	$tab_array[] = array(gettext("Wireless"), true, "diag_logs_wireless.php");
+	$tab_array[] = array(gettext("NTP"), false, "diag_logs_ntpd.php");
 	$tab_array[] = array(gettext("Settings"), false, "diag_logs_settings.php");
 	display_top_tabs($tab_array);
 ?>
   </td></tr>
+  <tr><td class="tabnavtbl">
+<?php
+	$tab_array = array();
+	$tab_array[] = array(gettext("General"), false, "/diag_logs.php");
+	$tab_array[] = array(gettext("Gateways"), false, "/diag_logs_gateways.php");
+	$tab_array[] = array(gettext("Routing"), false, "/diag_logs_routing.php");
+	$tab_array[] = array(gettext("Resolver"), false, "/diag_logs_resolver.php");
+	$tab_array[] = array(gettext("Wireless"), true, "/diag_logs_wireless.php");
+        display_top_tabs($tab_array);
+?>
+                </td>
+        </tr>
   <tr>
     <td>
 	<div id="mainarea">
@@ -88,11 +100,10 @@ include("head.inc");
 			  <?php printf(gettext("Wireless (hostapd) log entries"),$nentries);?></td>
 		  </tr>
 		  <?php dump_clog($wireless_logfile, $nentries); ?>
-		<tr><td><br><form action="diag_logs_wireless.php" method="post">
-<input name="clear" type="submit" class="formbtn" value="<?=gettext("Clear log"); ?>"></td></tr>
+		<tr><td><br /><form action="diag_logs_wireless.php" method="post">
+<input name="clear" type="submit" class="formbtn" value="<?=gettext("Clear log"); ?>"/></form></td></tr>
 		</table>
 	</div>
-</form>
 	</td>
   </tr>
 </table>

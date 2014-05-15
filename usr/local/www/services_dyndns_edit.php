@@ -1,7 +1,7 @@
 <?php
 /* $Id$ */
 /*
-	Copyright (C) 2008 Ermal Luçi
+	Copyright (C) 2008 Ermal LuÃ§i
 	All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without
@@ -56,8 +56,9 @@ if (!is_array($config['dyndnses']['dyndns'])) {
 
 $a_dyndns = &$config['dyndnses']['dyndns'];
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && isset($a_dyndns[$id])) {
@@ -69,6 +70,12 @@ if (isset($id) && isset($a_dyndns[$id])) {
 	$pconfig['enable'] = !isset($a_dyndns[$id]['enable']);
 	$pconfig['interface'] = $a_dyndns[$id]['interface'];
 	$pconfig['wildcard'] = isset($a_dyndns[$id]['wildcard']);
+	$pconfig['verboselog'] = isset($a_dyndns[$id]['verboselog']);
+	$pconfig['zoneid'] = $a_dyndns[$id]['zoneid'];
+	$pconfig['ttl'] = $a_dyndns[$id]['ttl'];
+	$pconfig['updateurl'] = $a_dyndns[$id]['updateurl'];
+	$pconfig['resultmatch'] = $a_dyndns[$id]['resultmatch'];
+	$pconfig['requestif'] = $a_dyndns[$id]['requestif'];
 	$pconfig['descr'] = $a_dyndns[$id]['descr'];
 }
 
@@ -83,15 +90,28 @@ if ($_POST) {
 	/* input validation */
 	$reqdfields = array();
 	$reqdfieldsn = array();
-	$reqdfields = array("host", "username", "password", "type");
-	$reqdfieldsn = array(gettext("Hostname"),gettext("Username"),gettext("Password"),gettext("Service type"));
+	$reqdfields = array("type");
+	$reqdfieldsn = array(gettext("Service type"));
+	if ($pconfig['type'] != "custom" && $pconfig['type'] != "custom-v6") {
+		$reqdfields[] = "host";
+		$reqdfieldsn[] = gettext("Hostname");
+		$reqdfields[] = "password";
+		$reqdfieldsn[] = gettext("Password");
+ 		$reqdfields[] = "username";
+ 		$reqdfieldsn[] = gettext("Username");
+	}else{
+		$reqdfields[] = "updateurl";
+		$reqdfieldsn[] = gettext("Update URL");
+ 	}
 
 	do_input_validation($_POST, $reqdfields, $reqdfieldsn, &$input_errors);
 
+	if (($_POST['host'] && !is_domain($_POST['host'])))
+		$input_errors[] = gettext("The Hostname contains invalid characters.");
 	if (($_POST['mx'] && !is_domain($_POST['mx']))) 
 		$input_errors[] = gettext("The MX contains invalid characters.");
-	if (($_POST['username'] && !is_dyndns_username($_POST['username'])) || (($pconfig['type'] != "namecheap") && ($_POST['username'] == ""))) 
-		$input_errors[] = gettext("The username contains invalid characters.");
+	if ((in_array("username", $reqdfields) && $_POST['username'] && !is_dyndns_username($_POST['username'])) || ((in_array("username", $reqdfields)) && ($_POST['username'] == ""))) 
+ 		$input_errors[] = gettext("The username contains invalid characters.");
 
 	if (!$input_errors) {
 		$dyndns = array();
@@ -101,29 +121,41 @@ if ($_POST) {
 		$dyndns['host'] = $_POST['host'];
 		$dyndns['mx'] = $_POST['mx'];
 		$dyndns['wildcard'] = $_POST['wildcard'] ? true : false;
-		$dyndns['enable'] = $_POST['enable'] ? false : true;
+		$dyndns['verboselog'] = $_POST['verboselog'] ? true : false;
+		/* In this place enable means disabled */
+		if ($_POST['enable'])
+			unset($dyndns['enable']);
+		else
+			$dyndns['enable'] = true;
 		$dyndns['interface'] = $_POST['interface'];
+		$dyndns['zoneid'] = $_POST['zoneid'];
+		$dyndns['ttl'] = $_POST['ttl'];
+		$dyndns['updateurl'] = $_POST['updateurl'];
+		// Trim hard-to-type but sometimes returned characters
+		$dyndns['resultmatch'] = trim($_POST['resultmatch'], "\t\n\r");
+		($dyndns['type'] == "custom" || $dyndns['type'] == "custom-v6") ? $dyndns['requestif'] = $_POST['requestif'] : $dyndns['requestif'] = $_POST['interface'];
 		$dyndns['descr'] = $_POST['descr'];
+		$dyndns['force'] = isset($_POST['force']);
 		
 		if($dyndns['username'] == "none")
 			$dyndns['username'] = "";
 
 		if (isset($id) && $a_dyndns[$id])
 			$a_dyndns[$id] = $dyndns;
-		else
-			$a_dyndns[] = $dyndns;
+		else {
+ 			$a_dyndns[] = $dyndns;
+			$id = count($a_dyndns) - 1;
+		}
+
+		$dyndns['id'] = $id;
+		//Probably overkill, but its better to be safe
+		for($i = 0; $i < count($a_dyndns); $i++) {
+			$a_dyndns[$i]['id'] = $i;
+		}
 
 		write_config();
 
-		$retval = 0;
-
-		conf_mount_rw();
-
-		unlink("{$g['conf_path']}/dyndns_{$dyndns['interface']}{$dyndns['type']}{$dyndns['host']}.cache");
-
-		$retval = services_dyndns_configure_client($dyndns);
-
-		conf_mount_ro();
+		services_dyndns_configure_client($dyndns);
 
 		header("Location: services_dyndns.php");
 		exit;
@@ -139,6 +171,42 @@ include("head.inc");
 <?php include("fbegin.inc"); ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
 <?php if ($savemsg) print_info_box($savemsg); ?>
+<script type="text/javascript">
+function _onTypeChange(type){ 
+	switch(type) {
+		case "custom":
+		case "custom-v6":
+			document.getElementById("_resulttr").style.display = '';
+			document.getElementById("_urltr").style.display = '';
+			document.getElementById("_requestiftr").style.display = '';
+			document.getElementById("_hostnametr").style.display = 'none';
+			document.getElementById("_mxtr").style.display = 'none';
+			document.getElementById("_wildcardtr").style.display = 'none';
+			document.getElementById("r53_zoneid").style.display='none';
+			document.getElementById("r53_ttl").style.display='none';
+			break;
+		case "route53":
+			document.getElementById("_resulttr").style.display = 'none';
+			document.getElementById("_urltr").style.display = 'none';
+			document.getElementById("_requestiftr").style.display = 'none';
+			document.getElementById("_hostnametr").style.display = '';
+			document.getElementById("_mxtr").style.display = '';
+			document.getElementById("_wildcardtr").style.display = '';
+			document.getElementById("r53_zoneid").style.display='';
+			document.getElementById("r53_ttl").style.display='';
+			break;
+		default:
+			document.getElementById("_resulttr").style.display = 'none';
+			document.getElementById("_urltr").style.display = 'none';
+			document.getElementById("_requestiftr").style.display = 'none';
+			document.getElementById("_hostnametr").style.display = '';
+			document.getElementById("_mxtr").style.display = '';
+			document.getElementById("_wildcardtr").style.display = '';
+			document.getElementById("r53_zoneid").style.display='none';
+			document.getElementById("r53_ttl").style.display='none';
+	}
+}
+</script>
 <form action="services_dyndns_edit.php" method="post" name="iform" id="iform">
               <table width="100%" border="0" cellpadding="6" cellspacing="0">
                 <tr>
@@ -157,10 +225,10 @@ include("head.inc");
                 <tr>
                   <td width="22%" valign="top" class="vncellreq"><?=gettext("Service type");?></td>
                   <td width="78%" class="vtable">
-			<select name="type" class="formselect" id="type">
+			<select name="type" class="formselect" id="type" onchange="_onTypeChange(this.options[this.selectedIndex].value);">
                       <?php
-						$types = explode(",", "DNS-O-Matic, DynDNS (dynamic),DynDNS (static),DynDNS (custom),DHS,DyNS,easyDNS,No-IP,ODS.org,ZoneEdit,Loopia,freeDNS, DNSexit, OpenDNS, Namecheap, HE.net");
-						$vals = explode(" ", "dnsomatic dyndns dyndns-static dyndns-custom dhs dyns easydns noip ods zoneedit loopia freedns dnsexit opendns namecheap he-net");
+						$types = explode(",", DYNDNS_PROVIDER_DESCRIPTIONS);
+						$vals = explode(" ", DYNDNS_PROVIDER_VALUES);
 						$j = 0; for ($j = 0; $j < count($vals); $j++): ?>
                       <option value="<?=$vals[$j];?>" <?php if ($vals[$j] == $pconfig['type']) echo "selected";?>>
                       <?=htmlspecialchars($types[$j]);?>
@@ -172,15 +240,56 @@ include("head.inc");
 				   <td width="22%" valign="top" class="vncellreq"><?=gettext("Interface to monitor");?></td>  
 				   <td width="78%" class="vtable">
 				   <select name="interface" class="formselect" id="interface">
-				   <?php $iflist = get_configured_interface_with_descr();
-				   		foreach ($iflist as $if => $ifdesc):?>
-							<option value="<?=$if;?>" <?php if ($pconfig['interface'] == $if) echo "selected";?>><?=$ifdesc;?></option>
-					<?php endforeach; ?>
+				<?php
+					$iflist = get_configured_interface_with_descr();					
+				   	foreach ($iflist as $if => $ifdesc) {
+						echo "<option value=\"{$if}\"";
+						if ($pconfig['interface'] == $if)
+							echo "selected";
+						echo ">{$ifdesc}</option>\n";
+					}
+					unset($iflist);
+					$grouplist = return_gateway_groups_array();
+				   	foreach ($grouplist as $name => $group) {
+						echo "<option value=\"{$name}\"";
+						if ($pconfig['interface'] == $name)
+							echo "selected";
+						echo ">GW Group {$name}</option>\n";
+					}
+					unset($grouplist);
+				?>
 					</select>
 					</td>
 					</td>
 				</tr>	
-                <tr>
+				<tr id="_requestiftr">
+					<td width="22%" valign="top" class="vncellreq"><?=gettext("Interface to send update from");?></td>  
+					<td width="78%" class="vtable">
+					<select name="requestif" class="formselect" id="requestif">
+				<?php
+					$iflist = get_configured_interface_with_descr();					
+					foreach ($iflist as $if => $ifdesc) {
+						echo "<option value=\"{$if}\"";
+						if ($pconfig['requestif'] == $if)
+							echo "selected";
+						echo ">{$ifdesc}</option>\n";
+					}
+					unset($iflist);
+					$grouplist = return_gateway_groups_array();
+					foreach ($grouplist as $name => $group) {
+						echo "<option value=\"{$name}\"";
+						if ($pconfig['requestif'] == $name)
+							echo "selected";
+						echo ">GW Group {$name}</option>\n";
+					}
+					unset($grouplist);
+				?>
+					</select>
+					<br/><?= gettext("Note: This is almost always the same as the Interface to Monitor.");?>
+					</td>
+					</td>
+				</tr>
+                <tr id="_hostnametr">
                   <td width="22%" valign="top" class="vncellreq"><?=gettext("Hostname");?></td>
                   <td width="78%" class="vtable">
                     <input name="host" type="text" class="formfld unknown" id="host" size="30" value="<?=htmlspecialchars($pconfig['host']);?>">
@@ -188,11 +297,12 @@ include("head.inc");
 				    <span class="vexpl">
 				    <span class="red"><strong><?=gettext("Note:");?><br></strong>
 				    </span>
-					<?=gettext("Enter the complete host/domain name.  example:  myhost.dyndns.org");?>
+					<?=gettext("Enter the complete host/domain name.  example:  myhost.dyndns.org");?><br/>
+					<?=gettext("For he.net tunnelbroker, enter your tunnel ID");?>
 				    </span>
 		          </td>
 				</tr>
-                <tr>
+                <tr id="_mxtr">
                   <td width="22%" valign="top" class="vncell"><?=gettext("MX"); ?></td>
                   <td width="78%" class="vtable">
                     <input name="mx" type="text" class="formfld unknown" id="mx" size="30" value="<?=htmlspecialchars($pconfig['mx']);?>">
@@ -202,17 +312,25 @@ include("head.inc");
                     <?=gettext("Set this option only if you need a special MX record. Not".
                    " all services support this.");?></td>
 				</tr>
-                <tr>
+                <tr id="_wildcardtr">
                   <td width="22%" valign="top" class="vncell"><?=gettext("Wildcards"); ?></td>
                   <td width="78%" class="vtable">
                     <input name="wildcard" type="checkbox" id="wildcard" value="yes" <?php if ($pconfig['wildcard']) echo "checked"; ?>>
                     <?=gettext("Enable ");?><?=gettext("Wildcard"); ?></td>
 				</tr>
-                <tr>
+                <tr id="_verboselogtr">
+                  <td width="22%" valign="top" class="vncell"><?=gettext("Verbose logging"); ?></td>
+                  <td width="78%" class="vtable">
+                    <input name="verboselog" type="checkbox" id="verboselog" value="yes" <?php if ($pconfig['verboselog']) echo "checked"; ?>>
+                    <?=gettext("Enable ");?><?=gettext("verbose logging"); ?></td>
+				</tr>
+                <tr id="_usernametr">
                   <td width="22%" valign="top" class="vncellreq"><?=gettext("Username");?></td>
                   <td width="78%" class="vtable">
                     <input name="username" type="text" class="formfld user" id="username" size="20" value="<?=htmlspecialchars($pconfig['username']);?>">
-                    <br/><?= gettext("Username is required for all types except Namecheap and FreeDNS.");?>
+                    <br/><?= gettext("Username is required for all types except Namecheap, FreeDNS and Custom Entries.");?>
+		    <br/><?= gettext("Route 53: Enter your Access Key ID.");?>
+		    <br/><?= gettext("For Custom Entries, Username and Password represent HTTP Authentication username and passwords.");?>
                   </td>
                 </tr>
                 <tr>
@@ -221,8 +339,53 @@ include("head.inc");
                     <input name="password" type="password" class="formfld pwd" id="password" size="20" value="<?=htmlspecialchars($pconfig['password']);?>">
                     <br/>
                     <?=gettext("FreeDNS (freedns.afraid.org): Enter your \"Authentication Token\" provided by FreeDNS.");?>
+		    <br/><?= gettext("Route 53: Enter your Secret Access Key.");?>
                   </td>
                 </tr>
+
+                <tr id="r53_zoneid" style="display:none">
+                  <td width="22%" valign="top" class="vncellreq"><?=gettext("Zone ID");?></td>
+                  <td width="78%" class="vtable">
+                    <input name="zoneid" type="text" class="formfld user" id="zoneid" size="20" value="<?=htmlspecialchars($pconfig['zoneid']);?>">
+                    <br/><?= gettext("Enter Zone ID that you received when you created your domain in Route 53.");?>
+                  </td>
+                </tr>
+                <tr id="_urltr">
+                  <td width="22%" valign="top" class="vncell"><?=gettext("Update URL");?></td>
+                  <td width="78%" class="vtable">
+                    <input name="updateurl" type="text" class="formfld unknown" id="updateurl" size="60" value="<?=htmlspecialchars($pconfig['updateurl']);?>">
+                    <br/><?= gettext("This is the only field required by for Custom Dynamic DNS, and is only used by Custom Entries.");?>
+			<br/>
+			<?= gettext("If you need the new IP to be included in the request, put %IP% in its place.");?>
+                  </td>
+                </tr>
+		<tr id="_resulttr">
+                  <td width="22%" valign="top" class="vncell"><?=gettext("Result Match");?></td>
+                  <td width="78%" class="vtable">
+                    <textarea name="resultmatch" class="formpre" id="resultmatch" cols="65" rows="7"><?=htmlspecialchars($pconfig['resultmatch']);?></textarea>
+                    <br/><?= gettext("This field is only used by Custom Dynamic DNS Entries.");?>
+			<br/>
+			<?= gettext("This field should be identical to what your DDNS Provider will return if the update succeeds, leave it blank to disable checking of returned results.");?>
+			<br/>
+			<?= gettext("If you need the new IP to be included in the request, put %IP% in its place.");?>
+			<br/>
+			<?= gettext("If you need to include multiple possible values, separate them with a |.  If your provider includes a |, escape it with \\|");?>
+			<br/>
+			<?= gettext("Tabs (\\t), newlines (\\n) and carriage returns (\\r) at the beginning or end of the returned results are removed before comparison.");?>
+                  </td>
+                </tr>
+                <tr>
+
+                <tr id="r53_ttl" style="display:none">
+                  <td width="22%" valign="top" class="vncellreq"><?=gettext("TTL");?></td>
+                  <td width="78%" class="vtable">
+                    <input name="ttl" type="text" class="formfld user" id="ttl" size="20" value="<?=htmlspecialchars($pconfig['ttl']);?>">
+                    <br/><?= gettext("Choose TTL for your dns record.");?>
+                  </td>
+                </tr>
+                <tr>
+
+
                 <tr>
                   <td width="22%" valign="top" class="vncell"><?=gettext("Description");?></td>
                   <td width="78%" class="vtable">
@@ -236,6 +399,7 @@ include("head.inc");
 					<a href="services_dyndns.php"><input name="cancel" type="button" class="formbtn" value="<?=gettext("Cancel");?>"></a>
 					<?php if (isset($id) && $a_dyndns[$id]): ?>
 						<input name="id" type="hidden" value="<?=htmlspecialchars($id);?>">
+						<input name="force" type="submit" class="formbtn" value="<?=gettext("Save & Force Update");?>" onClick="enable_change(true)">
 					<?php endif; ?>
                   </td>
                 </tr>
@@ -249,5 +413,10 @@ include("head.inc");
               </table>
 </form>
 <?php include("fend.inc"); ?>
+
+<script type="text/javascript">
+_onTypeChange("<?php echo $pconfig['type']; ?>");
+</script>
+
 </body>
 </html>

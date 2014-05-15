@@ -55,7 +55,11 @@ $ifnum = get_real_interface($ifnum);
 $ifname=@$_GET["ifname"]?$_GET["ifname"]:"Interface $ifnum";  //Interface name that will be showed on top right of graph
 
 /********* Other conf *******/
-$scale_type="up";               //Autoscale default setup : "up" = only increase scale; "follow" = increase and decrease scale according to current graphed datas
+if (isset($config["widgets"]["trafficgraphs"]["scale_type"]))
+	$scale_type = $config["widgets"]["trafficgraphs"]["scale_type"];
+else
+	$scale_type = "up";
+
 $nb_plot=120;                   //NB plot in graph
 if ($_GET["timeint"])
 	$time_interval = $_GET["timeint"];		//Refresh time Interval
@@ -218,8 +222,8 @@ function plot_data(obj) {
 
   var t = obj.content.split("|");
   var ugmt = parseFloat(t[0]);  // ugmt is an unixtimestamp style
-  var ifin = parseInt(t[1]);    // number of bytes received by the interface
-  var ifout = parseInt(t[2]);   // number of bytes sent by the interface
+  var ifin = parseInt(t[1], 10);    // number of bytes received by the interface
+  var ifout = parseInt(t[2], 10);   // number of bytes sent by the interface
   var scale;
 
   if (!isNumber(ifin) || !isNumber(ifout))

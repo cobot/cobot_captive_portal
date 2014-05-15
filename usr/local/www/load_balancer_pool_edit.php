@@ -2,7 +2,7 @@
 /* $Id$ */
 /*
         load_balancer_pool_edit.php
-        part of pfSense (http://www.pfsense.com/)
+        part of pfSense (https://www.pfsense.org/)
 
         Copyright (C) 2005-2008 Bill Marquette <bill.marquette@gmail.com>.
         All rights reserved.
@@ -40,16 +40,18 @@
 ##|-PRIV
 
 require("guiconfig.inc");
+require_once("filter.inc");
+require_once("util.inc");
 
 if (!is_array($config['load_balancer']['lbpool'])) {
 	$config['load_balancer']['lbpool'] = array();
 }
 $a_pool = &$config['load_balancer']['lbpool'];
 
-if (isset($_POST['id']))
-	$id = $_POST['id'];
-else
+if (is_numericint($_GET['id']))
 	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
+	$id = $_POST['id'];
 
 if (isset($id) && $a_pool[$id]) {
 	$pconfig['name'] = $a_pool[$id]['name'];
@@ -85,8 +87,14 @@ if ($_POST) {
 	if (strpos($_POST['name'], " ") !== false)
 		$input_errors[] = gettext("You cannot use spaces in the 'name' field.");
 
-	if (!is_port($_POST['port']))
-		$input_errors[] = gettext("The port must be an integer between 1 and 65535.");
+	if (in_array($_POST['name'], $reserved_table_names))
+		$input_errors[] = sprintf(gettext("The name '%s' is a reserved word and cannot be used."), $_POST['name']);
+
+	if (is_alias($_POST['name']))
+		$input_errors[] = sprintf(gettext("Sorry, an alias is already named %s."), $_POST['name']);
+
+	if (!is_portoralias($_POST['port']))
+		$input_errors[] = gettext("The port must be an integer between 1 and 65535, or a port alias.");
 
 	// May as well use is_port as we want a positive integer and such.
 	if (!empty($_POST['retry']) && !is_port($_POST['retry']))
@@ -94,15 +102,21 @@ if ($_POST) {
 
 	if (is_array($_POST['servers'])) {
 		foreach($pconfig['servers'] as $svrent) {
-			if (!is_ipaddr($svrent)) {
-				$input_errors[] = sprintf(gettext("%s is not a valid IP address (in \"enabled\" list)."), $svrent);
+			if (!is_ipaddr($svrent) && !is_subnetv4($svrent)) {
+				$input_errors[] = sprintf(gettext("%s is not a valid IP address or IPv4 subnet (in \"enabled\" list)."), $svrent);
+			}
+			else if (is_subnetv4($svrent) && subnet_size($svrent) > 64) {
+				$input_errors[] = sprintf(gettext("%s is a subnet containing more than 64 IP addresses (in \"enabled\" list)."), $svrent);
 			}
 		}
 	}
 	if (is_array($_POST['serversdisabled'])) {
 		foreach($pconfig['serversdisabled'] as $svrent) {
-			if (!is_ipaddr($svrent)) {
-				$input_errors[] = sprintf(gettext("%s is not a valid IP address (in \"disabled\" list)."), $svrent);
+			if (!is_ipaddr($svrent) && !is_subnetv4($svrent)) {
+				$input_errors[] = sprintf(gettext("%s is not a valid IP address or IPv4 subnet (in \"disabled\" list)."), $svrent);
+			}
+			else if (is_subnetv4($svrent) && subnet_size($svrent) > 64) {
+				$input_errors[] = sprintf(gettext("%s is a subnet containing more than 64 IP addresses (in \"disabled\" list)."), $svrent);
 			}
 		}
 	}
@@ -132,8 +146,8 @@ if ($_POST) {
 		if (isset($id) && $a_pool[$id]) {
 			/* modify all virtual servers with this name */
 			for ($i = 0; isset($config['load_balancer']['virtual_server'][$i]); $i++) {
-				if ($config['load_balancer']['virtual_server'][$i]['pool'] == $a_pool[$id]['name'])
-					$config['load_balancer']['virtual_server'][$i]['pool'] = $poolent['name'];
+				if ($config['load_balancer']['virtual_server'][$i]['lbpool'] == $a_pool[$id]['name'])
+					$config['load_balancer']['virtual_server'][$i]['lbpool'] = $poolent['name'];
 			}
 			$a_pool[$id] = $poolent;
 		} else
@@ -151,9 +165,7 @@ if ($_POST) {
 }
 
 $pgtitle = array(gettext("Services"), gettext("Load Balancer"),gettext("Pool"),gettext("Edit"));
-#$statusurl = "status_lb_vs.php";
-$statusurl = "status_lb_pool.php";
-$logurl = "diag_logs_relayd.php";
+$shortcut_section = "relayd";
 
 include("head.inc");
 
@@ -169,6 +181,8 @@ function clearcombo(){
 }
 </script>
 
+<script type="text/javascript" src="/javascript/autosuggest.js"></script>
+<script type="text/javascript" src="/javascript/suggestions.js"></script>
 <?php include("fbegin.inc"); ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
 
@@ -202,8 +216,17 @@ function clearcombo(){
 		<tr align="left">
 			<td width="22%" valign="top" id="monitorport_text" class="vncellreq"><?=gettext("Port"); ?></td>
 			<td width="78%" class="vtable" colspan="2">
-				<input name="port" type="text" <?if(isset($pconfig['port'])) echo "value=\"{$pconfig['port']}\"";?> size="16" maxlength="16"><br>
-				<div id="monitorport_desc"><?=gettext("This is the port your servers are listening on."); ?></div>
+				<input class="formfldalias" id="port" name="port" type="text" <?if(isset($pconfig['port'])) echo "value=\"{$pconfig['port']}\"";?> size="16" maxlength="16"><br>
+				<div id="monitorport_desc">
+					<?=gettext("This is the port your servers are listening on."); ?><br />
+					<?=gettext("You may also specify a port alias listed in Firewall -&gt; Aliases here."); ?>
+				</div>
+				<script type="text/javascript">
+				//<![CDATA[
+					var addressarray = <?= json_encode(get_alias_list("port")) ?>;
+					var oTextbox1 = new AutoSuggestControl(document.getElementById("port"), new StateSuggestions(addressarray));
+				//]]>
+				</script>
 			</td>
 		</tr>
 		<tr align="left">

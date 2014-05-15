@@ -26,7 +26,7 @@
     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
     POSSIBILITY OF SUCH DAMAGE.
 
-	pfSense_BUILDER_BINARIES:	/usr/bin/openssl
+	pfSense_BUILDER_BINARIES:	/usr/local/bin/openssl
 	pfSense_MODULE:	crypto
 
     DISABLE_PHP_LINT_CHECKING
@@ -35,11 +35,16 @@
 	function crypt_data($val, $pass, $opt) {
 		$file = tempnam("/tmp", "php-encrypt");
 		file_put_contents("{$file}.dec", $val);
-		exec("/usr/bin/openssl enc {$opt} -aes-256-cbc -in {$file}.dec -out {$file}.enc -k {$pass}");
-		$result = file_get_contents("{$file}.enc");
-		unlink($file);
-		unlink("{$file}.dec");
-		unlink("{$file}.enc");
+		exec("/usr/local/bin/openssl enc {$opt} -aes-256-cbc -in {$file}.dec -out {$file}.enc -k " . escapeshellarg($pass));
+		if (file_exists("{$file}.enc"))
+			$result = file_get_contents("{$file}.enc");
+		else {
+			$result = "";
+			log_error("Failed to encrypt/decrypt data!");
+		}
+		@unlink($file);
+		@unlink("{$file}.dec");
+		@unlink("{$file}.enc");
 		return $result;
 	}
 

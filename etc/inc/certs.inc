@@ -34,6 +34,21 @@ define("OPEN_SSL_CONF_PATH", "/etc/ssl/openssl.cnf");
 
 require_once("functions.inc");
 
+global $openssl_digest_algs;
+$openssl_digest_algs = array("sha1", "sha224", "sha256", "sha384", "sha512");
+
+global $openssl_crl_status;
+$openssl_crl_status = array(
+	OCSP_REVOKED_STATUS_NOSTATUS              => "No Status (default)",
+	OCSP_REVOKED_STATUS_UNSPECIFIED           => "Unspecified",
+	OCSP_REVOKED_STATUS_KEYCOMPROMISE         => "Key Compromise",
+	OCSP_REVOKED_STATUS_CACOMPROMISE          => "CA Compromise",
+	OCSP_REVOKED_STATUS_AFFILIATIONCHANGED    => "Affiliation Changed",
+	OCSP_REVOKED_STATUS_SUPERSEDED            => "Superseded",
+	OCSP_REVOKED_STATUS_CESSATIONOFOPERATION  => "Cessation of Operation",
+	OCSP_REVOKED_STATUS_CERTIFICATEHOLD       => "Certificate Hold"
+);
+
 function & lookup_ca($refid) {
 	global $config;
 
@@ -159,11 +174,11 @@ function ca_import(& $ca, $str, $key="", $serial=0) {
 	return true;
 }
 
-function ca_create(& $ca, $keylen, $lifetime, $dn) {
+function ca_create(& $ca, $keylen, $lifetime, $dn, $digest_alg = "sha256") {
 
 	$args = array(
 		"x509_extensions" => "v3_ca",
-		"digest_alg" => "sha1",
+		"digest_alg" => $digest_alg,
 		"private_key_bits" => (int)$keylen,
 		"private_key_type" => OPENSSL_KEYTYPE_RSA,
 		"encrypt_key" => false);
@@ -193,7 +208,7 @@ function ca_create(& $ca, $keylen, $lifetime, $dn) {
 	return true;
 }
 
-function ca_inter_create(& $ca, $keylen, $lifetime, $dn, $caref) {
+function ca_inter_create(& $ca, $keylen, $lifetime, $dn, $caref, $digest_alg = "sha256") {
 	// Create Intermediate Certificate Authority
 	$signing_ca =& lookup_ca($caref);
 	if (!$signing_ca)
@@ -206,7 +221,7 @@ function ca_inter_create(& $ca, $keylen, $lifetime, $dn, $caref) {
 
 	$args = array(
 		"x509_extensions" => "v3_ca",
-		"digest_alg" => "sha1",
+		"digest_alg" => $digest_alg,
 		"private_key_bits" => (int)$keylen,
 		"private_key_type" => OPENSSL_KEYTYPE_RSA,
 		"encrypt_key" => false);
@@ -253,7 +268,7 @@ function cert_import(& $cert, $crt_str, $key_str) {
 	return true;
 }
 
-function cert_create(& $cert, $caref, $keylen, $lifetime, $dn, $type="user") {
+function cert_create(& $cert, $caref, $keylen, $lifetime, $dn, $type="user", $digest_alg = "sha256") {
 
 	$ca =& lookup_ca($caref);
 	if (!$ca)
@@ -280,7 +295,7 @@ function cert_create(& $cert, $caref, $keylen, $lifetime, $dn, $type="user") {
 
 	$args = array(
 		"x509_extensions" => $cert_type,
-		"digest_alg" => "sha1",
+		"digest_alg" => $digest_alg,
 		"private_key_bits" => (int)$keylen,
 		"private_key_type" => OPENSSL_KEYTYPE_RSA,
 		"encrypt_key" => false);
@@ -312,11 +327,11 @@ function cert_create(& $cert, $caref, $keylen, $lifetime, $dn, $type="user") {
 	return true;
 }
 
-function csr_generate(& $cert, $keylen, $dn) {
+function csr_generate(& $cert, $keylen, $dn, $digest_alg = "sha256") {
 
 	$args = array(
 		"x509_extensions" => "v3_req",
-		"digest_alg" => "sha1",
+		"digest_alg" => $digest_alg,
 		"private_key_bits" => (int)$keylen,
 		"private_key_type" => OPENSSL_KEYTYPE_RSA,
 		"encrypt_key" => false);
@@ -458,6 +473,38 @@ function cert_get_modulus($str_crt, $decode = true, $type = "crt"){
 function csr_get_modulus($str_crt, $decode = true){
 	return cert_get_modulus($str_crt, $decode, "csr");
 }
+
+function cert_get_purpose($str_crt, $decode = true) {
+	if ($decode)
+		$str_crt = base64_decode($str_crt);
+	$crt_details = openssl_x509_parse($str_crt);
+	$purpose = array();
+	$purpose['ca'] = (stristr($crt_details['extensions']['basicConstraints'], 'CA:TRUE') === false) ? 'No': 'Yes';
+	$purpose['server'] = ($crt_details['extensions']['nsCertType'] == "SSL Server") ? 'Yes': 'No';
+	return $purpose;
+}
+
+function cert_get_dates($str_crt, $decode = true) {
+	if ($decode)
+		$str_crt = base64_decode($str_crt);
+	$crt_details = openssl_x509_parse($str_crt);
+	if ($crt_details['validFrom_time_t'] > 0)
+		$start = date('r', $crt_details['validFrom_time_t']);
+	if ($crt_details['validTo_time_t'] > 0)
+		$end = date('r', $crt_details['validTo_time_t']);
+	return array($start, $end);
+}
+
+function cert_get_serial($str_crt, $decode = true) {
+	if ($decode)
+		$str_crt = base64_decode($str_crt);
+	$crt_details = openssl_x509_parse($str_crt);
+	if (isset($crt_details['serialNumber']) && !empty($crt_details['serialNumber']))
+		return $crt_details['serialNumber'];
+	else
+		return NULL;
+}
+
 function prv_get_modulus($str_crt, $decode = true){
 	return cert_get_modulus($str_crt, $decode, "prv");
 }
@@ -517,39 +564,25 @@ function is_webgui_cert($certref) {
 		return true;
 }
 
+function is_captiveportal_cert($certref) {
+	global $config;
+	if (!is_array($config['captiveportal']))
+		return;
+	foreach ($config['captiveportal'] as $portal) {
+		if (isset($portal['enable']) && isset($portal['httpslogin']) && ($portal['certref'] == $certref))
+			return true;
+	}
+	return false;
+}
+
 function cert_in_use($certref) {
 	return (is_webgui_cert($certref) ||
 		is_user_cert($certref) ||
 		is_openvpn_server_cert($certref) ||
 		is_openvpn_client_cert($certref) ||
-		is_ipsec_cert($certref));
+		is_ipsec_cert($certref) ||
+		is_captiveportal_cert($certref));
 }
-
-/*
-CRL code is a *WORK IN PROGRESS* do not try to use these functions yet.
-
-OpenSSL CRL status code constants.
-OCSP_REVOKED_STATUS_NOSTATUS
-OCSP_REVOKED_STATUS_UNSPECIFIED
-OCSP_REVOKED_STATUS_KEYCOMPROMISE
-OCSP_REVOKED_STATUS_CACOMPROMISE
-OCSP_REVOKED_STATUS_AFFILIATIONCHANGED
-OCSP_REVOKED_STATUS_SUPERSEDED
-OCSP_REVOKED_STATUS_CESSATIONOFOPERATION
-OCSP_REVOKED_STATUS_CERTIFICATEHOLD
-OCSP_REVOKED_STATUS_REMOVEFROMCRL
-*/
-
-$openssl_crl_status = array(
-	OCSP_REVOKED_STATUS_NOSTATUS              => "No Status (default)",
-	OCSP_REVOKED_STATUS_UNSPECIFIED           => "Unspecified",
-	OCSP_REVOKED_STATUS_KEYCOMPROMISE         => "Key Compromise",
-	OCSP_REVOKED_STATUS_CACOMPROMISE          => "CA Compromise",
-	OCSP_REVOKED_STATUS_AFFILIATIONCHANGED    => "Affiliation Changed",
-	OCSP_REVOKED_STATUS_SUPERSEDED            => "Superseded",
-	OCSP_REVOKED_STATUS_CESSATIONOFOPERATION  => "Cessation of Operation",
-	OCSP_REVOKED_STATUS_CERTIFICATEHOLD       => "Certificate Hold"
-);
 
 function crl_create(& $crl, $caref, $name, $serial=0, $lifetime=9999) {
 	global $config;
@@ -622,6 +655,22 @@ function cert_unrevoke($cert, & $crl) {
 	return false;
 }
 
+/* Compare two certificates to see if they match. */
+function cert_compare($cert1, $cert2) {
+	/* Ensure two certs are identical by first checking that their issuers match, then
+		subjects, then serial numbers, and finally the moduli. Anything less strict
+		could accidentally count two similar, but different, certificates as
+		being identical. */
+	$c1 = base64_decode($cert1['crt']);
+	$c2 = base64_decode($cert2['crt']);
+	if ((cert_get_issuer($c1, false) == cert_get_issuer($c2, false))
+		&& (cert_get_subject($c1, false) == cert_get_subject($c2, false))
+		&& (cert_get_serial($c1, false) == cert_get_serial($c2, false))
+		&& (cert_get_modulus($c1, false) == cert_get_modulus($c2, false)))
+		return true;
+	return false;
+}
+
 function is_cert_revoked($cert, $crlref = "") {
 	global $config;
 	if (!is_array($config['crl']))
@@ -632,7 +681,7 @@ function is_cert_revoked($cert, $crlref = "") {
 		if (!is_array($crl['cert']))
 			return false;
 		foreach ($crl['cert'] as $rcert) {
-			if (($rcert['refid'] == $cert['refid']) || ($rcert['descr'] == $cert['descr']))
+			if (cert_compare($rcert, $cert))
 				return true;
 		}
 	} else {
@@ -640,7 +689,7 @@ function is_cert_revoked($cert, $crlref = "") {
 			if (!is_array($crl['cert']))
 				continue;
 			foreach ($crl['cert'] as $rcert) {
-				if (($rcert['refid'] == $cert['refid']) || ($rcert['descr'] == $cert['descr']))
+				if (cert_compare($rcert, $cert))
 					return true;
 			}
 		}

@@ -8,7 +8,7 @@
  *   $Id$
  ******
  *
- * Copyright (C) 2010 Ermal Luçi
+ * Copyright (C) 2010 Ermal Luci
  * Copyright (C) 2005-2006 Colin Smith (ethethlay@gmail.com)
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without
@@ -57,7 +57,7 @@ if(!function_exists("update_status")) {
 }
 if(!function_exists("update_output_window")) {
 	function update_output_window($status) {
-		echo $status . "\n";
+		echo htmlspecialchars($status) . "\n";
 	}
 }
 
@@ -81,12 +81,12 @@ $vardb = "/var/db/pkg";
 safe_mkdir($vardb);
 $g['platform'] = trim(file_get_contents("/etc/platform"));
 
-conf_mount_rw();
 if(!is_dir("/usr/local/pkg") or !is_dir("/usr/local/pkg/pf")) {
+	conf_mount_rw();
 	safe_mkdir("/usr/local/pkg");
 	safe_mkdir("/usr/local/pkg/pf");	
+	conf_mount_ro();
 }
-conf_mount_ro();
 
 /****f* pkg-utils/remove_package
  * NAME
@@ -99,7 +99,36 @@ conf_mount_ro();
  *   
  ******/
 function remove_freebsd_package($packagestring) {
-	exec("/usr/sbin/pkg_delete -x {$packagestring} 2>>/tmp/pkg_delete_errors.txt");
+	// The packagestring passed in must be the full PBI package name, 
+	// as displayed by the pbi_info utility. e.g. "package-1.2.3_4-i386" 
+	// It must NOT have ".pbi" on the end.
+	exec("/usr/local/sbin/pbi_info " . escapeshellarg($packagestring) . " | /usr/bin/awk '/Prefix/ {print $2}'",$pbidir);
+	$pbidir = $pbidir[0];
+	if ($pbidir == "") {
+		log_error("PBI dir for {$packagestring} was not found - cannot cleanup PBI files");
+	}
+	else {
+		$linkdirs = array('bin','sbin');
+		foreach($linkdirs as $dir) {
+			$target_dir = $pbidir . "/" . $dir;
+			if(is_dir($target_dir)) {
+				$files = scandir($target_dir);
+				foreach($files as $f) {
+					if($f != '.' && $f != '..') {
+						// Only try to unlink the file if it is a link to the expected pbi dir.
+						$local_name = "/usr/local/{$dir}/{$f}";
+						if(is_link($local_name)) {
+							if(substr(readlink($local_name),0,strlen($target_dir)) == $target_dir) {
+								unlink($local_name);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		exec("/usr/local/sbin/pbi_delete " . escapeshellarg($packagestring) . " 2>>/tmp/pbi_delete_errors.txt");
+	}
 }
 
 /****f* pkg-utils/is_package_installed
@@ -139,9 +168,27 @@ function get_pkg_id($pkg_name) {
 	return -1;
 }
 
+/****f* pkg-utils/get_pkg_internal_name
+ * NAME
+ *   get_pkg_internal_name - Find a package's internal name (e.g. squid3 internal name is squid)
+ * INPUTS
+ *   $package - array of package data from config
+ * RESULT
+ *   string - internal name (if defined) or default to package name
+ ******/
+function get_pkg_internal_name($package) {
+	if (isset($package['internal_name']) && ($package['internal_name'] != "")) {
+		/* e.g. name is Ipguard-dev, internal name is ipguard */
+		$pkg_internal_name = $package['internal_name'];
+	} else {
+		$pkg_internal_name = $package['name'];
+	}
+	return $pkg_internal_name;
+}
+
 /****f* pkg-utils/get_pkg_info
  * NAME
- *   get_pkg_info - Retrieve package information from pfsense.com.
+ *   get_pkg_info - Retrieve package information from package server.
  * INPUTS
  *   $pkgs - 'all' to retrieve all packages, an array containing package names otherwise
  *   $info - 'all' to retrieve all information, an array containing keys otherwise
@@ -194,7 +241,7 @@ function get_pkg_sizes($pkgs = 'all') {
 function resync_all_package_configs($show_message = false) {
 	global $config, $pkg_interface, $g;
 
-	log_error("Resyncing configuration for all packages.");
+	log_error(gettext("Resyncing configuration for all packages."));
 
 	if (!is_array($config['installedpackages']['package']))
 		return;
@@ -211,10 +258,10 @@ function resync_all_package_configs($show_message = false) {
 			echo " " . $package['name'];
 		get_pkg_depends($package['name'], "all");
 		if($g['booting'] != true)
-			stop_service($package['name']);
+			stop_service(get_pkg_internal_name($package));
 		sync_package($idx, true, true);
 		if($pkg_interface == "console") 
-			echo "\nSyncing packages:";
+			echo "\n" . gettext("Syncing packages:");
 	}
 
 	if($show_message == true)
@@ -232,7 +279,7 @@ function is_freebsd_pkg_installed($pkg) {
 	if(!$pkg) 
 		return;
 	$output = "";
-	exec("/usr/sbin/pkg_info -E \"{$pkg}*\"", $output, $retval);
+	exec("/usr/local/sbin/pbi_info " . escapeshellarg($pkg), $output, $retval);
 
 	return (intval($retval) == 0);
 }
@@ -256,7 +303,7 @@ function get_pkg_depends($pkg_name, $filetype = ".xml", $format = "files", $retu
 
 	$package =& $config['installedpackages']['package'][$pkg_id];
 	if(!file_exists("/usr/local/pkg/" . $package['configurationfile'])) {
-		log_error("The {$package['name']} package is missing required dependencies and is being reinstalled." . $package['configurationfile']);
+		log_error(sprintf(gettext('The %1$s package is missing required dependencies and must be reinstalled. %2$s'), $package['name'], $package['configurationfile']));
 		uninstall_package($package['name']);
 		if (install_package($package['name']) < 0) {
 			log_error("Failed reinstalling package {$package['name']}.");
@@ -280,7 +327,7 @@ function get_pkg_depends($pkg_name, $filetype = ".xml", $format = "files", $retu
 			if(!is_dir($prefix)) 
 				exec("/bin/mkdir -p {$prefix}");
 			if(!file_exists($prefix . $depend_file))
-				log_error("The {$package['name']} package is missing required dependencies and must be reinstalled.");
+				log_error(sprintf(gettext("The %s package is missing required dependencies and must be reinstalled."), $package['name']));
 			switch ($format) {
 			case "files":
 				$depends[] = $prefix . $depend_file;
@@ -314,43 +361,34 @@ function uninstall_package($pkg_name) {
 	global $config, $static_output;
 	global $builder_package_install;
 
-	// Back up /usr/local/lib libraries first if
-	// not running from the builder code.
-	// also take into account rrd binaries
-	if(!$builder_package_install) {
-		if(!file_exists("/tmp/pkg_libs.tgz")) {
-			$static_output .= "Backing up libraries... ";
-			update_output_window($static_output);
-			exec("/usr/bin/tar czPf /tmp/pkg_libs.tgz `/bin/cat /etc/pfSense_md5.txt | /usr/bin/grep 'local/lib' | /usr/bin/awk '{ print $2 }' | /usr/bin/cut -d'(' -f2 | /usr/bin/cut -d')' -f1`");
-			exec("/usr/bin/tar czPf /tmp/pkg_bins.tgz `/bin/cat /etc/pfSense_md5.txt | /usr/bin/grep 'rrd' | /usr/bin/awk '{ print $2 }' | /usr/bin/cut -d'(' -f2 | /usr/bin/cut -d')' -f1`");
-			$static_output .= "\n";
-		}
-	}
-
-	stop_service($pkg_name);
-
 	$id = get_pkg_id($pkg_name);
 	if ($id >= 0) {
-		$pkg_depends =& $config['installedpackages']['package'][$id]['depends_on_package'];
+		stop_service(get_pkg_internal_name($config['installedpackages']['package'][$id]));
+		$pkg_depends =& $config['installedpackages']['package'][$id]['depends_on_package_pbi'];
 		$static_output .= "Removing package...\n";
 		update_output_window($static_output);
 		if (is_array($pkg_depends)) {
 			foreach ($pkg_depends as $pkg_depend)
 				delete_package($pkg_depend);
+		} else {
+			// The packages (1 or more) are all in one long string.
+			// We need to pass them 1 at a time to delete_package.
+			// Compress any multiple whitespace (sp, tab, cr, lf...) into a single space char.
+			$pkg_dep_str = preg_replace("'\s+'", ' ', $pkg_depends);
+			// Get rid of any leading or trailing space.
+			$pkg_dep_str = trim($pkg_dep_str);
+			// Now we have a space-separated string. Make it into an array and process it.
+			$pkg_dep_array = explode(" ", $pkg_dep_str);
+			foreach ($pkg_dep_array as $pkg_depend) {
+				delete_package($pkg_depend);
+			}
 		}
 	}
-	delete_package_xml($pkg_name);
+	if (is_package_installed($pkg_name))
+		delete_package_xml($pkg_name);
 
-	// Restore libraries that we backed up if not 
-	// running from the builder code.
-	if(!$builder_package_install) {
-		$static_output .= "Cleaning up... ";
-		update_output_window($static_output);
-		exec("/usr/bin/tar xzPfU /tmp/pkg_libs.tgz -C /");
-		exec("/usr/bin/tar xzPfU /tmp/pkg_bins.tgz -C /");
-		@unlink("/tmp/pkg_libs.tgz");
-		@unlink("/tmp/pkg_bins.tgz");
-	}
+	$static_output .= gettext("done.") . "\n";
+	update_output_window($static_output);
 }
 
 function force_remove_package($pkg_name) {
@@ -380,12 +418,12 @@ function sync_package($pkg_name, $sync_depends = true, $show_message = false) {
 		if(empty($config['installedpackages']['package'][$pkg_id]))
 			return;  // No package belongs to the pkg_id passed to this function.
 	}
-        if (is_array($config['installedpackages']['package'][$pkg_id]))
+	if (is_array($config['installedpackages']['package'][$pkg_id]))
 		$package =& $config['installedpackages']['package'][$pkg_id];
-        else
+	else
 		return; /* empty package tag */
 	if(!file_exists("/usr/local/pkg/" . $package['configurationfile'])) {
-		log_error("The {$package['name']} package is missing its configuration file and must be reinstalled.");
+		log_error(sprintf(gettext("The %s package is missing its configuration file and must be reinstalled."), $package['name']));
 		force_remove_package($package['name']);
 		return -1;
 	}
@@ -418,7 +456,7 @@ function sync_package($pkg_name, $sync_depends = true, $show_message = false) {
 			foreach($depends as $item) {
 				if(!file_exists($item)) {
 					require_once("notices.inc");
-					file_notice($package['name'], "The {$package['name']} package is missing required dependencies and must be reinstalled.", "Packages", "/pkg_mgr_install.php?mode=reinstallpkg&pkg={$package['name']}", 1);
+					file_notice($package['name'], sprintf(gettext("The %s package is missing required dependencies and must be reinstalled."), $package['name']), "Packages", "/pkg_mgr_install.php?mode=reinstallpkg&pkg={$package['name']}", 1);
 					log_error("Could not find {$item}. Reinstalling package.");
 					uninstall_package($pkg_name);
 					if (install_package($pkg_name) < 0) {
@@ -452,83 +490,96 @@ function sync_package($pkg_name, $sync_depends = true, $show_message = false) {
 }
 
 /*
- * pkg_fetch_recursive: Download and install a FreeBSD package and its dependencies. This function provides output to
+ * pkg_fetch_recursive: Download and install a FreeBSD PBI package. This function provides output to
  * 			a progress bar and output window.
  */
 function pkg_fetch_recursive($pkgname, $filename, $dependlevel = 0, $base_url = "") {
 	global $static_output, $g;
 
-	if (($g['platform'] == "nanobsd") || ($g['platform'] == "embedded")) {
-		$pkgtmpdir = "/usr/bin/env PKG_TMPDIR=/root/ ";
-		$pkgstagingdir = "/root/tmp";
-		if (!is_dir($pkgstagingdir))
-			mkdir($pkgstagingdir);
-		$pkgstaging = "-t {$pkgstagingdir}/instmp.XXXXXX";
-		$fetchdir = $pkgstagingdir;
-	} else {
-		$fetchdir = $g['tmp_path'];
-	}
+	// Clean up incoming filenames
+	$filename = str_replace("  ", " ", $filename);
+	$filename = str_replace("\n", " ", $filename);
+	$filename = str_replace("  ", " ", $filename);
 
-	$osname = php_uname("s");
-	$arch =  php_uname("m");
-	$rel = strtolower(php_uname("r"));
-	if (substr_count($rel, '-') > 1)
-		$rel = substr($rel, 0, strrpos($rel, "-"));
-	$priv_url = "http://ftp2.{$osname}.org/pub/{$osname}/ports/{$arch}/packages-{$rel}/All";
-	if (empty($base_url))
-		$base_url = $priv_url;
-	if (substr($base_url, -1) == "/")
-		$base_url = substr($base_url, 0, -1);
-	$fetchto = "{$fetchdir}/apkg_{$filename}";
-	$static_output .= "\n" . str_repeat(" ", $dependlevel * 2 + 1) . "Downloading {$base_url}/{$filename} ... ";
-	update_output_window($static_output);
-	if (download_file_with_progress_bar("{$base_url}/{$filename}", $fetchto) !== true) {
-		if ($base_url != $priv_url && download_file_with_progress_bar("{$priv_url}/{$filename}", $fetchto) !== true) {
-			$static_output .= " could not download from there or {$priv_url}/{$filename}.\n";
-			update_output_window($static_output);
-			return false;
-		} else if ($base_url == $priv_url) {
-			$static_output .= " failed to download.\n";
-			update_output_window($static_output);
-			return false;
+	$pkgs = explode(" ", $filename);
+	foreach($pkgs as $filename) {
+		$filename = trim($filename);
+		if (($g['platform'] == "nanobsd") || ($g['platform'] == "embedded")) {
+			$pkgtmpdir = "/usr/bin/env PKG_TMPDIR=/root/ ";
+			$pkgstagingdir = "/root/tmp";
+			if (!is_dir($pkgstagingdir))
+				mkdir($pkgstagingdir);
+			$pkgstaging = "-o {$pkgstagingdir}/instmp.XXXXXX";
+			$fetchdir = $pkgstagingdir;
 		} else {
-			$static_output .= " [{$osname} repository]\n";
-			update_output_window($static_output);
+			$fetchdir = $g['tmp_path'];
 		}
-	}
-	$static_output .= " (extracting)\n";
-	update_output_window($static_output);
-	$slaveout = "";
-	exec("/usr/bin/tar --fast-read -O -f {$fetchto} -x +CONTENTS 2>&1", $slaveout);
-	$raw_depends_list = array_values(preg_grep("/\@pkgdep/", $slaveout));
-	if ($raw_depends_list != "") {
-		$pkg_extension = ".tbz";
-		foreach($raw_depends_list as $adepend) {
-			$working_depend = explode(" ", trim($adepend, "\n"));
-			if (substr($working_depend[1], -4) != ".tbz")
-				$depend_filename = $working_depend[1] . $pkg_extension;
-			else
-				$depend_filename = $working_depend[1];
-			if (!is_freebsd_pkg_installed($working_depend[1])) {
-				if (pkg_fetch_recursive($working_depend[1], $depend_filename, $dependlevel + 1, $base_url) == false)
-					return false;
+
+		/* FreeBSD has no PBI's hosted, so fall back to our own URL for now. (Maybe fail to PC-BSD?) */
+		$arch = php_uname("m");
+		$arch = ($arch == "i386") ? "" : $arch . '/';
+		$rel = get_freebsd_version();
+		$priv_url = "http://files.pfsense.org/packages/{$arch}{$rel}/All/";
+		if (empty($base_url))
+			$base_url = $priv_url;
+		if (substr($base_url, -1) == "/")
+			$base_url = substr($base_url, 0, -1);
+		$fetchto = "{$fetchdir}/apkg_{$filename}";
+		$static_output .= "\n" . str_repeat(" ", $dependlevel * 2 + 1) . "Downloading {$base_url}/{$filename} ... ";
+		if (download_file_with_progress_bar("{$base_url}/{$filename}", $fetchto) !== true) {
+			if ($base_url != $priv_url && download_file_with_progress_bar("{$priv_url}/{$filename}", $fetchto) !== true) {
+				$static_output .= " could not download from there or {$priv_url}/{$filename}.\n";
+				update_output_window($static_output);
+				return false;
+			} else if ($base_url == $priv_url) {
+				$static_output .= " failed to download.\n";
+				update_output_window($static_output);
+				return false;
 			} else {
-				pkg_debug($working_depend[1] . "\n");
+				$static_output .= " [{$osname} repository]\n";
+				update_output_window($static_output);
 			}
 		}
+		$static_output .= " (extracting)\n";
+		update_output_window($static_output);
+
+		$pkgaddout = "";
+
+		$result = exec("/usr/local/sbin/pbi_add " . $pkgstaging . " -f -v --no-checksig " . escapeshellarg($fetchto) . " 2>&1", $pkgaddout, $rc);
+		pkg_debug($pkgname . " " . print_r($pkgaddout, true) . "\n");
+		if ($rc == 0) {
+			setup_library_paths();
+			$result = exec("/usr/local/sbin/pbi_info " . escapeshellarg(preg_replace('/\.pbi$/','',$filename)) . " | /usr/bin/awk '/Prefix/ {print $2}'",$pbidir);
+			$pbidir = $pbidir[0];
+			$linkdirs = array('bin','sbin');
+			foreach($linkdirs as $dir) {
+				if(is_dir("{$pbidir}/{$dir}")) {
+					$files = scandir("{$pbidir}/{$dir}");
+					foreach($files as $f) {
+						if(!file_exists("/usr/local/{$dir}/{$f}")) {
+							@symlink("{$pbidir}/{$dir}/{$f}","/usr/local/{$dir}/{$f}");
+						}
+					}
+				}
+			}
+			pkg_debug("pbi_add successfully completed.\n");
+		} else {
+			if (is_array($pkgaddout))
+				foreach ($pkgaddout as $line)
+					$static_output .= " " . $line .= "\n";
+
+			update_output_window($static_output);
+			pkg_debug("pbi_add failed.\n");
+			return false;
+		}
 	}
-
-	$pkgaddout = "";
-	exec("{$pkgtmpdir}/usr/sbin/pkg_add {$pkgstaging} -fv {$fetchto} 2>&1", $pkgaddout);
-	pkg_debug($pkgname . " " . print_r($pkgaddout, true) . "\npkg_add successfully completed.\n");
-
 	return true;
 }
 
-function install_package($package, $pkg_info = "") {
+function install_package($package, $pkg_info = "", $force_install = false) {
 	global $g, $config, $static_output, $pkg_interface;
 
-	/* safe side. Write config below will send to ro again. */
+	/* safe side. */
 	conf_mount_rw();
 
 	if($pkg_interface == "console") 	
@@ -542,72 +593,85 @@ function install_package($package, $pkg_info = "") {
 			return -1;
 		}
 	}
-	pkg_debug("Beginning package installation.\n");
-	log_error('Beginning package installation for ' . $pkg_info['name'] . '.');
-	$static_output .= "Beginning package installation for " . $pkg_info['name'] . "...";
+	if (!$force_install) {
+		$compatible = true;
+		$version = rtrim(file_get_contents("/etc/version"));
+		
+		if (isset($pkg_info['required_version']))
+			$compatible = (pfs_version_compare("", $version, $pkg_info['required_version']) >= 0);
+		if (isset($pkg_info['maximum_version']))
+			$compatible = $compatible && (pfs_version_compare("", $version, $pkg_info['maximum_version']) <= 0);
+		
+		if (!$compatible) {
+			log_error(sprintf(gettext('Package %s is not supported on this version.'), $pkg_info['name']));
+			$static_output .= sprintf(gettext("Package %s is not supported on this version."), $pkg_info['name']);
+			update_status($static_output);
+			
+			conf_mount_ro();
+			return -1;
+		}
+	}
+	pkg_debug(gettext("Beginning package installation.") . "\n");
+	log_error(sprintf(gettext('Beginning package installation for %s .'), $pkg_info['name']));
+	$static_output .= sprintf(gettext("Beginning package installation for %s ."), $pkg_info['name']);
 	update_status($static_output);
 	/* fetch the package's configuration file */
 	if($pkg_info['config_file'] != "") {
-		$static_output .= "\nDownloading package configuration file... ";
+		$static_output .= "\n" . gettext("Downloading package configuration file... ");
 		update_output_window($static_output);
-		pkg_debug("Downloading package configuration file...\n");
+		pkg_debug(gettext("Downloading package configuration file...") . "\n");
 		$fetchto = substr(strrchr($pkg_info['config_file'], '/'), 1);
 		download_file_with_progress_bar($pkg_info['config_file'], '/usr/local/pkg/' . $fetchto);
 		if(!file_exists('/usr/local/pkg/' . $fetchto)) {
-			pkg_debug("ERROR! Unable to fetch package configuration file. Aborting installation.\n");
+			pkg_debug(gettext("ERROR! Unable to fetch package configuration file. Aborting installation.") . "\n");
 			if($pkg_interface == "console")
-				print "\nERROR! Unable to fetch package configuration file. Aborting package installation.\n";
+				print "\n" . gettext("ERROR! Unable to fetch package configuration file. Aborting package installation.") . "\n";
 			else {
-				$static_output .= "failed!\n\nInstallation aborted.\n";
+				$static_output .= gettext("failed!\n\nInstallation aborted.\n");
 				update_output_window($static_output);
 				echo "<br>Show <a href=\"pkg_mgr_install.php?showlog=true\">install log</a></center>";
 			}
 			conf_mount_ro();
 			return -1;
 		}
-		$static_output .= "done.\n";
+		$static_output .= gettext("done.") . "\n";
 		update_output_window($static_output);
 	}
 	/* add package information to config.xml */
 	$pkgid = get_pkg_id($pkg_info['name']);
-	$static_output .= "Saving updated package information... ";
+	$static_output .= gettext("Saving updated package information...") . " ";
 	update_output_window($static_output);
 	if($pkgid == -1) {
 		$config['installedpackages']['package'][] = $pkg_info;
-		$changedesc = "Installed {$pkg_info['name']} package.";
-		$to_output = "done.\n";
+		$changedesc = sprintf(gettext("Installed %s package."),$pkg_info['name']);
+		$to_output = gettext("done.") . "\n";
 	} else {
 		$config['installedpackages']['package'][$pkgid] = $pkg_info;
-		$changedesc = "Overwrote previous installation of {$pkg_info['name']}.";
-		$to_output = "overwrite!\n";
+		$changedesc = sprintf(gettext("Overwrote previous installation of %s."), $pkg_info['name']);
+		$to_output = gettext("overwrite!") . "\n";
 	}
-
 	if(file_exists('/conf/needs_package_sync'))
 		@unlink('/conf/needs_package_sync');
+	conf_mount_ro();
 	write_config("Intermediate config write during package install for {$pkg_info['name']}.");
-	conf_mount_rw(); //Compensate write_config() sending to _ro
-
 	$static_output .= $to_output;
 	update_output_window($static_output);
 	/* install other package components */
 	if (!install_package_xml($package)) {
 		uninstall_package($package);
 		write_config($changedesc);
-		conf_mount_rw(); //Compensate write_config() sending to _ro
-		$static_output .= "Failed to install package.\n";
+		$static_output .= gettext("Failed to install package.") . "\n";
 		update_output_window($static_output);
 		return -1;
 	} else {
-		$static_output .= "Writing configuration... ";
+		$static_output .= gettext("Writing configuration... ");
 		update_output_window($static_output);
 		write_config($changedesc);
-		conf_mount_rw(); //Compensate write_config() sending to _ro
-		$static_output .= "done.\n";
+		$static_output .= gettext("done.") . "\n";
 		update_output_window($static_output);
 		if($pkg_info['after_install_info']) 
 			update_output_window($pkg_info['after_install_info']);	
 	}
-	conf_mount_ro();
 }
 
 function get_after_install_info($package) {
@@ -636,7 +700,7 @@ function install_package_xml($pkg) {
 	global $g, $config, $static_output, $pkg_interface, $config_parsed;
 
 	if(($pkgid = get_pkg_id($pkg)) == -1) {
-		$static_output .= "The {$pkg} package is not installed.\n\nInstallation aborted.";
+		$static_output .= sprintf(gettext("The %s package is not installed.%sInstallation aborted."), $pkg, "\n\n");
 		update_output_window($static_output);
 		if($pkg_interface <> "console") {
 			echo "\n<script language=\"JavaScript\">document.progressbar.style.visibility='hidden';</script>";
@@ -651,12 +715,12 @@ function install_package_xml($pkg) {
 	if($pkg_info['depends_on_package_base_url'] != "") {
 		if($pkg_interface == "console") 
 			echo "\n";
-		update_status("Installing " . $pkg_info['name'] . " and its dependencies.");
-		$static_output .= "Downloading " . $pkg_info['name'] . " and its dependencies... ";
+		update_status(gettext("Installing") . " " . $pkg_info['name'] . " " . gettext("and its dependencies."));
+		$static_output .= gettext("Downloading") . " " . $pkg_info['name'] . " " . gettext("and its dependencies... ");
 		$static_orig = $static_output;
 		$static_output .= "\n";
 		update_output_window($static_output);
-		foreach((array) $pkg_info['depends_on_package'] as $pkgdep) {
+		foreach((array) $pkg_info['depends_on_package_pbi'] as $pkgdep) {
 			$pkg_name = substr(reverse_strrchr($pkgdep, "."), 0, -1);
 			$static_output = $static_orig . "\nChecking for package installation... ";
 			update_output_window($static_output);
@@ -664,7 +728,7 @@ function install_package_xml($pkg) {
 				if (!pkg_fetch_recursive($pkg_name, $pkgdep, 0, $pkg_info['depends_on_package_base_url'])) {
 					$static_output .= "of {$pkg_name} failed!\n\nInstallation aborted.";
 					update_output_window($static_output);
-					pkg_debug("Package WAS NOT installed properly.\n");
+					pkg_debug(gettext("Package WAS NOT installed properly.") . "\n");
 					if($pkg_interface <> "console") {
 						echo "\n<script language=\"JavaScript\">document.progressbar.style.visibility='hidden';</script>";
 						echo "\n<script language=\"JavaScript\">document.progholder.style.visibility='hidden';</script>";
@@ -677,30 +741,30 @@ function install_package_xml($pkg) {
 	}
 	$configfile = substr(strrchr($pkg_info['config_file'], '/'), 1);
 	if(file_exists("/usr/local/pkg/" . $configfile)) {
-		$static_output .= "Loading package configuration... ";
+		$static_output .= gettext("Loading package configuration... ");
 		update_output_window($static_output);
 		$pkg_config = parse_xml_config_pkg("/usr/local/pkg/" . $configfile, "packagegui");
-		$static_output .= "done.\n";
+		$static_output .= gettext("done.") . "\n";
 		update_output_window($static_output);
-		$static_output .= "Configuring package components...\n";
+		$static_output .= gettext("Configuring package components...\n");
 		if (!empty($pkg_config['filter_rules_needed']))
 			$config['installedpackages']['package'][$pkgid]['filter_rule_function'] = $pkg_config['filter_rules_needed'];
 		update_output_window($static_output);
 		/* modify system files */
 		if(is_array($pkg_config['modify_system']) && is_array($pkg_config['modify_system']['item'])) {
-			$static_output .= "System files... ";
+			$static_output .= gettext("System files... ");
 			update_output_window($static_output);
 			foreach($pkg_config['modify_system']['item'] as $ms) {
 				if($ms['textneeded']) {
 					add_text_to_file($ms['modifyfilename'], $ms['textneeded']);
 				}
 			}
-			$static_output .= "done.\n";
+			$static_output .= gettext("done.") . "\n";
 			update_output_window($static_output);
 		}
 		/* download additional files */
 		if(is_array($pkg_config['additional_files_needed'])) {
-			$static_output .= "Additional files... ";
+			$static_output .= gettext("Additional files... ");
 			$static_orig = $static_output;
 			update_output_window($static_output);
 			foreach($pkg_config['additional_files_needed'] as $afn) {
@@ -726,20 +790,20 @@ function install_package_xml($pkg) {
 					return false;
 				}
 				if(stristr($filename, ".tgz") <> "") {
-					pkg_debug("Extracting tarball to -C for " . $filename . "...\n");
+					pkg_debug(gettext("Extracting tarball to -C for ") . $filename . "...\n");
 					$tarout = "";
-					exec("/usr/bin/tar xvzf " . $prefix . $filename . " -C / 2>&1", $tarout);
+					exec("/usr/bin/tar xvzf " . escapeshellarg($prefix . $filename) . " -C / 2>&1", $tarout);
 					pkg_debug(print_r($tarout, true) . "\n");
 				}
 				if($pkg_chmod <> "") {
-					pkg_debug("Changing file mode to {$pkg_chmod} for {$prefix}{$filename}\n");
+					pkg_debug(sprintf(gettext('Changing file mode to %1$s for %2$s%3$s%4$s'), $pkg_chmod, $prefix, $filename, "\n"));
 					@chmod($prefix . $filename, $pkg_chmod);
 					system("/bin/chmod {$pkg_chmod} {$prefix}{$filename}");
 				}
 				$static_output = $static_orig;
-                                update_output_window($static_output);
+				update_output_window($static_output);
 			}
-			$static_output .= "done.\n";
+			$static_output .= gettext("done.") . "\n";
 			update_output_window($static_output);
 		}
 		/*   if a require exists, include it.  this will
@@ -748,7 +812,7 @@ function install_package_xml($pkg) {
 		 */
 		$missing_include = false;
 		if($pkg_config['include_file'] <> "") {
-			$static_output .= "Loading package instructions...\n";
+			$static_output = gettext("Loading package instructions...") . "\n";
 			update_output_window($static_output);
 			pkg_debug("require_once('{$pkg_config['include_file']}')\n");
 			if (file_exists($pkg_config['include_file']))
@@ -776,6 +840,28 @@ function install_package_xml($pkg) {
 			if($pkg_config['custom_php_install_command']) {
 				$static_output .= gettext("Executing custom_php_install_command()...");
 				update_output_window($static_output);
+				/* XXX: create symlinks for conf files into the PBI directories.
+				 *	change packages to store configs at /usr/pbi/pkg/etc and remove this
+				 */
+				eval_once($pkg_config['custom_php_install_command']);
+				// Note: pkg may be mixed-case, e.g. "squidGuard" but the PBI names are lowercase.
+				// e.g. "squidguard-1.4_4-i386" so feed lowercase to pbi_info below.
+				// Also add the "-" so that examples like "squid-" do not match "squidguard-".
+				$pkg_name_for_pbi_match = strtolower($pkg) . "-";
+				exec("/usr/local/sbin/pbi_info | grep '^{$pkg_name_for_pbi_match}' | xargs /usr/local/sbin/pbi_info | awk '/Prefix/ {print $2}'",$pbidirarray);
+				$pbidir0 = $pbidirarray[0];
+				exec("find /usr/local/etc/ -name *.conf | grep " . escapeshellarg($pkg),$files);
+				foreach($files as $f) {
+					$pbiconf = str_replace('/usr/local',$pbidir0,$f);
+					if(is_file($pbiconf) || is_link($pbiconf)) {
+						unlink($pbiconf);
+					}
+					if(is_dir(dirname($pbiconf))) {
+						symlink($f,$pbiconf);
+					} else {
+						log_error("The dir for {$pbiconf} does not exist. Cannot add symlink to {$f}.");
+					}
+				}
 				eval_once($pkg_config['custom_php_install_command']);
 				$static_output .= gettext("done.") . "\n";
 				update_output_window($static_output);
@@ -788,36 +874,9 @@ function install_package_xml($pkg) {
 				update_output_window($static_output);
 			}
 		}
-
-		/* custom commands */
-		$static_output .= "Custom commands...\n";
-		update_output_window($static_output);
-		if ($missing_include == false) {
-			if($pkg_config['custom_php_global_functions'] <> "") {
-				$static_output .= "Executing custom_php_global_functions()...";
-				update_output_window($static_output);
-				eval_once($pkg_config['custom_php_global_functions']);
-				$static_output .= "done.\n";
-				update_output_window($static_output);
-			}
-			if($pkg_config['custom_php_install_command']) {
-				$static_output .= "Executing custom_php_install_command()...";
-				update_output_window($static_output);
-				eval_once($pkg_config['custom_php_install_command']);
-				$static_output .= "done.\n";
-				update_output_window($static_output);
-			}
-			if($pkg_config['custom_php_resync_config_command'] <> "") {
-				$static_output .= "Executing custom_php_resync_config_command()...";
-				update_output_window($static_output);
-				eval_once($pkg_config['custom_php_resync_config_command']);
-				$static_output .= "done.\n";
-				update_output_window($static_output);
-			}
-		}
 		/* sidebar items */
 		if(is_array($pkg_config['menu'])) {
-			$static_output .= "Menu items... ";
+			$static_output .= gettext("Menu items... ");
 			update_output_window($static_output);
 			foreach($pkg_config['menu'] as $menu) {
 				if(is_array($config['installedpackages']['menu'])) {
@@ -828,12 +887,12 @@ function install_package_xml($pkg) {
 					$config['installedpackages']['menu'] = array();
 				$config['installedpackages']['menu'][] = $menu;
 			}
-			$static_output .= "done.\n";
+			$static_output .= gettext("done.") . "\n";
 			update_output_window($static_output);
 		}
 		/* integrated tab items */
 		if(is_array($pkg_config['tabs']['tab'])) {
-			$static_output .= "Integrated Tab items... ";
+			$static_output .= gettext("Integrated Tab items... ");
 			update_output_window($static_output);
 			foreach($pkg_config['tabs']['tab'] as $tab) {
 				if(is_array($config['installedpackages']['tab'])) {
@@ -844,12 +903,12 @@ function install_package_xml($pkg) {
 					$config['installedpackages']['tab'] = array();
 				$config['installedpackages']['tab'][] = $tab;
 			}
-			$static_output .= "done.\n";
+			$static_output .= gettext("done.") . "\n";
 			update_output_window($static_output);
 		}
 		/* services */
 		if(is_array($pkg_config['service'])) {
-			$static_output .= "Services... ";
+			$static_output .= gettext("Services... ");
 			update_output_window($static_output);
 			foreach($pkg_config['service'] as $service) {
 				if(is_array($config['installedpackages']['service'])) {
@@ -860,13 +919,13 @@ function install_package_xml($pkg) {
 					$config['installedpackages']['service'] = array();
 				$config['installedpackages']['service'][] = $service;
 			}
-			$static_output .= "done.\n";
+			$static_output .= gettext("done.") . "\n";
 			update_output_window($static_output);
 		}
 	} else {
-		$static_output .= "Loading package configuration... failed!\n\nInstallation aborted.";
+		$static_output .= gettext("Loading package configuration... failed!") . "\n\n" . gettext("Installation aborted.");
 		update_output_window($static_output);
-		pkg_debug("Unable to load package configuration. Installation aborted.\n");
+		pkg_debug(gettext("Unable to load package configuration. Installation aborted.") ."\n");
 		if($pkg_interface <> "console") {
 			echo "\n<script language=\"JavaScript\">document.progressbar.style.visibility='hidden';</script>";
 			echo "\n<script language=\"JavaScript\">document.progholder.style.visibility='hidden';</script>";
@@ -907,30 +966,16 @@ function delete_package($pkg) {
 	if(!$pkg) 
 		return;
 
+	// Note: $pkg has the full PBI package name followed by ".pbi". Strip off ".pbi".
 	$pkg = substr(reverse_strrchr($pkg, "."), 0, -1);
 
-	// If package has dependencies then skip it
-	if(does_package_depend($pkg)) {
-		$static_output .= "Skipping package deletion for {$pkg} because it is a dependency.\n";
-		update_output_window($static_output);
-		return;		
-	} else {
-		if($pkg)
-			$static_output .= "Starting package deletion for {$pkg}...";
-		update_output_window($static_output);		
-	}
+	if($pkg)
+		$static_output .= sprintf(gettext("Starting package deletion for %s..."),$pkg);
+	update_output_window($static_output);
 
-	$info = "";
-	exec("/usr/sbin/pkg_info -qrx {$pkg}", $info);
 	remove_freebsd_package($pkg);
 	$static_output .= "done.\n";
 	update_output_window($static_output);
-	foreach($info as $line) {
-		$depend = trim(str_replace("@pkgdep ", "", $line), " \n");
-		// If package has dependencies then skip it
-		if(!does_package_depend($depend)) 			
-			delete_package($depend);
-	}
 
 	/* Rescan directories for what has been left and avoid fooling other programs. */
 	mwexec("/sbin/ldconfig");
@@ -939,13 +984,13 @@ function delete_package($pkg) {
 }
 
 function delete_package_xml($pkg) {
-	global $g, $config, $static_output, $pkg_interface, $rcfileprefix;
+	global $g, $config, $static_output, $pkg_interface;
 
 	conf_mount_rw();
 
 	$pkgid = get_pkg_id($pkg);
 	if ($pkgid == -1) {
-		$static_output .= "The {$pkg} package is not installed.\n\nDeletion aborted.";
+		$static_output .= sprintf(gettext("The %s package is not installed.%sDeletion aborted."), $pkg, "\n\n");
 		update_output_window($static_output);
 		if($pkg_interface <> "console") {
 			echo "\n<script language=\"JavaScript\">document.progressbar.style.visibility='hidden';</script>";
@@ -956,8 +1001,8 @@ function delete_package_xml($pkg) {
 		conf_mount_ro();
 		return;
 	}
-	pkg_debug("Removing {$pkg} package... ");
-	$static_output .= "Removing {$pkg} components...\n";
+	pkg_debug(sprintf(gettext("Removing %s package... "),$pkg));
+	$static_output .= sprintf(gettext("Removing %s components..."),$pkg) . "\n";
 	update_output_window($static_output);
 	/* parse package configuration */
 	$packages = &$config['installedpackages']['package'];
@@ -969,7 +1014,7 @@ function delete_package_xml($pkg) {
 		$pkg_config = parse_xml_config_pkg("/usr/local/pkg/" . $packages[$pkgid]['configurationfile'], "packagegui");
 		/* remove tab items */
 		if(is_array($pkg_config['tabs'])) {
-			$static_output .= "Tabs items... ";
+			$static_output .= gettext("Tabs items... ");
 			update_output_window($static_output);
 			if(is_array($pkg_config['tabs']['tab']) && is_array($tabs)) {
 				foreach($pkg_config['tabs']['tab'] as $tab) {
@@ -981,12 +1026,12 @@ function delete_package_xml($pkg) {
 					}
 				}
 			}
-			$static_output .= "done.\n";
+			$static_output .= gettext("done.") . "\n";
 			update_output_window($static_output);
 		}
 		/* remove menu items */
 		if(is_array($pkg_config['menu'])) {
-			$static_output .= "Menu items... ";
+			$static_output .= gettext("Menu items... ");
 			update_output_window($static_output);
 			if (is_array($pkg_config['menu']) && is_array($menus)) {
 				foreach($pkg_config['menu'] as $menu) {
@@ -998,12 +1043,12 @@ function delete_package_xml($pkg) {
 					}
 				}
 			}
-			$static_output .= "done.\n";
+			$static_output .= gettext("done.") . "\n";
 			update_output_window($static_output);
 		}
 		/* remove services */
 		if(is_array($pkg_config['service'])) {
-			$static_output .= "Services... ";
+			$static_output .= gettext("Services... ");
 			update_output_window($static_output);
 			if (is_array($pkg_config['service']) && is_array($services)) {
 				foreach($pkg_config['service'] as $service) {
@@ -1012,7 +1057,7 @@ function delete_package_xml($pkg) {
 							if($g['booting'] != true)
 								stop_service($service['name']);
 							if($service['rcfile']) {
-								$prefix = $rcfileprefix;
+								$prefix = RCFILEPREFIX;
 								if (!empty($service['prefix']))
 									$prefix = $service['prefix'];
 								if (file_exists("{$prefix}{$service['rcfile']}"))
@@ -1023,7 +1068,7 @@ function delete_package_xml($pkg) {
 					}
 				}
 			}
-			$static_output .= "done.\n";
+			$static_output .= gettext("done.") . "\n";
 			update_output_window($static_output);
 		}
 		/*
@@ -1031,7 +1076,6 @@ function delete_package_xml($pkg) {
 		 * 	Same is done during installation.
 		 */
 		write_config("Intermediate config write during package removal for {$pkg}.");
-		conf_mount_rw(); //Compensate for write_config() sending to _ro
 
 		/*
 		 * If a require exists, include it.  this will
@@ -1040,7 +1084,7 @@ function delete_package_xml($pkg) {
 		 */
 		$missing_include = false;
 		if($pkg_config['include_file'] <> "") {
-			$static_output .= "Loading package instructions...\n";
+			$static_output .= gettext("Loading package instructions...") . "\n";
 			update_output_window($static_output);
 			pkg_debug("require_once(\"{$pkg_config['include_file']}\")\n");
 			if (file_exists($pkg_config['include_file']))
@@ -1064,36 +1108,36 @@ function delete_package_xml($pkg) {
 		}
 		/* system files */
 		if(is_array($pkg_config['modify_system']) && is_array($pkg_config['modify_system']['item'])) {
-			$static_output .= "System files... ";
+			$static_output .= gettext("System files... ");
 			update_output_window($static_output);
 			foreach($pkg_config['modify_system']['item'] as $ms)
 				if($ms['textneeded']) remove_text_from_file($ms['modifyfilename'], $ms['textneeded']);
 
-			$static_output .= "done.\n";
+			$static_output .= gettext("done.") . "\n";
 			update_output_window($static_output);
 		}
 		/* deinstall commands */
 		if($pkg_config['custom_php_deinstall_command'] <> "") {
-			$static_output .= "Deinstall commands... ";
+			$static_output .= gettext("Deinstall commands... ");
 			update_output_window($static_output);
 			if ($missing_include == false) {
 				eval_once($pkg_config['custom_php_deinstall_command']);
-				$static_output .= "done.\n";
+				$static_output .= gettext("done.") . "\n";
 			} else
 				$static_output .= "\nNot executing custom deinstall hook because an include is missing.\n";
 			update_output_window($static_output);
 		}
 		if($pkg_config['include_file'] <> "") {
-			$static_output .= "Removing package instructions...";
+			$static_output .= gettext("Removing package instructions...");
 			update_output_window($static_output);
-			pkg_debug("Remove '{$pkg_config['include_file']}'\n");
+			pkg_debug(sprintf(gettext("Remove '%s'"), $pkg_config['include_file']) . "\n");
 			unlink_if_exists("/usr/local/pkg/" . $pkg_config['include_file']);
-			$static_output .= "done.\n";
+			$static_output .= gettext("done.") . "\n";
 			update_output_window($static_output);
 		}
 		/* remove all additional files */
 		if(is_array($pkg_config['additional_files_needed'])) {
-			$static_output .= "Auxiliary files... ";
+			$static_output .= gettext("Auxiliary files... ");
 			update_output_window($static_output);
 			foreach($pkg_config['additional_files_needed'] as $afn) {
 				$filename = get_filename_from_url($afn['item'][0]);
@@ -1103,14 +1147,14 @@ function delete_package_xml($pkg) {
 					$prefix = "/usr/local/pkg/";
 				unlink_if_exists($prefix . $filename);
 			}
-			$static_output .= "done.\n";
+			$static_output .= gettext("done.") . "\n";
 			update_output_window($static_output);
 		}
 		/* package XML file */
-		$static_output .= "Package XML... ";
+		$static_output .= gettext("Package XML... ");
 		update_output_window($static_output);
 		unlink_if_exists("/usr/local/pkg/" . $packages[$pkgid]['configurationfile']);
-		$static_output .= "done.\n";
+		$static_output .= gettext("done.") . "\n";
 		update_output_window($static_output);
 	}
 	/* syslog */
@@ -1126,10 +1170,10 @@ function delete_package_xml($pkg) {
 	
 	conf_mount_ro();
 	/* remove config.xml entries */
-	$static_output .= "Configuration... ";
+	$static_output .= gettext("Configuration... ");
 	update_output_window($static_output);
 	unset($config['installedpackages']['package'][$pkgid]);
-	$static_output .= "done.\n";
+	$static_output .= gettext("done.") . "\n";
 	update_output_window($static_output);
 	write_config("Removed {$pkg} package.\n");
 }
@@ -1208,31 +1252,107 @@ function pkg_reinstall_all() {
 	global $g, $config;
 
 	@unlink('/conf/needs_package_sync');
-	$pkg_id = 0;
-	$todo = array();
 	if (is_array($config['installedpackages']['package'])) {
-		foreach($config['installedpackages']['package'] as $package)
-			$todo[] = array('name' => $package['name'], 'version' => $package['version']);
-
-		echo "One moment please, reinstalling packages...\n";
-		echo " >>> Trying to fetch package info...";
+		echo gettext("One moment please, reinstalling packages...\n");
+		echo gettext(" >>> Trying to fetch package info...");
+		log_error(gettext("Attempting to reinstall all packages"));
 		$pkg_info = get_pkg_info();
 		if ($pkg_info) {
 			echo " Done.\n";
 		} else {
 			$xmlrpc_base_url = isset($config['system']['altpkgrepo']['enable']) ? $config['system']['altpkgrepo']['xmlrpcbaseurl'] : $g['xmlrpcbaseurl'];
-			echo "\n" . sprintf(gettext(' >>> Unable to communicate with %1$s. Please verify DNS and interface configuration, and that %2$s has functional Internet connectivity.'), $xmlrpc_base_url, $g['product_name']) . "\n";
+			$error = sprintf(gettext(' >>> Unable to communicate with %1$s. Please verify DNS and interface configuration, and that %2$s has functional Internet connectivity.'), $xmlrpc_base_url, $g['product_name']);
+			echo "\n{$error}\n";
+			log_error(gettext("Cannot reinstall packages: ") . $error);
 			return;
 		}
+		$todo = array();
+		$all_names = array();
+		foreach($config['installedpackages']['package'] as $package) {
+			$todo[] = array('name' => $package['name'], 'version' => $package['version']);
+			$all_names[] = $package['name'];
+		}
+		$package_name_list = gettext("List of packages to reinstall: ") . implode(", ", $all_names);
+		echo " >>> {$package_name_list}\n";
+		log_error($package_name_list);
+
 		foreach($todo as $pkgtodo) {
 			$static_output = "";
 			if($pkgtodo['name']) {
+				log_error(gettext("Uninstalling package") . " {$pkgtodo['name']}");
 				uninstall_package($pkgtodo['name']);
+				log_error(gettext("Finished uninstalling package") . " {$pkgtodo['name']}");
+				log_error(gettext("Reinstalling package") . " {$pkgtodo['name']}");
 				install_package($pkgtodo['name']);
-				$pkg_id++;
+				log_error(gettext("Finished installing package") . " {$pkgtodo['name']}");
 			}
+		}
+		log_error(gettext("Finished reinstalling all packages."));
+	} else
+		echo "No packages are installed.";
+}
+
+function stop_packages() {
+	require_once("config.inc");
+	require_once("functions.inc");
+	require_once("filter.inc");
+	require_once("shaper.inc");
+	require_once("captiveportal.inc");
+	require_once("pkg-utils.inc");
+	require_once("pfsense-utils.inc");
+	require_once("service-utils.inc");
+
+	global $config, $g;
+
+	log_error("Stopping all packages.");
+
+	$rcfiles = glob(RCFILEPREFIX . "*.sh");
+	if (!$rcfiles)
+		$rcfiles = array();
+	else {
+		$rcfiles = array_flip($rcfiles);
+		if (!$rcfiles)
+			$rcfiles = array();
+	}
+
+	if (is_array($config['installedpackages']['package'])) {
+		foreach($config['installedpackages']['package'] as $package) {
+			echo " Stopping package {$package['name']}...";
+			$internal_name = get_pkg_internal_name($package);
+			stop_service($internal_name);
+			unset($rcfiles[RCFILEPREFIX . strtolower($internal_name) . ".sh"]);
+			echo "done.\n";
+		}
+	}
+
+	foreach ($rcfiles as $rcfile => $number) {
+		$shell = @popen("/bin/sh", "w");
+		if ($shell) {
+			echo " Stopping {$rcfile}...";
+			if (!@fwrite($shell, "{$rcfile} stop >>/tmp/bootup_messages 2>&1")) {
+				if ($shell)
+					pclose($shell);
+				$shell = @popen("/bin/sh", "w");
+			}
+			echo "done.\n";
+			pclose($shell);
 		}
 	}
 }
 
+function get_pkg_interfaces_select_source($include_localhost=false) {
+	$interfaces = get_configured_interface_with_descr();
+	$ssifs = array();
+	foreach ($interfaces as $iface => $ifacename) {
+		$tmp["name"]  = $ifacename;
+		$tmp["value"] = $iface;
+		$ssifs[] = $tmp;
+	}
+	if ($include_localhost) {
+		$tmp["name"]  = "Localhost";
+		$tmp["value"] = "lo0";
+		$ssifs[] = $tmp;
+	}
+	return $ssifs;
+}
 ?>

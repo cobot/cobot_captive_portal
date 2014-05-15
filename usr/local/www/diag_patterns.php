@@ -40,7 +40,7 @@
 require("guiconfig.inc");
 
 //Move the upload file to /usr/local/share/protocols (is_uploaded_file must use tmp_name as argument)
-if (($_POST['submit'] == gettext("Upload")) && is_uploaded_file($_FILES['ulfile']['tmp_name'])) {
+if (($_POST['submit'] == gettext("Upload Pattern file")) && is_uploaded_file($_FILES['ulfile']['tmp_name'])) {
 	if(fileExtension($_FILES['ulfile']['name'])) {
 		move_uploaded_file($_FILES['ulfile']['tmp_name'], "/usr/local/share/protocols/" . $_FILES['ulfile']['name']);
 		$ulmsg = gettext("Uploaded file to") . " /usr/local/share/protocols/" . htmlentities($_FILES['ulfile']['name']);
@@ -63,29 +63,29 @@ include("head.inc");
 <?php include("fbegin.inc"); ?>
 <?php if ($ulmsg) echo "<p class=\"red\"><strong>" . $ulmsg . "</strong></p>\n"; ?>
 <div id="mainarea">
-<form action="diag_patterns.php" method="POST" enctype="multipart/form-data" name="frmPattern">
-  <table class="tabcont" width="100%" border="0" cellpadding="6" cellspacing="0">	
+<form action="diag_patterns.php" method="post" enctype="multipart/form-data" name="frmPattern">
+  <table class="tabcont" width="100%" border="0" cellpadding="6" cellspacing="0" summary="upload pattern">
   	<tr>
     	<td colspan="4" valign="top" class="listtopic"><?=gettext("Upload layer7 pattern file");?></td>
   	</tr>
 	<tr>
 		<td align="right"><strong><?=gettext("File to upload:");?></strong></td>
 		<td valign="top" class="label">
-			<input name="ulfile" type="file" class="formfld file" id="ulfile">
+			<input name="ulfile" type="file" class="formfld file" id="ulfile" />
 		</td>
 	</tr>
 	<tr>
 		<td valign="top">&nbsp;&nbsp;&nbsp;</td>
 		<td valign="top" class="label">	
-			<input name="submit" type="submit"  class="button" id="upload" value="<?=gettext("Upload Pattern file");?>">
+			<input name="submit" type="submit" class="button" id="upload" value="<?=gettext("Upload Pattern file");?>" />
 		</td>
 	</tr>
 	<tr>
 		<td colspan="2" valign="top" height="16"></td>
 	</tr>    
   </table>
+</form>
 </div>
 <?php include("fend.inc"); ?>
-</form>
 </body>
 </html>

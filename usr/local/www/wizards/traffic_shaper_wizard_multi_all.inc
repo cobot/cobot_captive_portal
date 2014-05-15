@@ -1,7 +1,7 @@
 <?php
 /*
         traffic_shaper_wizard_multi_all.inc
-        part of pfSense (http://www.pfsense.org/)
+        part of pfSense (https://www.pfsense.org/)
 
         Copyright (C) 2006 Bill Marquette - bill.marquette@gmail.com.
         Copyright (C) 2006 Scott Ullrich - sullrich@pfsense.com.
@@ -379,10 +379,10 @@ function step3_stepbeforeformdisplay() {
 	$voipfields[] = $field;
 
 	$field = array();
-	$field['name'] = "Address";
-	$enablefields[] = "Address";
+	$field['name'] = "Upstream SIP Server";
+	$enablefields[] = "Upstream SIP Server";
 	$field['type'] = "inputalias";
-	$field['description'] = "(Optional) If this is chosen, the provider field will be overridden. This allows you to just provide the IP address of the VOIP adaptor to prioritize. NOTE: You can also use a Firewall Alias in this location.";
+	$field['description'] = "(Optional) If this is chosen, the provider field will be overridden. This allows you to provide the IP address of the <strong>remote</strong> PBX or SIP Trunk to prioritize.  <br />NOTE: You can also use a Firewall Alias in this location.";
 	$field['message'] = "IP Address field is non-blank and doesn't look like an IP address.";
 	$field['bindstofield'] = "ezshaper->step3->address";
 	$voipfields[] = $field;
@@ -1462,13 +1462,13 @@ function apply_all_choosen_items() {
 		    $rule['type'] = "match";
 		    $rule['interface'] = $interfacelist;
 		    $rule['descr'] = gettext("Penalty Box");
-		    $rule['source']['any'] = TRUE;
 		    $rule['defaultqueue'] = "qOthersLow";
 		    $rule['source']['address'] = $config['ezshaper']['step4']['address'];
 		    $rule['destination']['any'] = TRUE;
 		    $rule['floating'] = "yes";
 		    $rule['wizard'] = "yes";
 		    $rule['enabled'] = "on";
+		    $rule['created'] = make_config_revision_entry(null, gettext("Traffic Shaper Wizard"));
 		    $config['filter']['rule'][] = $rule;
 
 		}
@@ -1480,8 +1480,8 @@ function apply_all_choosen_items() {
 					/* create VOIP rules */
 					$rule = array();
 					$rule['type'] = "match";
-				        //$rule['interface'] = $interfacelist;
-					$rule['descr'] = gettext("VOIP Adapter");
+					//$rule['interface'] = $interfacelist;
+					$rule['descr'] = gettext("Connections From Upstream SIP Server");
 					$rule['protocol'] = "udp";
 					$rule['defaultqueue'] = "qVoIP";
 					$rule['source']['address'] = $config['ezshaper']['step3']['address'];
@@ -1489,6 +1489,21 @@ function apply_all_choosen_items() {
 					$rule['floating'] = "yes";
 					$rule['wizard'] = "yes";
 					$rule['enabled'] = "on";
+					$rule['created'] = make_config_revision_entry(null, gettext("Traffic Shaper Wizard"));
+					$config['filter']['rule'][] = $rule;
+
+					$rule = array();
+					$rule['type'] = "match";
+					//$rule['interface'] = $interfacelist;
+					$rule['descr'] = gettext("Connections To Upstream SIP Server");
+					$rule['protocol'] = "udp";
+					$rule['defaultqueue'] = "qVoIP";
+					$rule['source']['any'] = TRUE;
+					$rule['destination']['address'] = $config['ezshaper']['step3']['address'];
+					$rule['floating'] = "yes";
+					$rule['wizard'] = "yes";
+					$rule['enabled'] = "on";
+					$rule['created'] = make_config_revision_entry(null, gettext("Traffic Shaper Wizard"));
 					$config['filter']['rule'][] = $rule;
 	
 				} elseif( $config['ezshaper']['step3']['provider'] == "Generic" ) {
@@ -1505,6 +1520,7 @@ function apply_all_choosen_items() {
 					$rule['floating'] = "yes";
 					$rule['wizard'] = "yes";
 					$rule['enabled'] = "on";
+					$rule['created'] = make_config_revision_entry(null, gettext("Traffic Shaper Wizard"));
 					$config['filter']['rule'][] = $rule;
 	
 				} else {
@@ -1523,6 +1539,7 @@ function apply_all_choosen_items() {
 						$rule['destination']['port'] = $voip[2]."-".$voip[3];
 						if($voip[1] != '')
 							$rule['protocol'] = $voip[1];
+						$rule['created'] = make_config_revision_entry(null, gettext("Traffic Shaper Wizard"));
 						$config['filter']['rule'][] = $rule;
 					}
 				}
@@ -1546,6 +1563,7 @@ function apply_all_choosen_items() {
 						$rule['destination']['port'] = $p2pclient[2]."-".$p2pclient[3];
 						if($p2pclient[1] != '')
 							$rule['protocol'] = $p2pclient[1];
+						$rule['created'] = make_config_revision_entry(null, gettext("Traffic Shaper Wizard"));
 						$config['filter']['rule'][] = $rule;
 					}
 				}
@@ -1572,6 +1590,7 @@ function apply_all_choosen_items() {
 						$rule['destination']['port'] = $Gameclient[2]."-".$Gameclient[3];
 						if($Gameclient[1] != '')
 							$rule['protocol'] = $Gameclient[1];
+						$rule['created'] = make_config_revision_entry(null, gettext("Traffic Shaper Wizard"));
 						$config['filter']['rule'][] = $rule;
 					}
 				}
@@ -1624,7 +1643,7 @@ function apply_all_choosen_items() {
 					}
 					if($otherclient[1] != '')
 						$rule['protocol'] = $otherclient[1];
-
+					$rule['created'] = make_config_revision_entry(null, gettext("Traffic Shaper Wizard"));
 					$config['filter']['rule'][] = $rule;
 				}
 			}

@@ -80,13 +80,28 @@ if(count($states) > 0) {
 			$dstinfo = $ends[count($ends) - 1];
 		}
 
-		$parts = split(":", $srcinfo);
-		$srcip = trim($parts[0]);
-		$srcport = trim($parts[1]);
-
-		$parts = split(":", $dstinfo);
-		$dstip = trim($parts[0]);
-		$dstport = trim($parts[1]);
+		/* Handle IPv6 */
+		$parts = explode(":", $srcinfo);
+		$partcount = count($parts);		
+		if ($partcount <= 2) {
+			$srcip = trim($parts[0]);
+			$srcport = trim($parts[1]);
+		} else {
+			preg_match("/([0-9a-f:]+)(\[([0-9]+)\])?/i", $srcinfo, $matches);
+			$srcip = $matches[1];
+			$srcport = trim($matches[3]);
+		}
+		
+		$parts = explode(":", $dstinfo);
+		$partcount = count($parts);		
+		if ($partcount <= 2) {
+			$dstip = trim($parts[0]);
+			$dstport = trim($parts[1]);
+		} else {
+			preg_match("/([0-9a-f:]+)(\[([0-9]+)\])?/i", $dstinfo, $matches);
+			$dstip = $matches[1];
+			$dstport = trim($matches[3]);
+		}
 
 		addipinfo($srcipinfo, $srcip, $proto, $srcport, $dstport);
 		addipinfo($dstipinfo, $dstip, $proto, $srcport, $dstport);
@@ -103,6 +118,8 @@ function sort_by_ip($a, $b) {
 }
 
 function build_port_info($portarr, $proto) {
+	if (!$portarr)
+		return '';
 	$ports = array();
 	asort($portarr);
 	foreach (array_reverse($portarr, TRUE) as $port => $count) {

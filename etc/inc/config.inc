@@ -63,9 +63,11 @@ else
 /* include globals from notices.inc /utility/XML parser files */
 require_once("notices.inc");
 if($g['booting']) echo ".";
-require_once('config.lib.inc');
-if($g['booting']) echo ".";
 require_once("util.inc");
+if($g['booting']) echo ".";
+require_once("IPv6.inc");
+if($g['booting']) echo ".";
+require_once('config.lib.inc');
 if($g['booting']) echo ".";
 if(file_exists("/cf/conf/use_xmlreader"))
 	require_once("xmlreader.inc");
@@ -95,10 +97,10 @@ if($g['booting'] && file_exists("/cf/conf/config.xml")) {
 	if(stristr($config_contents, "<m0n0wall>") == true) {
 		if($g['booting']) echo ".";
 		/* user has just upgraded to m0n0wall, replace root xml tags */
-		log_error("Upgrading m0n0wall configuration to pfSense... ");
+		log_error(gettext("Upgrading m0n0wall configuration to pfSense... "));
 		$config_contents = str_replace("m0n0wall","pfsense", $config_contents);
 		if (!config_validate("{$g['conf_path']}/config.xml"))
-			log_error("ERROR!  Could not convert m0n0wall -> pfsense in config.xml");
+			log_error(gettext("ERROR!  Could not convert m0n0wall -> pfsense in config.xml"));
 		conf_mount_rw();
 		$fd = fopen("/cf/conf/config.xml", "w");
 		fwrite($fd, $config_contents);
@@ -120,7 +122,7 @@ else if ($g['booting'] and !file_exists($g['cf_conf_path'] . "/config.xml")  ) {
 			/* config is on floppy disk for CD-ROM version */
 			$cfgdevice = $cfgpartition = "fd0";
 			$dmesg = `dmesg -a`;
-			if(ereg("da0", $dmesg) == true) {
+			if(preg_match("/da0/", $dmesg) == true) {
 				$cfgdevice = $cfgpartition = "da0" ;
 				if (mwexec("/sbin/mount -r /dev/{$cfgdevice} /cf")) {
 					/* could not mount, fallback to floppy */
@@ -128,9 +130,10 @@ else if ($g['booting'] and !file_exists($g['cf_conf_path'] . "/config.xml")  ) {
 				}
 			}
 			$cfgfstype = "msdosfs";
-			echo "CDROM build\n";
-			echo "   CFG: {$cfgpartition}\n";
-			echo "  TYPE: {$cfgfstype}\n";
+			echo gettext("CDROM build") . "\n";
+			echo "   " . gettext("CFG:") . " {$cfgpartition}\n";
+			echo "   " . gettext("CFG:") . " {$cfgpartition}\n";
+			echo "  " . gettext("TYPE:") . " {$cfgfstype}\n";
 		} else {
 			if($g['booting']) echo ".";
 			/* probe kernel known disks until we find one with config.xml */
@@ -145,7 +148,7 @@ else if ($g['booting'] and !file_exists($g['cf_conf_path'] . "/config.xml")  ) {
 						$cfgdevice = $mountdisk;
 						$cfgpartition = $cfgdevice . "a";
 						$cfgfstype = "ufs";
-						echo "Found configuration on $cfgdevice.\n";
+						printf(gettext("Found configuration on %s.%s"), $cfgdevice, "\n");
 					}
 
 					mwexec("/sbin/umount -f {$g['cf_path']}");
@@ -160,7 +163,7 @@ else if ($g['booting'] and !file_exists($g['cf_conf_path'] . "/config.xml")  ) {
 						$cfgdevice = $mountdisk;
 						$cfgpartition = $cfgdevice . "d";
 						$cfgfstype = "ufs";
-						echo "Found configuration on $cfgdevice.\n";
+						printf(gettext("Found configuration on %s.%s"), $cfgdevice, "\n");
 					}
 
 					mwexec("/sbin/umount -f {$g['cf_path']}");
@@ -174,11 +177,11 @@ else if ($g['booting'] and !file_exists($g['cf_conf_path'] . "/config.xml")  ) {
 		if (!$cfgdevice) {
 			$last_backup = discover_last_backup();
 			if($last_backup) {
-				log_error("No config.xml found, attempting last known config restore.");
-				file_notice("config.xml", "No config.xml found, attempting last known config restore.", "pfSenseConfigurator", "");
+				log_error(gettext("No config.xml found, attempting last known config restore."));
+				file_notice("config.xml", gettext("No config.xml found, attempting last known config restore."), "pfSenseConfigurator", "");
 				restore_backup("/cf/conf/backup/{$last_backup}");
 			} else {
-				log_error("No config.xml or config backups found, resetting to factory defaults.");
+				log_error(gettext("No config.xml or config backups found, resetting to factory defaults."));
 				restore_backup('/conf.default/config.xml');
 			}
 		}

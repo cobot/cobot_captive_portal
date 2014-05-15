@@ -156,7 +156,7 @@ pfSenseNanoBSDupgrade)
 
 	echo "NanoBSD Firmware upgrade in progress..."  >> /conf/upgrade_log.txt 2>&1
 	echo "NanoBSD Firmware upgrade in progress..." | wall
-	/etc/rc.firmware_notify -e -g -m "NanoBSD Firmware upgrade in progress..."
+	/etc/rc.notify_message -e -g -m "NanoBSD Firmware upgrade in progress..."
 	
 	# backup config
 	/bin/mkdir -p /tmp/configbak
@@ -208,8 +208,9 @@ pfSenseNanoBSDupgrade)
 	SIZE=`/sbin/fdisk ${COMPLETE_PATH} | /usr/bin/grep Meg | /usr/bin/awk '{ print $5 }' | /usr/bin/cut -d"(" -f2`
 	# USB slices are under-reported even more than CF slices when viewed
 	#   directly, instead of when looking at the entire disk. Compensate
-	#   by adding a few MB.
-	SIZE=`expr $SIZE + 4`
+	#   by adding exactly 6MB. 4MB was consistently 2MB too few, and
+	#   was resulting in failing upgrades on USB Flash based installs.
+	SIZE=`expr $SIZE + 6`
 	if [ "$SIZE" -lt "$NEW_IMG_SIZE" ]; then
 		file_notice "UpgradeFailure" "Upgrade failed due to the upgrade image being larger than the partition that is configured on disk.  Halting. Size on disk: $SIZE < Size of new image: $NEW_IMG_SIZE"
 		echo "Upgrade failed.  Please check the system log file for more information" | wall
@@ -298,8 +299,10 @@ pfSenseNanoBSDupgrade)
 
 	# If /tmp/$GLABEL_SLICE/tmp/post_upgrade_command exists 
 	# after update then execute the command.
+	echo "Checking for post_upgrade_command..." >> /conf/upgrade_log.txt
 	if [ -f /tmp/$GLABEL_SLICE/tmp/post_upgrade_command ]; then
-		sh /tmp/$GLABEL_SLICE/tmp/post_upgrade_command >> /conf/upgrade_log.txt 2>&1
+		echo "Found post_upgrade_command, executing ($GLABEL_SLICE)..." >> /conf/upgrade_log.txt
+		sh /tmp/$GLABEL_SLICE/tmp/post_upgrade_command $GLABEL_SLICE >> /conf/upgrade_log.txt 2>&1
 	fi
 
 	# Update fstab
@@ -370,7 +373,7 @@ pfSenseNanoBSDupgrade)
 
 	echo "NanoBSD Firmware upgrade is complete.  Rebooting in 10 seconds."  >> /conf/upgrade_log.txt 2>&1
 	echo "NanoBSD Firmware upgrade is complete.  Rebooting in 10 seconds." | wall
-	/etc/rc.firmware_notify -e -g -m "NanoBSD Firmware upgrade is complete.  Rebooting in 10 seconds."
+	/etc/rc.notify_message -e -g -m "NanoBSD Firmware upgrade is complete.  Rebooting in 10 seconds."
 
 	sleep 10
 
@@ -398,6 +401,12 @@ pfSenseupgrade)
 
 	touch /var/run/firmwarelock.dirty
 
+	if [ -f /tmp/perform_full_backup.txt ]; then
+		echo "Performing full backup" >> /conf/upgrade_log.txt
+		/etc/rc.create_full_backup
+		rm /tmp/perform_full_backup.txt
+	fi
+
 	touch /conf/upgrade_log.txt
 	echo "" >> /conf/upgrade_log.txt
 
@@ -416,7 +425,7 @@ pfSenseupgrade)
 
 	echo "Firmware upgrade in progress..."  >> /conf/upgrade_log.txt 2>&1
 	echo "Firmware upgrade in progress..."  | wall
-	/etc/rc.firmware_notify -e -g -m "Firmware upgrade in progress..."
+	/etc/rc.notify_message -e -g -m "Firmware upgrade in progress..."
 	
 	# backup config
 	/bin/mkdir -p /tmp/configbak
@@ -459,6 +468,9 @@ pfSenseupgrade)
 		sh /etc/init_bootloader.sh >> /conf/upgrade_log.txt 2>&1
 	fi
 
+	# Remove saved commit ID for gitsync
+	rm -f /etc/version.gitsync
+
 	# If /tmp/post_upgrade_command exists after update
 	# then execute the command.
 	if [ -f /tmp/post_upgrade_command ]; then
@@ -483,7 +495,7 @@ pfSenseupgrade)
 
 	echo "Firmware upgrade is complete. Rebooting in 10 seconds."  >> /conf/upgrade_log.txt 2>&1
 	echo "Firmware upgrade is complete. Rebooting in 10 seconds."  | wall
-	/etc/rc.firmware_notify -e -g -m "Firmware upgrade is complete. Rebooting in 10 seconds."
+	/etc/rc.notify_message -e -g -m "Firmware upgrade is complete. Rebooting in 10 seconds."
 
 	# Sleep and allow disks to catch up
 	sleep 10

@@ -40,6 +40,8 @@
 
 require("guiconfig.inc");
 
+if (!is_array($config['wireless']))
+	$config['wireless'] = array();
 if (!is_array($config['wireless']['clone']))
 	$config['wireless']['clone'] = array();
 
@@ -63,8 +65,9 @@ function clone_compare($a, $b) {
 
 $portlist = get_interface_list();
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && $a_clones[$id]) {
@@ -151,7 +154,7 @@ include("head.inc");
 <?php include("fbegin.inc"); ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
             <form action="interfaces_wireless_edit.php" method="post" name="iform" id="iform">
-              <table width="100%" border="0" cellpadding="6" cellspacing="0">
+              <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="interfaces wireless edit">
                 <tr>
                   <td colspan="2" valign="top" class="listtopic"><?=gettext("Wireless clone configuration");?></td>
                 </tr>
@@ -160,15 +163,19 @@ include("head.inc");
                   <td width="78%" class="vtable">
                     <select name="if" class="formselect">
                       <?php
+					  $rowIndex = 0;
                       foreach ($portlist as $ifn => $ifinfo)
                         if (preg_match($g['wireless_regex'], $ifn)) {
+							$rowIndex++;
                             echo "<option value=\"{$ifn}\"";
                             if ($ifn == $pconfig['if'])
-                                echo "selected";
+                                echo " selected=\"selected\"";
                             echo ">";
                             echo htmlspecialchars($ifn . " (" . $ifinfo['mac'] . ")");
                             echo "</option>";
                         }
+					  if ($rowIndex == 0)
+						echo "<option></option>";
                       ?>
                     </select></td>
                 </tr>
@@ -176,25 +183,25 @@ include("head.inc");
                   <td valign="top" class="vncellreq"><?=gettext("Mode");?></td>
                   <td class="vtable">
                     <select name="mode" class="formselect">
-                      <option <? if ($pconfig['mode'] == 'bss') echo "selected";?> value="bss"><?=gettext("Infrastructure (BSS)");?></option>
-                      <option <? if ($pconfig['mode'] == 'adhoc') echo "selected";?> value="adhoc"><?=gettext("Ad-hoc (IBSS)");?></option>
-                      <option <? if ($pconfig['mode'] == 'hostap') echo "selected";?> value="hostap"><?=gettext("Access Point");?></option>
+                      <option <?php if ($pconfig['mode'] == 'bss') echo "selected=\"selected\"";?> value="bss"><?=gettext("Infrastructure (BSS)");?></option>
+                      <option <?php if ($pconfig['mode'] == 'adhoc') echo "selected=\"selected\"";?> value="adhoc"><?=gettext("Ad-hoc (IBSS)");?></option>
+                      <option <?php if ($pconfig['mode'] == 'hostap') echo "selected=\"selected\"";?> value="hostap"><?=gettext("Access Point");?></option>
                     </select></td>
                 </tr>
                 <tr>
                   <td width="22%" valign="top" class="vncell"><?=gettext("Description");?></td>
                   <td width="78%" class="vtable">
-                    <input name="descr" type="text" class="formfld unknown" id="descr" size="40" value="<?=htmlspecialchars($pconfig['descr']);?>">
-                    <br> <span class="vexpl"><?=gettext("You may enter a description here ".
+                    <input name="descr" type="text" class="formfld unknown" id="descr" size="40" value="<?=htmlspecialchars($pconfig['descr']);?>" />
+                    <br/> <span class="vexpl"><?=gettext("You may enter a description here ".
                     "for your reference (not parsed).");?></span></td>
                 </tr>
                 <tr>
                   <td width="22%" valign="top">&nbsp;</td>
                   <td width="78%">
-                    <input type="hidden" name="cloneif" value="<?=htmlspecialchars($pconfig['cloneif']); ?>">
-                    <input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save");?>"> <input type="button" value="<?=gettext("Cancel");?>" onclick="history.back()">
+                    <input type="hidden" name="cloneif" value="<?=htmlspecialchars($pconfig['cloneif']); ?>" />
+                    <input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save");?>" /> <input type="button" value="<?=gettext("Cancel");?>" onclick="history.back()" />
                     <?php if (isset($id) && $a_clones[$id]): ?>
-                    <input name="id" type="hidden" value="<?=htmlspecialchars($id);?>">
+                    <input name="id" type="hidden" value="<?=htmlspecialchars($id);?>" />
                     <?php endif; ?>
                   </td>
                 </tr>

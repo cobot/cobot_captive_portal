@@ -2,7 +2,7 @@
 /* $Id$ */
 /*
 	status_upnp.php
-	part of pfSense (http://www.pfsense.com/)
+	part of pfSense (https://www.pfsense.org/)
 
 	Copyright (C) 2010 Seth Mos <seth.mos@dds.nl>.
 	All rights reserved.
@@ -56,16 +56,18 @@ $now = time();
 $year = date("Y");
 
 $pgtitle = array(gettext("Status"),gettext("UPnP &amp; NAT-PMP Status"));
+$shortcut_section = "upnp";
 include("head.inc");
 ?>
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
 <?php include("fbegin.inc"); ?>
 <?php if ($savemsg) print_info_box($savemsg); ?>
 <?php
-if(!$config['installedpackages']['miniupnpd']['config'][0]['iface_array'] ||
+if(!$config['installedpackages'] || !$config['installedpackages']['miniupnpd']['config'][0]['iface_array'] ||
 	!$config['installedpackages']['miniupnpd']['config'][0]['enable']) {
 	echo gettext("UPnP is currently disabled.");
 	include("fend.inc");
+	echo '</body></html>';
 	exit;
 }
 ?>

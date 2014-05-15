@@ -51,7 +51,7 @@ function listtags() {
                 "option package passthrumac phase1 phase2 ppp pppoe priv proxyarpnet qinqentry queue ".
                 "pages pipe roll route row rrddatafile rule schedule service servernat servers ".
                 "serversdisabled earlyshellcmd shellcmd staticmap subqueue timerange ".
-                "tunnel user vip virtual_server vlan winsserver wolentry widget npt"
+                "tunnel user vip virtual_server vlan winsserver wolentry widget npt pool"
                 );
 	return array_flip($ret);
 }
@@ -126,15 +126,19 @@ function parse_xml_config_raw($cffile, $rootobj, $isstring = "false") {
 		add_elements($parsedcfg, $par);
 		$par->close();
 	} else
-		log_error("Error returned while trying to parse {$cffile}");
+		log_error(sprintf(gettext("Error returned while trying to parse %s"), $cffile));
 
-	if (!is_array($rootobj))
-		$rootobj = array($rootobj);
-	foreach ($rootobj as $rootobj_name)
-		if ($parsedcfg[$rootobj_name])
-			break;
-
-	return $parsedcfg[$rootobj_name];
+	if ($rootobj) {
+		if (!is_array($rootobj))
+			$rootobj = array($rootobj);
+		foreach ($rootobj as $rootobj_name)
+			if ($parsedcfg[$rootobj_name])
+				break;
+		
+		return $parsedcfg[$rootobj_name];
+	} else {
+		return $parsedcfg;
+	}
 }
 
 function dump_xml_config_sub(& $writer, $arr) {

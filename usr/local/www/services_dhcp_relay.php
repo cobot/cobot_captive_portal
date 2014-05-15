@@ -77,7 +77,7 @@ if ($_POST) {
 			$checksrv = explode(",", $_POST['server']);
 			foreach ($checksrv as $srv) {
 				if (!is_ipaddr($srv))
-					$input_errors[] = gettext("A valid Destination Server IP address  must be specified.");
+					$input_errors[] = gettext("A valid Destination Server IP address must be specified.");
 			}
 		}
 	}
@@ -98,6 +98,7 @@ if ($_POST) {
 }
 
 $pgtitle = array(gettext("Services"),gettext("DHCP Relay"));
+$shortcut_section = "dhcp";
 include("head.inc");
 
 ?>
@@ -133,7 +134,7 @@ function enable_change(enable_over) {
 		<tr>
 <?php 
 	if ($dhcpd_enabled) {
-		echo "<td>DHCP Server is currently enabled.  Cannot enable the DHCP Relay service while the DHCP Server is enabled on any interface.";
+		echo "<td>DHCP Server is currently enabled. Cannot enable the DHCP Relay service while the DHCP Server is enabled on any interface.";
 			echo "</td></tr></table></div></td></tr></table></body>";
 			echo "</html>";
 			include("fend.inc"); 
@@ -165,7 +166,7 @@ function enable_change(enable_over) {
 				}
 			?>
                                 </select>
-				<br />Interfaces without an ip address will not be shown.
+				<br />Interfaces without an IP address will not be shown.
 			</td>
 		</tr>
 		<tr>
@@ -176,7 +177,7 @@ function enable_change(enable_over) {
                       <?php printf(gettext("If this is checked, the DHCP relay will append the circuit ID (%s interface number) and the agent ID to the DHCP request."), $g['product_name']); ?></td>
 		</tr>
 		<tr>
-                        <td width="22%" valign="top" class="vncell"><?=gettext("Destination server");?></td>
+                        <td width="22%" valign="top" class="vncellreq"><?=gettext("Destination server");?></td>
                         <td width="78%" class="vtable">
                           <input name="server" type="text" class="formfld unknown" id="server" size="20" value="<?=htmlspecialchars($pconfig['server']);?>">
                           <br>

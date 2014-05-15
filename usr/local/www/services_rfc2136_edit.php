@@ -37,8 +37,9 @@ if (!is_array($config['dnsupdates']['dnsupdate'])) {
 
 $a_rfc2136 = &$config['dnsupdates']['dnsupdate'];
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && isset($a_rfc2136[$id])) {
@@ -55,6 +56,7 @@ if (isset($id) && isset($a_rfc2136[$id])) {
 	$pconfig['server'] = $a_rfc2136[$id]['server'];
 	$pconfig['interface'] = $a_rfc2136[$id]['interface'];
 	$pconfig['usetcp'] = isset($a_rfc2136[$id]['usetcp']);
+	$pconfig['usepublicip'] = isset($a_rfc2136[$id]['usepublicip']);
 	$pconfig['descr'] = $a_rfc2136[$id]['descr'];
 
 }
@@ -89,6 +91,7 @@ if ($_POST) {
 		$rfc2136['keydata'] = $_POST['keydata'];
 		$rfc2136['server'] = $_POST['server'];
 		$rfc2136['usetcp'] = $_POST['usetcp'] ? true : false;
+		$rfc2136['usepublicip'] = $_POST['usepublicip'] ? true : false;
 		$rfc2136['interface'] = $_POST['interface'];
 		$rfc2136['descr'] = $_POST['descr'];
 
@@ -99,7 +102,10 @@ if ($_POST) {
 
 		write_config(gettext("New/Edited RFC2136 dnsupdate entry was posted."));
 
-                $retval = services_dnsupdate_process();
+		if ($_POST['Submit'] == gettext("Save & Force Update"))
+			$retval = services_dnsupdate_process("", $rfc2136['host'], true);
+		else
+			$retval = services_dnsupdate_process();
 
 		header("Location: services_rfc2136.php");
 		exit;
@@ -188,6 +194,13 @@ include("head.inc");
                     <input name="usetcp" type="checkbox" id="usetcp" value="<?=gettext("yes");?>" <?php if ($pconfig['usetcp']) echo "checked"; ?>>
                     <strong><?=gettext("Use TCP instead of UDP");?></strong></td>
 				</tr>
+		<tr>
+			<td width="22%" valign="top" class="vncellreq"><?=gettext("Use Public IP");?></td>
+			<td width="78%" class="vtable">
+				<input name="usepublicip" type="checkbox" id="usepublicip" value="<?=gettext("yes");?>" <?php if ($pconfig['usepublicip']) echo "checked"; ?>>
+				<strong><?=gettext("If the interface IP is private, attempt to fetch and use the public IP instead.");?></strong>
+			</td>
+		</tr>
                 <tr>
                   <td width="22%" valign="top" class="vncellreq"><?=gettext("Description");?></td>
                   <td width="78%" class="vtable">
@@ -197,8 +210,9 @@ include("head.inc");
                 <tr>
                   <td width="22%" valign="top">&nbsp;</td>
                   <td width="78%">
-                    <input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save");?>" onClick="enable_change(true)">
+					<input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save");?>" onClick="enable_change(true)">
 					<a href="services_rfc2136.php"><input name="Cancel" type="button" class="formbtn" value="<?=gettext("Cancel");?>"></a>
+					<input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save & Force Update");?>" onClick="enable_change(true)">
 					<?php if (isset($id) && $a_rfc2136[$id]): ?>
 						<input name="id" type="hidden" value="<?=htmlspecialchars($id);?>">
 					<?php endif; ?>

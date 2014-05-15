@@ -45,9 +45,9 @@ function listtags() {
 		"member menu tab mobilekey monitor_type mount ntpserver onetoone ".
 		"openvpn-server openvpn-client openvpn-csc " .
 		"option package passthrumac phase1 phase2 ppp pppoe priv proxyarpnet qinqentry queue ".
-		"pages pipe roll route row rrddatafile rule schedule service servernat servers ".
+		"pages pipe radnsserver roll route row rrddatafile rule schedule service servernat servers ".
 		"serversdisabled earlyshellcmd shellcmd staticmap subqueue timerange ".
-		"tunnel user vip virtual_server vlan winsserver wolentry widget npt"
+		"tunnel user vip virtual_server vlan winsserver wolentry widget npt pool"
 		);
 	return $ret;
 }
@@ -82,7 +82,7 @@ function startElement($parser, $name, $attrs) {
 
 	} else if (isset($ptr)) {
 		/* multiple entries not allowed for this element, bail out */
-		die(sprintf("XML error: %s at line %d cannot occur more than once\n",
+		die(sprintf(gettext('XML error: %1$s at line %2$d cannot occur more than once') . "\n",
 				$name,
 				xml_get_current_line_number($parser)));
 	}
@@ -173,13 +173,13 @@ function parse_xml_config_raw($cffile, $rootobj, $isstring = "false") {
 	xml_parser_set_option($xml_parser,XML_OPTION_SKIP_WHITE, 1); 
 
 	if (!($fp = fopen($cffile, "r"))) {
-		log_error("Error: could not open XML input\n");
+		log_error(gettext("Error: could not open XML input") . "\n");
 		return -1;
 	}
 
 	while ($data = fread($fp, 4096)) {
 		if (!xml_parse($xml_parser, $data, feof($fp))) {
-			log_error(sprintf("XML error: %s at line %d in %s\n",
+			log_error(sprintf(gettext('XML error: %1$s at line %2$d in %3$s') . "\n",
 						xml_error_string(xml_get_error_code($xml_parser)),
 						xml_get_current_line_number($xml_parser),
 						$cffile));
@@ -188,18 +188,21 @@ function parse_xml_config_raw($cffile, $rootobj, $isstring = "false") {
 	}
 	xml_parser_free($xml_parser);
 
-	if (!is_array($rootobj))
-		$rootobj = array($rootobj);
-	foreach ($rootobj as $rootobj_name)
-		if ($parsedcfg[$rootobj_name])
-			break;
-
-	if (!$parsedcfg[$rootobj_name]) {
-		log_error("XML error: no $rootobj_name object found!\n");
-		return -1;
+	if ($rootobj) {
+		if (!is_array($rootobj))
+			$rootobj = array($rootobj);
+		foreach ($rootobj as $rootobj_name)
+			if ($parsedcfg[$rootobj_name])
+				break;
+		
+		if (!$parsedcfg[$rootobj_name]) {
+			log_error(sprintf(gettext("XML error: no %s object found!") . "\n", implode(" or ", $rootobj)));
+			return -1;
+		}
+		return $parsedcfg[$rootobj_name];
+	} else {
+		return $parsedcfg;
 	}
-
-	return $parsedcfg[$rootobj_name];
 }
 
 function dump_xml_config_sub($arr, $indent) {
@@ -229,7 +232,14 @@ function dump_xml_config_sub($arr, $indent) {
 						$xmlconfig .= str_repeat("\t", $indent);
 						if((is_bool($cval) && $cval == true) || ($cval === "")) {
 							$xmlconfig .= "<$ent/>\n";
-						} else if ((substr($ent, 0, 5) == "descr") || (substr($ent, 0, 6) == "detail")) {
+						} else if ((substr($ent, 0, 5) == "descr")
+							|| (substr($ent, 0, 6) == "detail")
+							|| (substr($ent, 0, 12) == "login_banner")
+							|| (substr($ent, 0, 9) == "ldap_attr")
+							|| (substr($ent, 0, 9) == "ldap_bind")
+							|| (substr($ent, 0, 11) == "ldap_basedn")
+							|| (substr($ent, 0, 18) == "ldap_authcn")
+							|| (substr($ent, 0, 19) == "ldap_extended_query")) {
 							$xmlconfig .= "<$ent><![CDATA[" . htmlentities($cval) . "]]></$ent>\n";
 						} else {
 							$xmlconfig .= "<$ent>" . htmlentities($cval) . "</$ent>\n";
@@ -253,7 +263,14 @@ function dump_xml_config_sub($arr, $indent) {
 				$xmlconfig .= "<$ent/>\n";
 			} else if (!is_bool($val)) {
 				$xmlconfig .= str_repeat("\t", $indent);
-				if ((substr($ent, 0, 5) == "descr") || (substr($ent, 0, 6) == "detail"))
+				if ((substr($ent, 0, 5) == "descr")
+				|| (substr($ent, 0, 6) == "detail")
+				|| (substr($ent, 0, 12) == "login_banner")
+				|| (substr($ent, 0, 9) == "ldap_attr")
+				|| (substr($ent, 0, 9) == "ldap_bind")
+				|| (substr($ent, 0, 11) == "ldap_basedn")
+				|| (substr($ent, 0, 18) == "ldap_authcn")
+				|| (substr($ent, 0, 19) == "ldap_extended_query"))
 					$xmlconfig .= "<$ent><![CDATA[" . htmlentities($val) . "]]></$ent>\n";
 				else
 					$xmlconfig .= "<$ent>" . htmlentities($val) . "</$ent>\n";

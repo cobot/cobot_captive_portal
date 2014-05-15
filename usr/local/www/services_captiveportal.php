@@ -38,55 +38,86 @@
 ##|*MATCH=services_captiveportal.php*
 ##|-PRIV
 
-$statusurl = "status_captiveportal.php";
-$logurl = "diag_logs_auth.php";
+require_once("guiconfig.inc");
+require_once("functions.inc");
+require_once("filter.inc");
+require_once("shaper.inc");
+require_once("captiveportal.inc");
 
-require("guiconfig.inc");
-require("functions.inc");
-require("filter.inc");
-require("shaper.inc");
-require("captiveportal.inc");
+$cpzone = $_GET['zone'];
+if (isset($_POST['zone']))
+	$cpzone = $_POST['zone'];
 
-$pgtitle = array(gettext("Services"),gettext("Captive portal"));
-
-if (!is_array($config['captiveportal'])) {
-	$config['captiveportal'] = array();
-	$config['captiveportal']['page'] = array();
-	$config['captiveportal']['timeout'] = 60;
+if (empty($cpzone) || empty($config['captiveportal'][$cpzone])) {
+	header("Location: services_captiveportal_zones.php");
+	exit;
 }
+
+if (!is_array($config['captiveportal']))
+	$config['captiveportal'] = array();
+$a_cp =& $config['captiveportal'];
+
+$pgtitle = array(gettext("Services"),gettext("Captive portal"), $a_cp[$cpzone]['zone']);
+$shortcut_section = "captiveportal";
 
 if ($_GET['act'] == "viewhtml") {
-	echo base64_decode($config['captiveportal']['page']['htmltext']);
+	if ($a_cp[$cpzone] && $a_cp[$cpzone]['page']['htmltext'])
+		echo base64_decode($a_cp[$cpzone]['page']['htmltext']);
 	exit;
 } else if ($_GET['act'] == "viewerrhtml") {
-	echo base64_decode($config['captiveportal']['page']['errtext']);
+	if ($a_cp[$cpzone] && $a_cp[$cpzone]['page']['errtext'])
+		echo base64_decode($a_cp[$cpzone]['page']['errtext']);
 	exit;
 } else if ($_GET['act'] == "viewlogouthtml") {
-	echo base64_decode($config['captiveportal']['page']['logouttext']);
+	if ($a_cp[$cpzone] && $a_cp[$cpzone]['page']['logouttext'])
+		echo base64_decode($a_cp[$cpzone]['page']['logouttext']);
 	exit;
 }
 
-$pconfig['cinterface'] = $config['captiveportal']['interface'];
-$pconfig['webapi_space'] = $config['captiveportal']['webapi_space'];
-$pconfig['webapi_token'] = $config['captiveportal']['webapi_token'];
-$pconfig['maxprocperip'] = $config['captiveportal']['maxprocperip'];
-$pconfig['timeout'] = $config['captiveportal']['timeout'];
-$pconfig['idletimeout'] = $config['captiveportal']['idletimeout'];
-$pconfig['freelogins_count'] = $config['captiveportal']['freelogins_count'];
-$pconfig['freelogins_resettimeout'] = $config['captiveportal']['freelogins_resettimeout'];
-$pconfig['freelogins_updatetimeouts'] = isset($config['captiveportal']['freelogins_updatetimeouts']);
-$pconfig['enable'] = isset($config['captiveportal']['enable']);
-$pconfig['auth_method'] = $config['captiveportal']['auth_method'];
-$pconfig['preauthurl'] = strtolower($config['captiveportal']['preauthurl']);
-$pconfig['logoutwin_enable'] = isset($config['captiveportal']['logoutwin_enable']);
-$pconfig['peruserbw'] = isset($config['captiveportal']['peruserbw']);
-$pconfig['bwdefaultdn'] = $config['captiveportal']['bwdefaultdn'];
-$pconfig['bwdefaultup'] = $config['captiveportal']['bwdefaultup'];
-$pconfig['nomacfilter'] = isset($config['captiveportal']['nomacfilter']);
-$pconfig['noconcurrentlogins'] = isset($config['captiveportal']['noconcurrentlogins']);
-$pconfig['redirurl'] = $config['captiveportal']['redirurl'];
-$pconfig['passthrumacadd'] = isset($config['captiveportal']['passthrumacadd']);
-$pconfig['passthrumacaddusername'] = isset($config['captiveportal']['passthrumacaddusername']);
+if (!is_array($config['ca']))
+	$config['ca'] = array();
+
+$a_ca =& $config['ca'];
+
+if (!is_array($config['cert']))
+	$config['cert'] = array();
+
+$a_cert =& $config['cert'];
+
+if ($a_cp[$cpzone]) {
+	$pconfig['zoneid'] = $a_cp[$cpzone]['zoneid'];
+	$pconfig['cinterface'] = $a_cp[$cpzone]['interface'];
+    $pconfig['webapi_space'] = $a_cp[$cpzone]['webapi_space'];
+    $pconfig['webapi_token'] = $a_cp[$cpzone]['webapi_token'];
+	$pconfig['maxproc'] = $a_cp[$cpzone]['maxproc'];
+	$pconfig['maxprocperip'] = $a_cp[$cpzone]['maxprocperip'];
+	$pconfig['timeout'] = $a_cp[$cpzone]['timeout'];
+	$pconfig['idletimeout'] = $a_cp[$cpzone]['idletimeout'];
+	$pconfig['freelogins_count'] = $a_cp[$cpzone]['freelogins_count'];
+	$pconfig['freelogins_resettimeout'] = $a_cp[$cpzone]['freelogins_resettimeout'];
+	$pconfig['freelogins_updatetimeouts'] = isset($a_cp[$cpzone]['freelogins_updatetimeouts']);
+	$pconfig['enable'] = isset($a_cp[$cpzone]['enable']);
+	$pconfig['auth_method'] = $a_cp[$cpzone]['auth_method'];
+	$pconfig['localauth_priv'] = isset($a_cp[$cpzone]['localauth_priv']);
+	$pconfig['preauthurl'] = strtolower($a_cp[$cpzone]['preauthurl']);
+	$pconfig['logoutwin_enable'] = isset($a_cp[$cpzone]['logoutwin_enable']);
+	$pconfig['peruserbw'] = isset($a_cp[$cpzone]['peruserbw']);
+	$pconfig['bwdefaultdn'] = $a_cp[$cpzone]['bwdefaultdn'];
+	$pconfig['bwdefaultup'] = $a_cp[$cpzone]['bwdefaultup'];
+	$pconfig['nomacfilter'] = isset($a_cp[$cpzone]['nomacfilter']);
+	$pconfig['noconcurrentlogins'] = isset($a_cp[$cpzone]['noconcurrentlogins']);
+	$pconfig['redirurl'] = $a_cp[$cpzone]['redirurl'];
+	$pconfig['passthrumacadd'] = isset($a_cp[$cpzone]['passthrumacadd']);
+	$pconfig['passthrumacaddusername'] = isset($a_cp[$cpzone]['passthrumacaddusername']);
+	$pconfig['reverseacct'] = isset($a_cp[$cpzone]['reverseacct']);
+	$pconfig['page'] = array();
+	if ($a_cp[$cpzone]['page']['htmltext'])
+		$pconfig['page']['htmltext'] = $a_cp[$cpzone]['page']['htmltext'];
+	if ($a_cp[$cpzone]['page']['errtext'])
+		$pconfig['page']['errtext'] = $a_cp[$cpzone]['page']['errtext'];
+	if ($a_cp[$cpzone]['page']['logouttext'])
+		$pconfig['page']['logouttext'] = $a_cp[$cpzone]['page']['logouttext'];
+}
 
 if ($_POST) {
 
@@ -95,20 +126,44 @@ if ($_POST) {
 
 	/* input validation */
 	if ($_POST['enable']) {
-		$reqdfields = explode(" ", "cinterface");
-		$reqdfieldsn = array(gettext("Interface"));
+		$reqdfields = explode(" ", "zone cinterface");
+		$reqdfieldsn = array(gettext("Zone name"), gettext("Interface"));
 
 		do_input_validation($_POST, $reqdfields, $reqdfieldsn, &$input_errors);
 
-		/* make sure no interfaces are bridged */
-		if (is_array($_POST['cinterface']))
-			foreach ($pconfig['cinterface'] as $cpbrif)
+		/* make sure no interfaces are bridged or used on other zones */
+		if (is_array($_POST['cinterface'])) {
+			foreach ($pconfig['cinterface'] as $cpbrif) {
 				if (link_interface_to_bridge($cpbrif))
 					$input_errors[] = sprintf(gettext("The captive portal cannot be used on interface %s since it is part of a bridge."), $cpbrif);
+				foreach ($a_cp as $cpkey => $cp) {
+					if ($cpkey != $cpzone || empty($cpzone)) {
+						if (in_array($cpbrif, explode(",", $cp['interface'])))
+							$input_errors[] = sprintf(gettext("The captive portal cannot be used on interface %s since it is used already on %s instance."), $cpbrif, $cp['zone']);
+					}
+				}
+			}
+		}
 	}
 
-	if ($_POST['timeout'] && (!is_numeric($_POST['timeout']) || ($_POST['timeout'] < 1))) {
-		$input_errors[] = gettext("The timeout must be at least 1 minute.");
+	if ($_POST['timeout']) {
+		if (!is_numeric($_POST['timeout']) || ($_POST['timeout'] < 1))
+			$input_errors[] = gettext("The timeout must be at least 1 minute.");
+		else if (isset($config['dhcpd']) && is_array($config['dhcpd'])) {
+			foreach ($config['dhcpd'] as $dhcpd_if => $dhcpd_data) {
+				if (!isset($dhcpd_data['enable']))
+					continue;
+				if (!is_array($_POST['cinterface']) || !in_array($dhcpd_if, $_POST['cinterface']))
+					continue;
+
+				$deftime = 7200; // Default lease time
+				if (isset($dhcpd_data['defaultleasetime']) && is_numeric($dhcpd_data['defaultleasetime']))
+					$deftime = $dhcpd_data['defaultleasetime'];
+
+				if ($_POST['timeout'] > $deftime)
+					$input_errors[] = gettext("Hard timeout must be less or equal Default lease time set on DHCP Server");
+			}
+		}
 	}
 	if ($_POST['idletimeout'] && (!is_numeric($_POST['idletimeout']) || ($_POST['idletimeout'] < 1))) {
 		$input_errors[] = gettext("The idle timeout must be at least 1 minute.");
@@ -120,66 +175,90 @@ if ($_POST) {
 			$input_errors[] = gettext("The waiting period to restore pass-through credits must be above 0 hours.");
 		}
 	}
-	if ($_POST['maxprocperip'] && (!is_numeric($_POST['maxprocperip']) || ($_POST['maxprocperip'] < 4) || $_POST['maxprocperip'] > 100)) {
+	if ($_POST['maxproc'] && (!is_numeric($_POST['maxproc']) || ($_POST['maxproc'] < 4) || ($_POST['maxproc'] > 100))) {
 		$input_errors[] = gettext("The maximum number of concurrent connections per client IP address may not be larger than the global maximum.");
 	}
 
 	if (!$input_errors) {
+		$newcp =& $a_cp[$cpzone];
+		//$newcp['zoneid'] = $a_cp[$cpzone]['zoneid'];
+		if (empty($newcp['zoneid'])) {
+			$newcp['zoneid'] = 8000;
+			foreach ($a_cp as $keycpzone => $cp)
+				if ($cp['zoneid'] == $newcp['zoneid'] && $keycpzone != $cpzone)
+					$newcp['zoneid'] += 2; /* Resreve space for SSL config if needed */
+		}
+		$oldifaces = explode(",", $newcp['interface']);
 		if (is_array($_POST['cinterface']))
-			$config['captiveportal']['interface'] = implode(",", $_POST['cinterface']);
-		$config['captiveportal']['webapi_space'] = $_POST['webapi_space'];
-    $config['captiveportal']['webapi_token'] = $_POST['webapi_token'];      
-		$config['captiveportal']['maxprocperip'] = $_POST['maxprocperip'] ? $_POST['maxprocperip'] : false;
-		$config['captiveportal']['timeout'] = $_POST['timeout'];
-		$config['captiveportal']['idletimeout'] = $_POST['idletimeout'];
-		$config['captiveportal']['freelogins_count'] = $_POST['freelogins_count'];
-		$config['captiveportal']['freelogins_resettimeout'] = $_POST['freelogins_resettimeout'];
-		$config['captiveportal']['freelogins_updatetimeouts'] = $_POST['freelogins_updatetimeouts'] ? true : false;
-		$config['captiveportal']['enable'] = $_POST['enable'] ? true : false;
-		$config['captiveportal']['auth_method'] = $_POST['auth_method'];
-		$config['captiveportal']['preauthurl'] = $_POST['preauthurl'];
-		$config['captiveportal']['peruserbw'] = $_POST['peruserbw'] ? true : false;
-		$config['captiveportal']['bwdefaultdn'] = $_POST['bwdefaultdn'];
-		$config['captiveportal']['bwdefaultup'] = $_POST['bwdefaultup'];
-		$config['captiveportal']['logoutwin_enable'] = $_POST['logoutwin_enable'] ? true : false;
-		$config['captiveportal']['nomacfilter'] = $_POST['nomacfilter'] ? true : false;
-		$config['captiveportal']['noconcurrentlogins'] = $_POST['noconcurrentlogins'] ? true : false;
-		$config['captiveportal']['redirurl'] = $_POST['redirurl'];
-		$config['captiveportal']['passthrumacadd'] = $_POST['passthrumacadd'] ? true : false;
-		$config['captiveportal']['passthrumacaddusername'] = $_POST['passthrumacaddusername'] ? true : false;
+			$newcp['interface'] = implode(",", $_POST['cinterface']);
+        $newcp['webapi_space'] = $_POST['webapi_space'];
+        $newcp['webapi_token'] = $_POST['webapi_token'];
+		$newcp['maxproc'] = $_POST['maxproc'];
+		$newcp['maxprocperip'] = $_POST['maxprocperip'] ? $_POST['maxprocperip'] : false;
+		$newcp['timeout'] = $_POST['timeout'];
+		$newcp['idletimeout'] = $_POST['idletimeout'];
+		$newcp['freelogins_count'] = $_POST['freelogins_count'];
+		$newcp['freelogins_resettimeout'] = $_POST['freelogins_resettimeout'];
+		$newcp['freelogins_updatetimeouts'] = $_POST['freelogins_updatetimeouts'] ? true : false;
+		if ($_POST['enable'])
+			$newcp['enable'] = true;
+		else
+			unset($newcp['enable']);
+		$newcp['auth_method'] = $_POST['auth_method'];
+		$newcp['localauth_priv'] = isset($_POST['localauth_priv']);
+		$newcp['preauthurl'] = $_POST['preauthurl'];
+		$newcp['peruserbw'] = $_POST['peruserbw'] ? true : false;
+		$newcp['bwdefaultdn'] = $_POST['bwdefaultdn'];
+		$newcp['bwdefaultup'] = $_POST['bwdefaultup'];
+		$newcp['logoutwin_enable'] = $_POST['logoutwin_enable'] ? true : false;
+		$newcp['nomacfilter'] = $_POST['nomacfilter'] ? true : false;
+		$newcp['noconcurrentlogins'] = $_POST['noconcurrentlogins'] ? true : false;
+		$newcp['redirurl'] = $_POST['redirurl'];
+		$newcp['passthrumacadd'] = $_POST['passthrumacadd'] ? true : false;
+		$newcp['passthrumacaddusername'] = $_POST['passthrumacaddusername'] ? true : false;
+		$newcp['reverseacct'] = $_POST['reverseacct'] ? true : false;
+		if (!is_array($newcp['page']))
+			$newcp['page'] = array();
 
 		/* file upload? */
 		if (is_uploaded_file($_FILES['htmlfile']['tmp_name']))
-			$config['captiveportal']['page']['htmltext'] = base64_encode(file_get_contents($_FILES['htmlfile']['tmp_name']));
+			$newcp['page']['htmltext'] = base64_encode(file_get_contents($_FILES['htmlfile']['tmp_name']));
 		if (is_uploaded_file($_FILES['errfile']['tmp_name']))
-			$config['captiveportal']['page']['errtext'] = base64_encode(file_get_contents($_FILES['errfile']['tmp_name']));
+			$newcp['page']['errtext'] = base64_encode(file_get_contents($_FILES['errfile']['tmp_name']));
 		if (is_uploaded_file($_FILES['logoutfile']['tmp_name']))
-			$config['captiveportal']['page']['logouttext'] = base64_encode(file_get_contents($_FILES['logoutfile']['tmp_name']));
+			$newcp['page']['logouttext'] = base64_encode(file_get_contents($_FILES['logoutfile']['tmp_name']));
 
 		write_config();
 
-		$retval = 0;
-		$retval = captiveportal_configure();
-
-		$savemsg = get_std_save_message($retval);
-		
+		/* Clear up unselected interfaces */
+		$newifaces = explode(",", $newcp['interface']);
+		$toremove = array_diff($oldifaces, $newifaces);
+		if (!empty($toremove)) {
+			foreach ($toremove as $removeif) {
+				$removeif = get_real_interface($removeif);
+				mwexec("/usr/local/sbin/ipfw_context -d {$cpzone} -x {$removeif}");
+			}
+		}
+		captiveportal_configure_zone($newcp);
+		unset($newcp, $newifaces, $toremove);
+		filter_configure();
+		header("Location: services_captiveportal_zones.php");
+		exit;
+	} else {
 		if (is_array($_POST['cinterface']))
 			$pconfig['cinterface'] = implode(",", $_POST['cinterface']);
-
-		filter_configure();
 	}
 }
 include("head.inc");
 ?>
-<?php include("fbegin.inc"); ?>
 <script language="JavaScript">
 <!--
 function enable_change(enable_change) {
-	var endis = !(document.iform.enable.checked || enable_change);
+    var endis = !(document.iform.enable.checked || enable_change);
 
 	document.iform.cinterface.disabled = endis;
-	document.iform.webapi_space.disabled = endis;
-	document.iform.webapi_token.disabled = endis;
+    document.iform.webapi_space.disabled = endis;
+    document.iform.webapi_token.disabled = endis;
 	document.iform.maxprocperip.disabled = endis;
 	document.iform.idletimeout.disabled = endis;
 	document.iform.freelogins_count.disabled = endis;
@@ -192,9 +271,13 @@ function enable_change(enable_change) {
 	document.iform.bwdefaultdn.disabled = endis;
 	document.iform.bwdefaultup.disabled = endis;
 	document.iform.auth_method[0].disabled = endis;
+	document.iform.auth_method[1].disabled = endis;
+	document.iform.auth_method[2].disabled = endis;
+	document.iform.httpslogin_enable.disabled = endis;
 	document.iform.logoutwin_enable.disabled = endis;
 	document.iform.nomacfilter.disabled = endis;
 	document.iform.noconcurrentlogins.disabled = endis;
+	document.iform.radiusvendor.disabled = radius_endis;
 	document.iform.htmlfile.disabled = endis;
 	document.iform.errfile.disabled = endis;
 	document.iform.logoutfile.disabled = endis;
@@ -202,6 +285,7 @@ function enable_change(enable_change) {
 //-->
 </script>
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
+<?php include("fbegin.inc"); ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
 <?php if ($savemsg) print_info_box($savemsg); ?>
 <form action="services_captiveportal.php" method="post" enctype="multipart/form-data" name="iform" id="iform">
@@ -209,12 +293,12 @@ function enable_change(enable_change) {
   <tr><td class="tabnavtbl">
 <?php
 	$tab_array = array();
-	$tab_array[] = array(gettext("Captive portal"), true, "services_captiveportal.php");
-	$tab_array[] = array(gettext("Pass-through MAC"), false, "services_captiveportal_mac.php");
-	$tab_array[] = array(gettext("Allowed IP addresses"), false, "services_captiveportal_ip.php");
-	$tab_array[] = array(gettext("Allowed Hostnames"), false, "services_captiveportal_hostname.php");	
-	$tab_array[] = array(gettext("Vouchers"), false, "services_captiveportal_vouchers.php");
-	$tab_array[] = array(gettext("File Manager"), false, "services_captiveportal_filemanager.php");
+	$tab_array[] = array(gettext("Captive portal(s)"), true, "services_captiveportal.php?zone={$cpzone}");
+	$tab_array[] = array(gettext("Pass-through MAC"), false, "services_captiveportal_mac.php?zone={$cpzone}");
+	$tab_array[] = array(gettext("Allowed IP addresses"), false, "services_captiveportal_ip.php?zone={$cpzone}");
+	$tab_array[] = array(gettext("Allowed Hostnames"), false, "services_captiveportal_hostname.php?zone={$cpzone}");
+	$tab_array[] = array(gettext("Vouchers"), false, "services_captiveportal_vouchers.php?zone={$cpzone}");
+	$tab_array[] = array(gettext("File Manager"), false, "services_captiveportal_filemanager.php?zone={$cpzone}");
 	display_top_tabs($tab_array, true);
 ?>    </td></tr>
   <tr>
@@ -230,7 +314,7 @@ function enable_change(enable_change) {
 	  <td width="22%" valign="top" class="vncellreq"><?=gettext("Interfaces"); ?></td>
 	  <td width="78%" class="vtable">
 		<select name="cinterface[]" multiple="true" size="<?php echo count($config['interfaces']); ?>" class="formselect" id="cinterface">
-		  <?php 
+		  <?php
 		  $interfaces = get_configured_interface_with_descr();
 		  $cselected = explode(",", $pconfig['cinterface']);
 		  foreach ($interfaces as $iface => $ifacename): ?>
@@ -246,8 +330,7 @@ function enable_change(enable_change) {
 	  <td class="vtable">
 		<table cellpadding="0" cellspacing="0">
                  <tr>
-           			<td><input name="maxprocperip" type="text" class="formfld unknown" id="maxprocperip" size="5" 
-value="<?=htmlspecialchars($pconfig['maxprocperip']);?>"> <?=gettext("per client IP address (0 = no limit)"); ?></td>
+           			<td><input name="maxprocperip" type="text" class="formfld unknown" id="maxprocperip" size="5" value="<?=htmlspecialchars($pconfig['maxprocperip']);?>"> <?=gettext("per client IP address (0 = no limit)"); ?></td>
                  </tr>
                </table>
 <?=gettext("This setting limits the number of concurrent connections to the captive portal HTTP(S) server. This does not set how many users can be logged in " .
@@ -300,7 +383,7 @@ value="<?=htmlspecialchars($pconfig['maxprocperip']);?>"> <?=gettext("per client
       <td valign="top" class="vncell"><?=gettext("Pre-authentication redirect URL"); ?> </td>
       <td class="vtable">
         <input name="preauthurl" type="text" class="formfld url" id="preauthurl" size="60" value="<?=htmlspecialchars($pconfig['preauthurl']);?>"><br>
-		<?php printf(gettext("Use this field to set \$PORTAL_REDIRURL\$ variable which can be accessed using your custom captive portal index.php page or error pages."));?> 
+		<?php printf(gettext("Use this field to set \$PORTAL_REDIRURL\$ variable which can be accessed using your custom captive portal index.php page or error pages."));?>
 	  </td>
 	</tr>
 	<tr>
@@ -332,7 +415,7 @@ value="<?=htmlspecialchars($pconfig['maxprocperip']);?>"> <?=gettext("per client
       <td class="vtable">
         <input name="passthrumacadd" type="checkbox" class="formfld" id="passthrumacadd" value="yes" <?php if ($pconfig['passthrumacadd']) echo "checked"; ?>>
         <strong><?=gettext("Enable Pass-through MAC automatic additions"); ?></strong><br>
-    <?=gettext("If this option is set, a MAC passthrough entry is automatically added after the user has successfully authenticated. Users of that MAC address will never have to authenticate again."); ?> 
+    <?=gettext("If this option is set, a MAC passthrough entry is automatically added after the user has successfully authenticated. Users of that MAC address will never have to authenticate again."); ?>
     <?=gettext("To remove the passthrough MAC entry you either have to log in and remove it manually from the"); ?> <a href="services_captiveportal_mac.php"><?=gettext("Pass-through MAC tab"); ?></a> <?=gettext("or send a POST from another system to remove it."); ?>
     <?=gettext("If this is enabled, RADIUS MAC authentication cannot be used. Also, the logout window will not be shown."); ?>
 	<br/><br/>
@@ -362,42 +445,78 @@ value="<?=htmlspecialchars($pconfig['maxprocperip']);?>"> <?=gettext("per client
 	<tr>
 	  <td width="22%" valign="top" class="vncell"><?=gettext("Authentication"); ?></td>
 	  <td width="78%" class="vtable">
-		<table cellpadding="0" cellspacing="0">
-		<tr>
-		  <td colspan="2"><input name="auth_method" type="radio" id="auth_method" value="webapi" disabled="disabled" checked="checked"/>
-  <?=gettext("Cobot Web API"); ?></td>
-		  </tr>
-		  <tr>
-  		  <td>&nbsp;</td>
-  		  <td>&nbsp;</td>
-		  </tr>
-		  <tr>
-        <td width="22%"><?=gettext("Space subdomain (&lt;subdomain&gt;.cobot.me)"); ?></td>
-        <td width="78%">
-          <input name="webapi_space" type="text" class="formfld unknown" id="webapi_space" size="20" value="<?=htmlspecialchars($pconfig['webapi_space']);?>">
-          <input type="hidden" name="auth_method" value="webapi" />
-        </td>
-      </tr>
-      <tr>
-        <td width="22%"><?=gettext("Access Token"); ?></td>
-        <td width="78%">
-          <input name="webapi_token" type="text" class="formfld unknown" id="webapi_token" size="20" value="<?=htmlspecialchars($pconfig['webapi_token']);?>">
-        </td>
-      </tr>
-    </table>		
+          <table cellpadding="0" cellspacing="0">
+              <tr>
+                  <td colspan="2"><input name="auth_method" type="radio" id="auth_method" value="webapi" disabled="disabled" checked="checked"/><?=gettext("Cobot Web API"); ?></td>
+              </tr>
+              <tr>
+                  <td>&nbsp;</td>
+                  <td>&nbsp;</td>
+              </tr>
+              <tr>
+                  <td width="22%"><?=gettext("Space subdomain (&lt;subdomain&gt;.cobot.me)"); ?></td>
+                  <td width="78%">
+                      <input name="webapi_space" type="text" class="formfld unknown" id="webapi_space" size="20" value="<?=htmlspecialchars($pconfig['webapi_space']);?>">
+                      <input type="hidden" name="auth_method" value="webapi" />
+                  </td>
+              </tr>
+              <tr>
+                  <td width="22%"><?=gettext("Access Token"); ?></td>
+                  <td width="78%">
+                      <input name="webapi_token" type="text" class="formfld unknown" id="webapi_token" size="20" value="<?=htmlspecialchars($pconfig['webapi_token']);?>">
+                  </td>
+              </tr>
+          </table>
+      </td>
+	</tr>
 	<tr>
-	  <td width="22%" valign="top" class="vncellreq"><?=gettext("Portal page contents"); ?></td>
-	  <td width="78%" class="vtable">
+		<td valign="top" class="vncell"><?=gettext("HTTPS login"); ?></td>
+		<td class="vtable">
+			<input name="httpslogin_enable" type="checkbox" class="formfld" id="httpslogin_enable" value="yes" onClick="enable_change(false)" <?php if($pconfig['httpslogin_enable']) echo "checked"; ?>>
+			<strong><?=gettext("Enable HTTPS login"); ?></strong><br>
+			<?=gettext("If enabled, the username and password will be transmitted over an HTTPS connection to protect against eavesdroppers. A server name and certificate must also be specified below."); ?></td>
+	</tr>
+	<tr>
+		<td valign="top" class="vncell"><?=gettext("HTTPS server name"); ?> </td>
+		<td class="vtable">
+			<input name="httpsname" type="text" class="formfld unknown" id="httpsname" size="30" value="<?=htmlspecialchars($pconfig['httpsname']);?>"><br>
+			<?php printf(gettext("This name will be used in the form action for the HTTPS POST and should match the Common Name (CN) in your certificate (otherwise, the client browser will most likely display a security warning). Make sure captive portal clients can resolve this name in DNS and verify on the client that the IP resolves to the correct interface IP on %s."), $g['product_name']);?> </td>
+	</tr>
+	<tr id="ssl_opts">
+		<td width="22%" valign="top" class="vncell"><?=gettext("SSL Certificate"); ?></td>
+		<td width="78%" class="vtable">
+			<?php if (count($a_cert)): ?>
+			<select name="certref" id="certref" class="formselect">
+				<?php
+					foreach($a_cert as $cert):
+						$selected = "";
+						if ($pconfig['certref'] == $cert['refid'])
+							$selected = "selected";
+				?>
+				<option value="<?=$cert['refid'];?>"<?=$selected;?>><?=$cert['descr'];?></option>
+			<?php endforeach; ?>
+			</select>
+			<?php else: ?>
+				<b><?=gettext("No Certificates defined."); ?></b> <br/>Create one under <a href="system_certmanager.php">System &gt; Cert Manager</a>.
+			<?php endif; ?>
+		</td>
+	</tr>
+	<tr>
+		<td width="22%" valign="top" class="vncell"><?=gettext("Portal page contents"); ?></td>
+		<td width="78%" class="vtable">
 		<?=$mandfldhtml;?><input type="file" name="htmlfile" class="formfld file" id="htmlfile"><br>
 		<?php
 			list($host) = explode(":", $_SERVER['HTTP_HOST']);
-			if(isset($config['captiveportal']['httpslogin'])) {
-				$href = "https://$host:8001";
+			$zoneid = $pconfig['zoneid'] ? $pconfig['zoneid'] : 8000;
+			if ($pconfig['httpslogin_enable']) {
+				$port = $pconfig['listenporthttps'] ? $pconfig['listenporthttps'] : ($zoneid + 1);
+				$href = "https://{$host}:{$port}";
 			} else {
-				$href = "http://$host:8000";
+				$port = $pconfig['listenporthttp']  ? $pconfig['listenporthttp']  : $zoneid;
+				$href = "http://{$host}:{$port}";
 			}
 		?>
-		<?php if ($config['captiveportal']['page']['htmltext']): ?>
+		<?php if ($pconfig['page']['htmltext']): ?>
 		<a href="<?=$href?>" target="_new"><?=gettext("View current page"); ?></a>
 		  <br>
 		  <br>
@@ -431,8 +550,8 @@ value="<?=htmlspecialchars($pconfig['maxprocperip']);?>"> <?=gettext("per client
 		<?=gettext("contents"); ?></td>
 	  <td class="vtable">
 		<input name="errfile" type="file" class="formfld file" id="errfile"><br>
-		<?php if ($config['captiveportal']['page']['errtext']): ?>
-		<a href="?act=viewerrhtml" target="_blank"><?=gettext("View current page"); ?></a>
+		<?php if ($pconfig['page']['errtext']): ?>
+		<a href="?zone=<?=$cpzone?>&amp;act=viewerrhtml" target="_blank"><?=gettext("View current page"); ?></a>
 		  <br>
 		  <br>
 		<?php endif; ?>
@@ -445,8 +564,8 @@ value="<?=htmlspecialchars($pconfig['maxprocperip']);?>"> <?=gettext("per client
 		<?=gettext("contents"); ?></td>
 	  <td class="vtable">
 		<input name="logoutfile" type="file" class="formfld file" id="logoutfile"><br>
-		<?php if ($config['captiveportal']['page']['logouttext']): ?>
-		<a href="?act=viewlogouthtml" target="_blank"><?=gettext("View current page"); ?></a>
+		<?php if ($pconfig['page']['logouttext']): ?>
+		<a href="?zone=<?=$cpzone?>&amp;act=viewlogouthtml" target="_blank"><?=gettext("View current page"); ?></a>
 		  <br>
 		  <br>
 		<?php endif; ?>
@@ -455,7 +574,9 @@ value="<?=htmlspecialchars($pconfig['maxprocperip']);?>"> <?=gettext("per client
 	<tr>
 	  <td width="22%" valign="top">&nbsp;</td>
 	  <td width="78%">
+		<?php echo "<input name='zone' id='zone' type='hidden' value='" . htmlspecialchars($cpzone) . "'/>"; ?>
 		<input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save"); ?>" onClick="enable_change(true)">
+		<a href="services_captiveportal_zones.php"><input name="Cancel" type="button" class="formbtn" value="<?=gettext("Cancel"); ?>" onClick="enable_change(true)"></a>
 	  </td>
 	</tr>
 	<tr>
@@ -476,4 +597,3 @@ enable_change(false);
 <?php include("fend.inc"); ?>
 </body>
 </html>
-

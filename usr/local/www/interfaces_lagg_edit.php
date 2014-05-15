@@ -34,7 +34,7 @@
 ##|+PRIV
 ##|*IDENT=page-interfacess-lagg
 ##|*NAME=Interfaces: LAGG: Edit page
-##|*DESCR=Edit Interface LAGG
+##|*DESCR=Allow access to the 'Interfaces: LAGG: Edit' page.
 ##|*MATCH=interfaces_lagg_edit.php*
 ##|-PRIV
 
@@ -50,8 +50,8 @@ $portlist = get_interface_list();
 $realifchecklist = array();
 /* add LAGG interfaces */
 if (is_array($config['laggs']['lagg']) && count($config['laggs']['lagg'])) {
-        foreach ($config['laggs']['lagg'] as $lagg) {
-                unset($portlist[$lagg['laggif']]);
+	foreach ($config['laggs']['lagg'] as $lagg) {
+		unset($portlist[$lagg['laggif']]);
 		$laggiflist = explode(",", $lagg['members']);
 		foreach ($laggiflist as $tmpif)
 			$realifchecklist[get_real_interface($tmpif)] = $tmpif;
@@ -62,8 +62,11 @@ $checklist = get_configured_interface_list(false, true);
 foreach ($checklist as $tmpif)
 	$realifchecklist[get_real_interface($tmpif)] = $tmpif;
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+$laggprotos = array("none", "lacp", "failover", "fec", "loadbalance", "roundrobin");
+
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && $a_laggs[$id]) {
@@ -87,6 +90,17 @@ if ($_POST) {
 
 	do_input_validation($_POST, $reqdfields, $reqdfieldsn, &$input_errors);
 
+	if (is_array($_POST['members'])) {
+		foreach ($_POST['members'] as $member) {
+			if (!does_interface_exist($member))
+				$input_errors[] = gettext("Interface supplied as member is invalid");
+		}
+	} else if (!does_interface_exist($_POST['members']))
+		$input_errors[] = gettext("Interface supplied as member is invalid");
+
+	if (!in_array($_POST['proto'], $laggprotos))
+		$input_errors[] = gettext("Protocol supplied is invalid");
+
 	if (!$input_errors) {
 		$lagg = array();
 		$lagg['members'] = implode(',', $_POST['members']);
@@ -96,20 +110,20 @@ if ($_POST) {
 		if (isset($id) && $a_laggs[$id])
 			$lagg['laggif'] = $a_laggs[$id]['laggif'];
 
-                $lagg['laggif'] = interface_lagg_configure($lagg);
-                if ($lagg['laggif'] == "" || !stristr($lagg['laggif'], "lagg"))
-                        $input_errors[] = gettext("Error occured creating interface, please retry.");
-                else {
-                        if (isset($id) && $a_laggs[$id])
-                                $a_laggs[$id] = $lagg;
-                        else
-                                $a_laggs[] = $lagg;
+		$lagg['laggif'] = interface_lagg_configure($lagg);
+		if ($lagg['laggif'] == "" || !stristr($lagg['laggif'], "lagg"))
+			$input_errors[] = gettext("Error occurred creating interface, please retry.");
+		else {
+			if (isset($id) && $a_laggs[$id])
+				$a_laggs[$id] = $lagg;
+			else
+				$a_laggs[] = $lagg;
 
-                        write_config();
+			write_config();
 
 			$confif = convert_real_interface_to_friendly_interface_name($lagg['laggif']);
-                        if ($confif <> "")
-                                interface_configure($confif);
+			if ($confif <> "")
+				interface_configure($confif);
 
 			header("Location: interfaces_lagg.php");
 			exit;
@@ -118,6 +132,7 @@ if ($_POST) {
 }
 
 $pgtitle = array(gettext("Interfaces"),gettext("LAGG"),gettext("Edit"));
+$shortcut_section = "interfaces";
 include("head.inc");
 
 ?>
@@ -126,24 +141,24 @@ include("head.inc");
 <?php include("fbegin.inc"); ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
             <form action="interfaces_lagg_edit.php" method="post" name="iform" id="iform">
-              <table width="100%" border="0" cellpadding="6" cellspacing="0">
+              <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="interfaces lagg edit">
 				<tr>
 					<td colspan="2" valign="top" class="listtopic"><?=gettext("LAGG configuration"); ?></td>
 				</tr>
 				<tr>
                   <td width="22%" valign="top" class="vncellreq"><?=gettext("Parent interface"); ?></td>
                   <td width="78%" class="vtable">
-                    <select name="members[]" multiple="true" size="4" class="formselect">
+                    <select name="members[]" multiple="multiple" size="4" class="formselect">
                       <?php
-					  	foreach ($portlist as $ifn => $ifinfo) {
+						foreach ($portlist as $ifn => $ifinfo) {
 							if (array_key_exists($ifn, $realifchecklist))
 								continue;
 							echo "<option value=\"{$ifn}\"";
 							if (stristr($pconfig['members'], $ifn))
-								echo "selected";
+								echo " selected=\"selected\"";
 							echo ">". $ifn ."(".$ifinfo['mac'] .")</option>";
 						}
-		      		?>
+				?>
                     </select>
 			<br/>
 			<span class="vexpl"><?=gettext("Choose the members that will be used for the link aggregation"); ?>.</span></td>
@@ -153,19 +168,18 @@ include("head.inc");
                   <td class="vtable">
                     <select name="proto" class="formselect" id="proto">
 		<?php
-		 foreach (array("none", "lacp", "failover", "fec", "loadbalance", "roundrobin") as $proto) {
+		foreach ($laggprotos as $proto) {
 			echo "<option value=\"{$proto}\"";
 			if ($proto == $pconfig['proto'])
-				echo "selected";
+				echo " selected=\"selected\"";
 			echo ">".strtoupper($proto)."</option>";
 		}
 		?>
-                    </select>					
+                    </select>
                     <br/>
-                    <span class="vexpl">
-		   <ul>
+		   <ul class="vexpl">
 		<li>
-		    <b><?=gettext("failover"); ?></b><br/>      
+		    <b><?=gettext("failover"); ?></b><br/>
 			<?=gettext("Sends and receives traffic only through the master port.  If " .
                   "the master port becomes unavailable, the next active port is " .
                   "used.  The first interface added is the master port; any " .
@@ -202,22 +216,22 @@ include("head.inc");
                   "traffic without disabling the lagg interface itself"); ?>.
 		</li>
 	</ul>
-	          </span></td>
+	          </td>
 	    </tr>
 		<tr>
                   <td width="22%" valign="top" class="vncell"><?=gettext("Description"); ?></td>
                   <td width="78%" class="vtable">
-                    <input name="descr" type="text" class="formfld unknown" id="descr" size="40" value="<?=htmlspecialchars($pconfig['descr']);?>">
-                    <br> <span class="vexpl"><?=gettext("You may enter a description here " .
+                    <input name="descr" type="text" class="formfld unknown" id="descr" size="40" value="<?=htmlspecialchars($pconfig['descr']);?>" />
+                    <br/> <span class="vexpl"><?=gettext("You may enter a description here " .
                     "for your reference (not parsed)"); ?>.</span></td>
                 </tr>
                 <tr>
                   <td width="22%" valign="top">&nbsp;</td>
                   <td width="78%">
-				    <input type="hidden" name="laggif" value="<?=htmlspecialchars($pconfig['laggif']); ?>">
-                    <input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save"); ?>"> <input type="button" value="<?=gettext("Cancel"); ?>" onclick="history.back()">
+				    <input type="hidden" name="laggif" value="<?=htmlspecialchars($pconfig['laggif']); ?>" />
+                    <input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save"); ?>" /> <input type="button" value="<?=gettext("Cancel"); ?>" onclick="history.back()" />
                     <?php if (isset($id) && $a_laggs[$id]): ?>
-                    <input name="id" type="hidden" value="<?=htmlspecialchars($id);?>">
+                    <input name="id" type="hidden" value="<?=htmlspecialchars($id);?>" />
                     <?php endif; ?>
                   </td>
                 </tr>

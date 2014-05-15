@@ -2,7 +2,7 @@
 /* $Id$ */
 /*
         load_balancer_protocol_edit.php
-        part of pfSense (http://www.pfsense.com/)
+        part of pfSense (https://www.pfsense.org/)
 
         Copyright (C) 2008 Bill Marquette <bill.marquette@gmail.com>.
         All rights reserved.
@@ -46,10 +46,10 @@ if (!is_array($config['load_balancer']['lbprotocol'])) {
 }
 $a_protocol = &$config['load_balancer']['lbprotocol'];
 
-if (isset($_POST['id']))
-	$id = $_POST['id'];
-else
+if (is_numericint($_GET['id']))
 	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
+	$id = $_POST['id'];
 
 if (isset($id) && $a_protocol[$id]) {
 	$pconfig = $a_protocol[$id];
@@ -135,9 +135,7 @@ if ($_POST) {
 }
 
 $pgtitle = array(gettext("Services"), gettext("Load Balancer"),gettext("Relay Protocol"),gettext("Edit"));
-#$statusurl = "status_lb_vs.php";
-$statusurl = "status_lb_pool.php";
-$logurl = "diag_logs_relayd.php";
+$shortcut_section = "relayd";
 
 include("head.inc");
 
@@ -154,22 +152,22 @@ function updateType(t){
 		$t = $types;
 		foreach ($t as $k => $v) {
 			if ($k != $key) {
-				echo "			$('{$k}').hide();\n";
+				echo "			jQuery('#{$k}').hide();\n";
 			}
 		}
 		echo "		}\n";
 	}
 ?>
 	}
-	$(t).appear();	
+	jQuery('#' + t).show();
 }
 
 function num_options() {
-	return $('options_table').childElements().length - 1;
+	return jQuery('#options_table').children().length - 1;
 }
 
 /*
-document.observe('dom:loaded', function(){
+jQuery(document).ready(function(){
   $$('.action').each(function(action) {
     new Draggable(action, {revert: true, ghosting: true});
   });

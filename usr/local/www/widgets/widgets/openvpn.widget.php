@@ -60,22 +60,21 @@ $sk_servers = openvpn_get_active_servers("p2p");
 $clients = openvpn_get_active_clients();
 ?>
 
-<script src="/javascript/sorttable.js" type="text/javascript"></script>
 <br/>
 <script type="text/javascript">
 	function killClient(mport, remipp) {
-		var busy = function(icon) {
-			icon.onclick      = "";
-			icon.src          = icon.src.replace("\.gif", "_d.gif");
-			icon.style.cursor = "wait";
+		var busy = function(index,icon) {
+			jQuery(icon).bind("onclick","");
+			jQuery(icon).attr('src',jQuery(icon).attr('src').replace("\.gif", "_d.gif"));
+			jQuery(icon).css("cursor","wait");
 		}
 
-		$A(document.getElementsByName("i:" + mport + ":" + remipp)).each(busy);
+		jQuery('img[name="i:' + mport + ":" + remipp + '"]').each(busy);
 
-		new Ajax.Request(
+		jQuery.ajax(
 			"<?=$_SERVER['SCRIPT_NAME'];?>" +
 				"?action=kill&port=" + mport + "&remipp=" + remipp,
-			{ method: "get", onComplete: killComplete }
+			{ type: "get", complete: killComplete }
 		);
 	}
 
@@ -86,8 +85,8 @@ $clients = openvpn_get_active_clients();
 			return;
 		}
 
-		$A(document.getElementsByName("r:" + values[1] + ":" + values[2])).each(
-			function(row) { Effect.Fade(row, { duration: 1.0 }); }
+		jQuery('tr[name="r:' + values[1] + ":" + values[2] + '"]').each(
+			function(index,row) { jQuery(row).fadeOut(1000); }
 		);
 	}
 </script>
@@ -102,40 +101,45 @@ $clients = openvpn_get_active_clients();
 	</tr>
 	<tr>
 		<td>
-			<table style="padding-top:0px; padding-bottom:0px; padding-left:0px; padding-right:0px" class="tabcont sortable" width="100%" border="0" cellpadding="0" cellspacing="0">
+			<table style="padding-top:0px; padding-bottom:0px; padding-left:0px; padding-right:0px" class="tabcont sortable" width="100%" border="0" cellpadding="0" cellspacing="0" sortableMultirow="2">
 			<tr>
 				<td class="listhdrr">Name/Time</td>
 				<td class="listhdrr">Real/Virtual IP</td>
 			</tr>
-			<?php foreach ($server['conns'] as $conn): ?>
-			<tr name='<?php echo "r:{$server['mgmt']}:{$conn['remote_host']}"; ?>'>
-				<td class="listlr">
+			<?php $rowIndex = 0;
+			foreach ($server['conns'] as $conn): 
+			$evenRowClass = $rowIndex % 2 ? " listMReven" : " listMRodd";
+			$rowIndex++;			
+			?>
+			<tr name='<?php echo "r:{$server['mgmt']}:{$conn['remote_host']}"; ?>' class="<?=$evenRowClass?>">
+				<td class="listMRlr">
 					<?=$conn['common_name'];?>
 				</td>
-				<td class="listr">
+				<td class="listMRr">
 					<?=$conn['remote_host'];?>
 				</td>
-				<td class='list' rowspan="2">
+				<td class='listMR' rowspan="2">
 					<img src='/themes/<?php echo $g['theme']; ?>/images/icons/icon_x.gif' height='17' width='17' border='0'
 					   onclick="killClient('<?php echo $server['mgmt']; ?>', '<?php echo $conn['remote_host']; ?>');" style='cursor:pointer;'
 					   name='<?php echo "i:{$server['mgmt']}:{$conn['remote_host']}"; ?>'
 					   title='Kill client connection from <?php echo $conn['remote_host']; ?>' alt='' />
 				</td>
 			</tr>
-			<tr name='<?php echo "r:{$server['mgmt']}:{$conn['remote_host']}"; ?>'>
-				<td class="listlr">
+			<tr name='<?php echo "r:{$server['mgmt']}:{$conn['remote_host']}"; ?>' class="<?=$evenRowClass?>">
+				<td class="listMRlr">
 					<?=$conn['connect_time'];?>
 				</td>
-				<td class="listr">
+				<td class="listMRr">
 					<?=$conn['virtual_addr'];?>
 				</td>
 			</tr>
 
 			<?php endforeach; ?>
+			<tfoot>
 			<tr>
 				<td colspan="6" class="list" height="12"></td>
 			</tr>
-
+			</tfoot>
 		</table>
 		</td>
 	</tr>
@@ -247,7 +251,7 @@ if ($DisplayNote) {
 	echo "<br/><b>NOTE:</b> You need to bind each OpenVPN client to enable its management daemon: use 'Local port' setting in the OpenVPN client screen";
 }
 
-if ((empty($clients)) && (empty($servers))) {
+if ((empty($clients)) && (empty($servers)) && (empty($sk_servers))) {
 	echo "No OpenVPN instance defined";
 }
 ?>

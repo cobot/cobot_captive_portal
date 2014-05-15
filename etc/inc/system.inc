@@ -40,13 +40,23 @@
 
 function activate_powerd() {
 	global $config, $g;
+	if ($g['platform'] == 'jail')
+		return;
+	if(is_process_running("powerd"))
+		exec("/usr/bin/killall powerd");
 	if(isset($config['system']['powerd_enable'])) {
 		if ($g["platform"] == "nanobsd")
 			exec("/sbin/kldload cpufreq");
-		exec("/usr/sbin/powerd -b adp -a adp");
-	} else {
-		if(is_process_running("powerd"))
-			exec("/usr/bin/killall powerd");
+
+		$ac_mode = "hadp";
+		if (!empty($config['system']['powerd_ac_mode']))
+			$ac_mode = $config['system']['powerd_ac_mode'];
+
+		$battery_mode = "hadp";
+		if (!empty($config['system']['powerd_battery_mode']))
+			$battery_mode = $config['system']['powerd_battery_mode'];
+
+		mwexec("/usr/sbin/powerd -b $battery_mode -a $ac_mode");
 	}
 }
 
@@ -59,10 +69,12 @@ function get_default_sysctl_value($id) {
 
 function activate_sysctls() {
 	global $config, $g;
-	exec("/sbin/sysctl net.enc.out.ipsec_bpf_mask=0x00000001");
-	exec("/sbin/sysctl net.enc.out.ipsec_filter_mask=0x00000001");
-	exec("/sbin/sysctl net.enc.in.ipsec_bpf_mask=0x00000002");
-	exec("/sbin/sysctl net.enc.in.ipsec_filter_mask=0x00000002");
+	if ($g['platform'] == 'jail')
+		return;
+	exec("/sbin/sysctl net.enc.out.ipsec_bpf_mask=0x0001");
+	exec("/sbin/sysctl net.enc.out.ipsec_filter_mask=0x0001");
+	exec("/sbin/sysctl net.enc.in.ipsec_bpf_mask=0x0002");
+	exec("/sbin/sysctl net.enc.in.ipsec_filter_mask=0x0002");
 
 	if(is_array($config['sysctl'])) {
 		foreach($config['sysctl']['item'] as $tunable) {
@@ -134,15 +146,20 @@ function system_resolvconf_generate($dynupdate = false) {
 	/* setup static routes for DNS servers. */
 	for ($dnscounter=1; $dnscounter<5; $dnscounter++) {
 		/* setup static routes for dns servers */
-		$dnsgw = "dns{$dnscounter}gwint";
+		$dnsgw = "dns{$dnscounter}gw";
 		if (isset($config['system'][$dnsgw])) {
-			$interface = $config['system'][$dnsgw];
-			if (($interface <> "") && ($interface <> "none")) {
-				$gatewayip = get_interface_gateway($interface);
-				if (is_ipaddr($gatewayip)) {
+			$gwname = $config['system'][$dnsgw];
+			if (($gwname <> "") && ($gwname <> "none")) {
+				$gatewayip = lookup_gateway_ip_by_name($gwname);
+				if (is_ipaddrv4($gatewayip)) {
 					/* dns server array starts at 0 */
 					$dnscountermo = $dnscounter - 1;
-					mwexec("route change -host " . $syscfg['dnsserver'][$dnscountermo] . " {$gatewayip}");
+					mwexec("/sbin/route change -host " . $syscfg['dnsserver'][$dnscountermo] . " {$gatewayip}");
+				}
+				if (is_ipaddrv6($gatewayip)) {
+					/* dns server array starts at 0 */
+					$dnscountermo = $dnscounter - 1;
+					mwexec("/sbin/route change -host -inet6 " . $syscfg['dnsserver'][$dnscountermo] . " {$gatewayip}");
 				}
 			}
 		}
@@ -160,8 +177,8 @@ function get_searchdomains() {
 	
 	// Read in dhclient nameservers
 	$search_list = glob("/var/etc/searchdomain_*");
-	if (is_array($search_lists)) {
-		foreach($search_lists as $fdns) {
+	if (is_array($search_list)) {
+		foreach($search_list as $fdns) {
 			$contents = file($fdns, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 			if (!is_array($contents))
 				continue;
@@ -216,11 +233,6 @@ function system_hosts_generate() {
 	$syscfg = $config['system'];
 	$dnsmasqcfg = $config['dnsmasq'];
 
-	if (!is_array($dnsmasqcfg['hosts'])) {
-		$dnsmasqcfg['hosts'] = array();
-	}
-	$hostscfg = $dnsmasqcfg['hosts'];
-
 	$hosts = "127.0.0.1	localhost localhost.{$syscfg['domain']}\n";
 	$lhosts = "";
 	$dhosts = "";
@@ -242,24 +254,52 @@ function system_hosts_generate() {
 		}
 	}
 
-	foreach ($hostscfg as $host) {
-		if ($host['host'])
-			$lhosts .= "{$host['ip']}	{$host['host']}.{$host['domain']} {$host['host']}\n";
-		else
-			$lhosts .= "{$host['ip']}	{$host['domain']}\n";
-	}
-	if (isset($dnsmasqcfg['regdhcpstatic']) && is_array($config['dhcpd'])) {
-		foreach ($config['dhcpd'] as $dhcpif => $dhcpifconf)
-			if(is_array($dhcpifconf['staticmap']) && isset($dhcpifconf['enable']))
-					foreach ($dhcpifconf['staticmap'] as $host)
-						if ($host['ipaddr'] && $host['hostname'])
-							$dhosts .= "{$host['ipaddr']}	{$host['hostname']}.{$syscfg['domain']} {$host['hostname']}\n";
-	}
+	if (isset($dnsmasqcfg['enable'])) {
+		if (!is_array($dnsmasqcfg['hosts']))
+			$dnsmasqcfg['hosts'] = array();
 
-	if (isset($dnsmasqcfg['dhcpfirst']))
-		$hosts .= $dhosts . $lhosts;
-	else
-		$hosts .= $lhosts . $dhosts;
+		foreach ($dnsmasqcfg['hosts'] as $host) {
+			if ($host['host'])
+				$lhosts .= "{$host['ip']}	{$host['host']}.{$host['domain']} {$host['host']}\n";
+			else
+				$lhosts .= "{$host['ip']}	{$host['domain']}\n";
+			if (!is_array($host['aliases']) || !is_array($host['aliases']['item']))
+				continue;
+			foreach ($host['aliases']['item'] as $alias) {
+				if ($alias['host'])
+					$lhosts .= "{$host['ip']}	{$alias['host']}.{$alias['domain']} {$alias['host']}\n";
+				else
+					$lhosts .= "{$host['ip']}	{$alias['domain']}\n";
+			}
+		}
+		if (isset($dnsmasqcfg['regdhcpstatic']) && is_array($config['dhcpd'])) {
+			foreach ($config['dhcpd'] as $dhcpif => $dhcpifconf)
+				if(is_array($dhcpifconf['staticmap']) && isset($dhcpifconf['enable']))
+						foreach ($dhcpifconf['staticmap'] as $host)
+							if ($host['ipaddr'] && $host['hostname'] && $host['domain'])
+								$dhosts .= "{$host['ipaddr']}	{$host['hostname']}.{$host['domain']} {$host['hostname']}\n";
+							else if ($host['ipaddr'] && $host['hostname'] && $dhcpifconf['domain'])
+								$dhosts .= "{$host['ipaddr']}	{$host['hostname']}.{$dhcpifconf['domain']} {$host['hostname']}\n";
+							else if ($host['ipaddr'] && $host['hostname'])
+								$dhosts .= "{$host['ipaddr']}	{$host['hostname']}.{$syscfg['domain']} {$host['hostname']}\n";
+		}
+		if (isset($dnsmasqcfg['regdhcpstatic']) && is_array($config['dhcpdv6'])) {
+			foreach ($config['dhcpdv6'] as $dhcpif => $dhcpifconf)
+				if(is_array($dhcpifconf['staticmap']) && isset($dhcpifconf['enable']))
+						foreach ($dhcpifconf['staticmap'] as $host)
+							if ($host['ipaddrv6'] && $host['hostname'] && $host['domain'])
+								$dhosts .= "{$host['ipaddrv6']}	{$host['hostname']}.{$host['domain']} {$host['hostname']}\n";
+							else if ($host['ipaddrv6'] && $host['hostname'] && $dhcpifconf['domain'])
+								$dhosts .= "{$host['ipaddrv6']}	{$host['hostname']}.{$dhcpifconf['domain']} {$host['hostname']}\n";
+							else if ($host['ipaddrv6'] && $host['hostname'])
+								$dhosts .= "{$host['ipaddrv6']}	{$host['hostname']}.{$syscfg['domain']} {$host['hostname']}\n";
+		}
+
+		if (isset($dnsmasqcfg['dhcpfirst']))
+			$hosts .= $dhosts . $lhosts;
+		else
+			$hosts .= $lhosts . $dhosts;
+	}
 
 	/*
 	 * Do not remove this because dhcpleases monitors with kqueue it needs to be 
@@ -267,7 +307,7 @@ function system_hosts_generate() {
 	 */
 	if (file_exists("{$g['varrun_path']}/dhcpleases.pid")) {
 		sigkillbypid("{$g['varrun_path']}/dhcpleases.pid", "TERM");
-                @unlink("{$g['varrun_path']}/dhcpleases.pid");
+		@unlink("{$g['varrun_path']}/dhcpleases.pid");
 	}
 	$fd = fopen("{$g['varetc_path']}/hosts", "w");
 	if (!$fd) {
@@ -285,14 +325,23 @@ function system_hosts_generate() {
 function system_dhcpleases_configure() {
 	global $config, $g;
 	
+	if ($g['platform'] == 'jail')
+		return;
 	/* Start the monitoring process for dynamic dhcpclients. */
-	if (isset($config['dnsmasq']['regdhcp'])) {
+	if (isset($config['dnsmasq']['enable']) && isset($config['dnsmasq']['regdhcp'])) {
 		/* Make sure we do not error out */
-		@touch("{$g['dhcpd_chroot_path']}/var/db/dhcpd.leases");
-		if (file_exists("{$g['varrun_path']}/dhcpleases.pid"))
-				sigkillbypid("{$g['varrun_path']}/dhcpleases.pid", "HUP");
-		else
+		mwexec("/bin/mkdir -p {$g['dhcpd_chroot_path']}/var/db");
+		if (!file_exists("{$g['dhcpd_chroot_path']}/var/db/dhcpd.leases"))
+			@touch("{$g['dhcpd_chroot_path']}/var/db/dhcpd.leases");
+		if (isvalidpid("{$g['varrun_path']}/dhcpleases.pid"))
+			sigkillbypid("{$g['varrun_path']}/dhcpleases.pid", "HUP");
+		else {
+			/* To ensure we do not start multiple instances of dhcpleases, perform some clean-up first. */
+			if (is_process_running("dhcpleases"))
+				mwexec('/bin/pkill dhcpleases');
+			@unlink("{$g['varrun_path']}/dhcpleases.pid");
 			mwexec("/usr/local/sbin/dhcpleases -l {$g['dhcpd_chroot_path']}/var/db/dhcpd.leases -d {$config['system']['domain']} -p {$g['varrun_path']}/dnsmasq.pid -h {$g['varetc_path']}/hosts");
+		}
 	} else {
 		sigkillbypid("{$g['varrun_path']}/dhcpleases.pid", "TERM");
 		@unlink("{$g['varrun_path']}/dhcpleases.pid");
@@ -320,6 +369,8 @@ function system_hostname_configure() {
 
 function system_routing_configure($interface = "") {
 	global $config, $g;
+	if ($g['platform'] == 'jail')
+		return;
 	if(isset($config['system']['developerspew'])) {
 		$mt = microtime();
 		echo "system_routing_configure() being called $mt\n";
@@ -328,25 +379,42 @@ function system_routing_configure($interface = "") {
 	$gatewayip = "";
 	$interfacegw = "";
 	$foundgw = false;
+	$gatewayipv6 = "";
+	$interfacegwv6 = "";
+	$foundgwv6 = false;
 	/* tack on all the hard defined gateways as well */
 	if (is_array($config['gateways']['gateway_item'])) {
-		mwexec("/bin/rm {$g['tmp_path']}/*_defaultgw", true);
+		array_map('unlink', glob("{$g['tmp_path']}/*_defaultgw{,v6}", GLOB_BRACE));
 		foreach	($config['gateways']['gateway_item'] as $gateway) {
 			if (isset($gateway['defaultgw'])) {
-				if(strstr($gateway['gateway'], ":"))
-					break;
-				if ($gateway['gateway'] == "dynamic")
-					$gateway['gateway'] = get_interface_gateway($gateway['interface']);
-				$gatewayip = $gateway['gateway'];
-				$interfacegw = $gateway['interface'];
-				if (!empty($interfacegw)) {
-					$defaultif = get_real_interface($gateway['interface']);
-					if ($defaultif)
-						@file_put_contents("{$g['tmp_path']}/{$defaultif}_defaultgw", $gatewayip);
+				if ($gateway['ipprotocol'] != "inet6" && (is_ipaddrv4($gateway['gateway']) || $gateway['gateway'] == "dynamic")) {
+					if(strstr($gateway['gateway'], ":"))
+						continue;
+					if ($gateway['gateway'] == "dynamic")
+						$gateway['gateway'] = get_interface_gateway($gateway['interface']);
+					$gatewayip = $gateway['gateway'];
+					$interfacegw = $gateway['interface'];
+					if (!empty($gateway['interface'])) {
+						$defaultif = get_real_interface($gateway['interface']);
+						if ($defaultif)
+							@file_put_contents("{$g['tmp_path']}/{$defaultif}_defaultgw", $gateway['gateway']);
+					}
+					$foundgw = true;
+				} else if ($gateway['ipprotocol'] == "inet6" && (is_ipaddrv6($gateway['gateway']) || $gateway['gateway'] == "dynamic")) {
+					if ($gateway['gateway'] == "dynamic")
+						$gateway['gateway'] = get_interface_gateway_v6($gateway['interface']);
+					$gatewayipv6 = $gateway['gateway'];
+					$interfacegwv6 = $gateway['interface'];
+					if (!empty($gateway['interface'])) {
+						$defaultifv6 = get_real_interface($gateway['interface']);
+						if ($defaultifv6)
+							@file_put_contents("{$g['tmp_path']}/{$defaultifv6}_defaultgwv6", $gateway['gateway']);
+					}
+					$foundgwv6 = true;
 				}
-				$foundgw = true;
-				break;
 			}
+			if ($foundgw === true && $foundgwv6 === true)
+				break;
 		}
 	}
 	if ($foundgw == false) {
@@ -355,12 +423,19 @@ function system_routing_configure($interface = "") {
 		$gatewayip = get_interface_gateway("wan");
 		@touch("{$g['tmp_path']}/{$defaultif}_defaultgw");
 	}	
+	if ($foundgwv6 == false) {
+		$defaultifv6 = get_real_interface("wan");
+		$interfacegwv6 = "wan";
+		$gatewayipv6 = get_interface_gateway_v6("wan");
+		@touch("{$g['tmp_path']}/{$defaultif}_defaultgwv6");
+	}
 	$dont_add_route = false;
 	/* if OLSRD is enabled, allow WAN to house DHCP. */
-	if($config['installedpackages']['olsrd']) {
+	if (is_array($config['installedpackages']['olsrd'])) {
 		foreach($config['installedpackages']['olsrd']['config'] as $olsrd) {
-			if($olsrd['enabledyngw'] == "on") {
+			if(($olsrd['enabledyngw'] == "on") && ($olsrd['enable'] == "on")) {
 				$dont_add_route = true;
+				log_error(sprintf(gettext("Not adding default route because OLSR dynamic gateway is enabled.")));
 				break;
 			}
 		}
@@ -369,36 +444,68 @@ function system_routing_configure($interface = "") {
 	if ($dont_add_route == false ) {
 		if (!empty($interface) && $interface != $interfacegw)
 			;
-		else if (($interfacegw <> "bgpd") && (is_ipaddr($gatewayip))) {
+		else if (($interfacegw <> "bgpd") && (is_ipaddrv4($gatewayip))) {
 			log_error("ROUTING: setting default route to $gatewayip");
 			mwexec("/sbin/route change -inet default " . escapeshellarg($gatewayip));
 		}
+
+		if (!empty($interface) && $interface != $interfacegwv6)
+			;
+		else if (($interfacegwv6 <> "bgpd") && (is_ipaddrv6($gatewayipv6))) {
+			$ifscope = "";
+			if (is_linklocal($gatewayipv6))
+				$ifscope = "%{$defaultifv6}";
+			log_error("ROUTING: setting IPv6 default route to {$gatewayipv6}{$ifscope}");
+			mwexec("/sbin/route change -inet6 default " . escapeshellarg($gatewayipv6) ."{$ifscope}");
+		}
 	}
 
-	if (is_array($config['staticroutes']['route'])) {
-		$gateways_arr = return_gateways_array();
+	$static_routes = get_staticroutes();
+	if (count($static_routes)) {
+		$gateways_arr = return_gateways_array(false, true);
 
-		foreach ($config['staticroutes']['route'] as $rtent) {
+		foreach ($static_routes as $rtent) {
 			$gatewayip = "";
 			if (empty($gateways_arr[$rtent['gateway']])) {
-				log_error("Static Routes: Gateway IP could not be found for {$rtent['network']}");
+				log_error(sprintf(gettext("Static Routes: Gateway IP could not be found for %s"), $rtent['network']));
 				continue;
 			}
 			$gateway = $gateways_arr[$rtent['gateway']];
 			if (!empty($interface) && $interface != $gateway['friendlyiface'])
 				continue;
+
+			/* XXX: This is a bit dangerous in case of routing daemons!? */
+			if(isset($rtent['disabled'])) {
+				mwexec("/sbin/route delete " . escapeshellarg($rtent['network']), true);
+				continue;
+			}
+
 			$gatewayip = $gateway['gateway'];
 			$interfacegw = $gateway['interface'];
 
-			if (is_ipaddr($gatewayip)) {
-				mwexec("/sbin/route change -inet " . escapeshellarg($rtent['network']) .
-					" " . escapeshellarg($gatewayip));
-			} else if (!empty($interfacegw)) {
-				mwexec("/sbin/route change -inet " . escapeshellarg($rtent['network']) .
-					" -iface " . escapeshellarg($interfacegw));
+			$blackhole = "";
+			if (!strcasecmp("Null", substr($rtent['gateway'], 0, 3)))
+				$blackhole = "-blackhole";
+
+			if (is_subnetv6($rtent['network'])) {
+				if (is_ipaddrv6($gatewayip))
+					mwexec("/sbin/route change -inet6 {$blackhole} " . escapeshellarg($rtent['network']) .
+						" " . escapeshellarg($gatewayip));
+				else if (!empty($interfacegw))
+					mwexec("/sbin/route change -inet6 {$blackhole} " . escapeshellarg($rtent['network']) .
+						" -iface " . escapeshellarg($interfacegw));
+			 } else if (is_subnetv4($rtent['network'])) {
+				if (is_ipaddrv4($gatewayip))
+					mwexec("/sbin/route change -inet {$blackhole} " . escapeshellarg($rtent['network']) .
+						" " . escapeshellarg($gatewayip));
+				else if (!empty($interfacegw))
+					mwexec("/sbin/route change -inet {$blackhole} " . escapeshellarg($rtent['network']) .
+						" -iface " . escapeshellarg($interfacegw));
 			}
 		}
+		unset($gateways_arr);
 	}
+	unset($static_routes);
 
 	return 0;
 }
@@ -410,7 +517,17 @@ function system_routing_enable() {
 		echo "system_routing_enable() being called $mt\n";
 	}
 
-	return mwexec("/sbin/sysctl net.inet.ip.forwarding=1");
+	mwexec("/sbin/sysctl net.inet.ip.forwarding=1");
+	mwexec("/sbin/sysctl net.inet6.ip6.forwarding=1");
+	return;
+}
+
+function system_syslogd_fixup_server($server) {
+	/* If it's an IPv6 IP alone, encase it in brackets */
+	if (is_ipaddrv6($server))
+		return "[$server]";
+	else
+		return $server;
 }
 
 function system_syslogd_get_remote_servers($syslogcfg, $facility = "*.*") {
@@ -420,11 +537,11 @@ function system_syslogd_get_remote_servers($syslogcfg, $facility = "*.*") {
 	$pad_to  = 56;
 	$padding = ceil(($pad_to - strlen($facility))/8)+1;
 	if($syslogcfg['remoteserver'])
-		$remote_servers .= "{$facility}" . str_repeat("\t", $padding) . "@{$syslogcfg['remoteserver']}\n";
+		$remote_servers .= "{$facility}" . str_repeat("\t", $padding) . "@" . system_syslogd_fixup_server($syslogcfg['remoteserver']) . "\n";
 	if($syslogcfg['remoteserver2'])
-		$remote_servers .= "{$facility}" . str_repeat("\t", $padding) . "@{$syslogcfg['remoteserver2']}\n";
+		$remote_servers .= "{$facility}" . str_repeat("\t", $padding) . "@" . system_syslogd_fixup_server($syslogcfg['remoteserver2']) . "\n";
 	if($syslogcfg['remoteserver3'])
-		$remote_servers .= "{$facility}" . str_repeat("\t", $padding) . "@{$syslogcfg['remoteserver3']}\n";
+		$remote_servers .= "{$facility}" . str_repeat("\t", $padding) . "@" . system_syslogd_fixup_server($syslogcfg['remoteserver3']) . "\n";
 	return $remote_servers;
 }
 
@@ -440,49 +557,48 @@ function system_syslogd_start() {
 	$syslogcfg = $config['syslog'];
 
 	if ($g['booting'])
-		echo "Starting syslog...";
+		echo gettext("Starting syslog...");
 	else
 		killbypid("{$g['varrun_path']}/syslog.pid");
 
-	if(is_process_running("syslogd"))
+	if (is_process_running("syslogd"))
 		mwexec('/bin/pkill syslogd');
-	if(is_process_running("fifolog_writer"))
+	if (is_process_running("fifolog_writer"))
 		mwexec('/bin/pkill fifolog_writer');
-	
-	// Define carious commands for logging
-	$fifolog_create = "/usr/sbin/fifolog_create -s ";
-	$fifolog_log = "|/usr/sbin/fifolog_writer ";
-	$clog_create = "/usr/sbin/clog -i -s ";
-	$clog_log = "%";
 
 	// Which logging type are we using this week??
-	if(isset($config['system']['usefifolog'])) {
-		$log_directive = $fifolog_log;
-		$log_create_directive = $fifolog_create;
+	if (isset($config['system']['disablesyslogclog'])) {
+		$log_directive = "";
+		$log_create_directive = "/usr/bin/touch ";
+		$log_size = "";
+	} else if (isset($config['system']['usefifolog'])) {
+		$log_directive = "|/usr/sbin/fifolog_writer ";
+		$log_size = "10240";
+		$log_create_directive = "/usr/sbin/fifolog_create -s ";
 	} else { // Defaults to CLOG
-		$log_directive = $clog_log;
-		$log_create_directive = $clog_create;
+		$log_directive = "%";
+		$log_size = "10240";
+		$log_create_directive = "/usr/local/sbin/clog -i -s ";
 	}
 	
 	if (isset($syslogcfg)) {
-		$separatelogfacilities = array('ntpd','racoon','openvpn','pptps','poes','l2tps','relayd','hostapd');
+		$separatelogfacilities = array('ntp','ntpd','ntpdate','racoon','openvpn','pptps','poes','l2tps','relayd','hostapd','dnsmasq','filterdns','unbound','dhcpd','dhcrelay','dhclient','apinger','radvd','routed','olsrd','zebra','ospfd','bgpd','miniupnpd');
+		$syslogconf = "";
 		if($config['installedpackages']['package']) {
 			foreach($config['installedpackages']['package'] as $package) {
 				if($package['logging']) {
 					array_push($separatelogfacilities, $package['logging']['facilityname']);
-					mwexec("{$log_create_directive} 10240 {$g['varlog_path']}/{$package['logging']['logfilename']}");
+					mwexec("{$log_create_directive} {$log_size} {$g['varlog_path']}/{$package['logging']['logfilename']}");
 					$syslogconf .= "!{$package['logging']['facilityname']}\n*.*\t\t\t\t\t\t {$log_directive}{$g['varlog_path']}/{$package['logging']['logfilename']}\n";
 				}
 			}
 		}
 		$facilitylist = implode(',', array_unique($separatelogfacilities));
-		/* write syslog.conf */		
-		$fd = fopen("{$g['varetc_path']}/syslog.conf", "w");
-		if (!$fd) {
-			printf("Error: cannot open syslog.conf in system_syslogd_start().\n");
-			return 1;
-		}
-		$syslogconf .= "!ntpdate,!ntpd\n";
+		$syslogconf .= "!radvd,routed,olsrd,zebra,ospfd,bgpd,miniupnpd\n";
+		if (!isset($syslogcfg['disablelocallogging']))
+			$syslogconf .= "*.*								{$log_directive}{$g['varlog_path']}/routing.log\n";
+
+		$syslogconf .= "!ntp,ntpd,ntpdate\n";
 		if (!isset($syslogcfg['disablelocallogging'])) 
 			$syslogconf .= "*.*								{$log_directive}{$g['varlog_path']}/ntpd.log\n";
 
@@ -516,8 +632,18 @@ function system_syslogd_start() {
 
 		$syslogconf .= "!apinger\n";
 		if (!isset($syslogcfg['disablelocallogging']))
-			$syslogconf .= "*.*								{$log_directive}{$g['varlog_path']}/apinger.log\n";
+			$syslogconf .= "*.*								{$log_directive}{$g['varlog_path']}/gateways.log\n";
 		if (isset($syslogcfg['apinger']))
+			$syslogconf .= system_syslogd_get_remote_servers($syslogcfg, "*.*");
+
+		$syslogconf .= "!dnsmasq,filterdns,unbound\n";
+		if (!isset($syslogcfg['disablelocallogging']))
+			$syslogconf .= "*.*								{$log_directive}{$g['varlog_path']}/resolver.log\n";
+
+		$syslogconf .= "!dhcpd,dhcrelay,dhclient\n";
+		if (!isset($syslogcfg['disablelocallogging']))
+			$syslogconf .= "*.*								{$log_directive}{$g['varlog_path']}/dhcpd.log\n";
+		if (isset($syslogcfg['dhcp']))
 			$syslogconf .= system_syslogd_get_remote_servers($syslogcfg, "*.*");
 
 		$syslogconf .= "!relayd\n";
@@ -539,7 +665,7 @@ local0.*							{$log_directive}{$g['varlog_path']}/filter.log
 local3.*							{$log_directive}{$g['varlog_path']}/vpn.log
 local4.*							{$log_directive}{$g['varlog_path']}/portalauth.log
 local7.*							{$log_directive}{$g['varlog_path']}/dhcpd.log
-*.notice;kern.debug;lpr.info;mail.crit;				{$log_directive}{$g['varlog_path']}/system.log
+*.notice;kern.debug;lpr.info;mail.crit;daemon.none;		{$log_directive}{$g['varlog_path']}/system.log
 news.err;local0.none;local3.none;local4.none;			{$log_directive}{$g['varlog_path']}/system.log
 local7.none							{$log_directive}{$g['varlog_path']}/system.log
 security.*							{$log_directive}{$g['varlog_path']}/system.log
@@ -575,26 +701,42 @@ EOD;
 
 EOD;
 		}
-		fwrite($fd, $syslogconf);
-		fclose($fd);
+		/* write syslog.conf */		
+		if (!@file_put_contents("{$g['varetc_path']}/syslog.conf", $syslogconf)) {
+			printf(gettext("Error: cannot open syslog.conf in system_syslogd_start().%s"), "\n");
+			unset($syslogconf);
+			return 1;
+		}
+		unset($syslogconf);
 
 		// Ensure that the log directory exists
-		if(!is_dir("{$g['dhcpd_chroot_path']}/var/run"))
+		if (!is_dir("{$g['dhcpd_chroot_path']}/var/run"))
 			exec("/bin/mkdir -p {$g['dhcpd_chroot_path']}/var/run");
 
-		// Are we logging to a least one remote server ?
-		if(strpos($syslogconf, "@") != false)
-			$retval = mwexec_bg("/usr/sbin/syslogd -c -c -l /var/dhcpd/var/run/log -f {$g['varetc_path']}/syslog.conf");
-		else {
-			$retval = mwexec_bg("/usr/sbin/syslogd -c -c -l /var/dhcpd/var/run/log -f {$g['varetc_path']}/syslog.conf");
+		$sourceip = "";
+		if (!empty($syslogcfg['sourceip'])) {
+			if ($syslogcfg['ipproto'] == "ipv6") {
+				$ifaddr = is_ipaddr($syslogcfg['sourceip']) ? $syslogcfg['sourceip'] : get_interface_ipv6($syslogcfg['sourceip']);
+				if (!is_ipaddr($ifaddr))
+					$ifaddr = get_interface_ip($syslogcfg['sourceip']);
+			} else {
+				$ifaddr = is_ipaddr($syslogcfg['sourceip']) ? $syslogcfg['sourceip'] : get_interface_ip($syslogcfg['sourceip']);
+				if (!is_ipaddr($ifaddr))
+					$ifaddr = get_interface_ipv6($syslogcfg['sourceip']);
+			}
+			if (is_ipaddr($ifaddr)) {
+				$sourceip = "-b {$ifaddr}";
+			}
 		}
 
+		$retval = mwexec_bg("/usr/sbin/syslogd -s -c -c -l {$g['dhcpd_chroot_path']}/var/run/log -f {$g['varetc_path']}/syslog.conf {$sourceip}");
+
 	} else {
-		$retval = mwexec_bg("/usr/sbin/syslogd -c -c -l /var/dhcpd/var/run/log");
+		$retval = mwexec_bg("/usr/sbin/syslogd -s -c -c -l {$g['dhcpd_chroot_path']}/var/run/log");
 	}
 
 	if ($g['booting'])
-		echo "done.\n";
+		echo gettext("done.") . "\n";
 
 	return $retval;
 }
@@ -607,7 +749,7 @@ function system_pccard_start() {
 	}
 
 	if ($g['booting'])
-		echo "Initializing PCMCIA...";
+		echo gettext("Initializing PCMCIA...");
 
 	/* kill any running pccardd */
 	killbypid("{$g['varrun_path']}/pccardd.pid");
@@ -617,9 +759,9 @@ function system_pccard_start() {
 
 	if ($g['booting']) {
 		if ($res == 0)
-			echo "done.\n";
+			echo gettext("done.") . "\n";
 		else
-			echo "failed!\n";
+			echo gettext("failed!") . "\n";
 	}
 
 	return $res;
@@ -630,12 +772,7 @@ function system_webgui_start() {
 	global $config, $g;
 
 	if ($g['booting'])
-		echo "Starting webConfigurator...";
-
-	/* kill any running lighttpd */
-	killbypid("{$g['varrun_path']}/lighty-webConfigurator.pid");
-
-	sleep(1);
+		echo gettext("Starting webConfigurator...");
 
 	chdir($g['www_path']);
 
@@ -662,9 +799,9 @@ function system_webgui_start() {
 			log_error("Creating SSL Certificate for this host");
 			$cert = array();
 			$cert['refid'] = uniqid();
-			$cert['descr'] = "webConfigurator default";
-			mwexec("/usr/bin/openssl genrsa 1024 > {$g['tmp_path']}/ssl.key");
-			mwexec("/usr/bin/openssl req -new -x509 -nodes -sha1 -days 2000 -key {$g['tmp_path']}/ssl.key > {$g['tmp_path']}/ssl.crt");
+			$cert['descr'] = gettext("webConfigurator default");
+			mwexec("/usr/local/bin/openssl genrsa 1024 > {$g['tmp_path']}/ssl.key");
+			mwexec("/usr/local/bin/openssl req -new -x509 -nodes -sha256 -days 2000 -key {$g['tmp_path']}/ssl.key > {$g['tmp_path']}/ssl.crt");
 			$crt = file_get_contents("{$g['tmp_path']}/ssl.crt");
 			$key = file_get_contents("{$g['tmp_path']}/ssl.key");
 			unlink("{$g['tmp_path']}/ssl.key");
@@ -672,7 +809,7 @@ function system_webgui_start() {
 			cert_import($cert, $crt, $key);
 			$a_cert[] = $cert;
 			$config['system']['webgui']['ssl-certref'] = $cert['refid'];
-			write_config("Importing HTTPS certificate");
+			write_config(gettext("Importing HTTPS certificate"));
 			if(!$config['system']['webgui']['port'])
 				$portarg = "443";
 			$ca = ca_chain($cert);
@@ -686,25 +823,25 @@ function system_webgui_start() {
 	}
 
 	/* generate lighttpd configuration */
-	$max_procs = ($config['system']['webgui']['max_procs']) ? $config['system']['webgui']['max_procs'] : 2;
 	system_generate_lighty_config("{$g['varetc_path']}/lighty-webConfigurator.conf",
 		$crt, $key, $ca, "lighty-webConfigurator.pid", $portarg, "/usr/local/www/",
-		"cert.pem", "ca.pem", $max_procs);
+		"cert.pem", "ca.pem");
+
+	/* kill any running lighttpd */
+	killbypid("{$g['varrun_path']}/lighty-webConfigurator.pid");
+
+	sleep(1);
+
+	@unlink("{$g['varrun_path']}/lighty-webConfigurator.pid");
 
 	/* attempt to start lighthttpd */
 	$res = mwexec("/usr/local/sbin/lighttpd -f {$g['varetc_path']}/lighty-webConfigurator.conf");
 
-	/* fetch page to preload apc cache */
-	$proto = "http";
-	if ($config['system']['webgui']['protocol'])
-		$proto = $config['system']['webgui']['protocol'];
-	mwexec_bg("/usr/bin/fetch -o /dev/null -q {$proto}://localhost:{$portarg}/preload.php");
-
 	if ($g['booting']) {
 		if ($res == 0)
-			echo "done.\n";
+			echo gettext("done.") . "\n";
 		else
-			echo "failed!\n";
+			echo gettext("failed!") . "\n";
 	}
 
 	return $res;
@@ -719,9 +856,6 @@ function system_generate_lighty_config($filename,
 	$document_root = "/usr/local/www/",
 	$cert_location = "cert.pem",
 	$ca_location = "ca.pem",
-	$max_procs = 1,
-	$max_requests = "2",
-	$fast_cgi_enable = true,
 	$captive_portal = false) {
 
 	global $config, $g;
@@ -734,119 +868,97 @@ function system_generate_lighty_config($filename,
 		echo "system_generate_lighty_config() being called $mt\n";
 	}
 
-	if($captive_portal == true)  {
-		$captiveportal = ",\"mod_rewrite\"";
-		$captive_portal_rewrite = "url.rewrite-once = ( \"(.*captiveportal.*)\" => \"$1\", \"(.*)\" => \"/index.php?redirurl=$1\" )\n";
-		$captive_portal_module = "";
-		$maxprocperip = $config['captiveportal']['maxprocperip'];
-		if($maxprocperip and $maxprocperip > 0)
-			$captive_portal_mod_evasive = "evasive.max-conns-per-ip = {$maxprocperip}";
-		else
-			$captive_portal_mod_evasive = "";
+	if ($captive_portal !== false)  {
+		$captiveportal = ",\"mod_rewrite\",\"mod_evasive\"";
+		$captive_portal_rewrite = "url.rewrite-once = ( \"(.*captiveportal.*)\" => \"$1\", \"(.*)\" => \"/index.php?zone={$captive_portal}&redirurl=$1\" )\n";
+
+		$maxprocperip = $config['captiveportal'][$captive_portal]['maxprocperip'];
+		if (empty($maxprocperip))
+			$maxprocperip = 10;
+		$captive_portal_mod_evasive = "evasive.max-conns-per-ip = {$maxprocperip}";
+
 		$server_upload_dirs = "server.upload-dirs = ( \"{$g['tmp_path']}/captiveportal/\" )\n";
-		exec("mkdir -p {$g['tmp_path']}/captiveportal");
-		exec("chmod a-w {$g['tmp_path']}/captiveportal");
+		if (!is_dir("{$g['tmp_path']}/captiveportal"))
+			@mkdir("{$g['tmp_path']}/captiveportal", 0555);
 		$server_max_request_size = "server.max-request-size    = 384";
+		$cgi_config = "";
 	} else {
-		$captiveportal = "";
+		$captiveportal = ",\"mod_cgi\"";
 		$captive_portal_rewrite = "";
-		$captive_portal_module = "";
 		$captive_portal_mod_evasive = "";
 		$server_upload_dirs = "server.upload-dirs = ( \"{$g['upload_path']}/\", \"{$g['tmp_path']}/\", \"/var/\" )\n";
 		$server_max_request_size = "server.max-request-size    = 2097152";
+		$cgi_config = "cgi.assign                 = ( \".cgi\" => \"\" )";
 	}
 	
-	if($port <> "")
-		$lighty_port = $port;
-	else
+	if (empty($port))
 		$lighty_port = "80";
+	else
+		$lighty_port = $port;
 
 	$memory = get_memory();
-	$avail = $memory[0];
+	$realmem = $memory[1];
 
-	if($avail > 0 and $avail < 65) {
-		$fast_cgi_enable = false;
+	// Determine web GUI process settings and take into account low memory systems
+	if ($realmem < 255)
+		$max_procs = 1;
+	else
+		$max_procs = ($config['system']['webgui']['max_procs']) ? $config['system']['webgui']['max_procs'] : 2;
+
+	// Ramp up captive portal max procs, assuming each PHP process can consume up to 64MB RAM 
+	if ($captive_portal !== false)  {
+		if ($realmem > 135 and $realmem < 256) {
+			$max_procs += 1; // 2 worker processes
+		} else if ($realmem > 255 and $realmem < 513) {
+			$max_procs += 2; // 3 worker processes
+		} else if ($realmem > 512) {
+			$max_procs += 4; // 6 worker processes
+		}
+		if ($max_procs > 1)
+			$max_php_children = intval($max_procs/2);
+		else
+			$max_php_children = 1;
+
+	} else {
+		if ($realmem < 78)
+			$max_php_children = 0;
+		else
+			$max_php_children = 1;
 	}
 
-	// Ramp up captive portal max procs
-	//  Work relative to the default of 2, for values that would be >2.
-	if($captive_portal == true)  {
-		if($avail > 65 and $avail < 98) {
-			$max_procs = 1;
-		}
-		if($avail > 97 and $avail < 128) {
-			$max_procs = 2;
-		}
-		if($avail > 127 and $avail < 256) {
-			$max_procs += 1;
-		}
-		if($avail > 255 and $avail < 384) {
-			$max_procs += 2;
-		}
-		if($avail > 383) {
-			$max_procs += 3;
-		}
+	if ($captive_portal !== false)
+		$fast_cgi_path = "{$g['tmp_path']}/php-fastcgi-{$captive_portal}.socket";
+	else
+		$fast_cgi_path = "{$g['tmp_path']}/php-fastcgi.socket";
+
+	if(!isset($config['syslog']['nologlighttpd'])) {
+		$lighty_use_syslog = <<<EOD
+## where to send error-messages to
+server.errorlog-use-syslog="enable"
+EOD;
 	}
 
-	if($captive_portal == true)  {	
-		$bin_environment =  <<<EOC
-			"bin-environment" => (
-				"PHP_FCGI_CHILDREN" => "$max_procs",
-				"PHP_FCGI_MAX_REQUESTS" => "500"
-			),
-EOC;
 
-	} else if ($avail > 0 and $avail < 128) {
-		$bin_environment = <<<EOC
-			"bin-environment" => (
-				"PHP_FCGI_CHILDREN" => "$max_procs",
-				"PHP_FCGI_MAX_REQUESTS" => "2",
-			),
-
-EOC;
-	} else
-		$bin_environment =  <<<EOC
-			"bin-environment" => (
-				"PHP_FCGI_CHILDREN" => "$max_procs",
-				"PHP_FCGI_MAX_REQUESTS" => "500"
-			),
-EOC;
-
-	if($fast_cgi_enable == true) {
-		$module = "\"mod_fastcgi\", \"mod_cgi\"";
-		$cgi_config = "";
-		$fastcgi_config = <<<EOD
+	$fastcgi_config = <<<EOD
 #### fastcgi module
 ## read fastcgi.txt for more info
 fastcgi.server = ( ".php" =>
 	( "localhost" =>
 		(
-			"socket" => "{$g['tmp_path']}/php-fastcgi.socket",
-			"min-procs" => 0,
+			"socket" => "{$fast_cgi_path}",
 			"max-procs" => {$max_procs},
-{$bin_environment}
+			"bin-environment" => (
+				"PHP_FCGI_CHILDREN" => "{$max_php_children}",
+				"PHP_FCGI_MAX_REQUESTS" => "500"
+			),
 			"bin-path" => "/usr/local/bin/php"
 		)
 	)
 )
 
-#### CGI module
-cgi.assign                 = ( ".cgi" => "" )
-
 EOD;
-	} else {
-		$fastcgi_config = "";
-		$module = "\"mod_cgi\"";
-		$cgi_config = <<<EOD
-#### CGI module
-cgi.assign                 = ( ".php"  => "/usr/local/bin/php",
-                               ".cgi" => "" )
 
-EOD;
-	}
-
-	$lighty_config = "";
-	$lighty_config .= <<<EOD
+	$lighty_config = <<<EOD
 #
 # lighttpd configuration file
 #
@@ -857,30 +969,12 @@ EOD;
 ## FreeBSD!
 server.event-handler	= "freebsd-kqueue"
 server.network-backend 	= "writev"
+#server.use-ipv6 = "enable"
 
 ## modules to load
-server.modules              =   (
-									{$captive_portal_module}
-									"mod_access", "mod_accesslog", "mod_expire", "mod_compress", "mod_redirect",
-									{$module}{$captiveportal}
-								)
-
-## Unused modules
-#                               "mod_setenv",
-#                               "mod_rewrite",
-#                               "mod_ssi",
-#                               "mod_usertrack",
-#                               "mod_expire",
-#                               "mod_secdownload",
-#                               "mod_rrdtool",
-#                               "mod_auth",
-#                               "mod_status",
-#                               "mod_alias",
-#                               "mod_proxy",
-#                               "mod_simple_vhost",
-#                               "mod_evhost",
-#                               "mod_userdir",
-#                               "mod_cgi",
+server.modules              =   ( "mod_access", "mod_expire", "mod_compress", "mod_redirect",
+	{$captiveportal}, "mod_fastcgi"
+)
 
 server.max-keep-alive-requests = 15
 server.max-keep-alive-idle = 30
@@ -893,8 +987,7 @@ server.document-root        = "{$document_root}"
 # Maximum idle time with nothing being written (php downloading)
 server.max-write-idle = 999
 
-## where to send error-messages to
-server.errorlog             = "/var/log/lighttpd.error.log"
+{$lighty_use_syslog}
 
 # files to check for if .../ is requested
 server.indexfiles           = ( "index.php", "index.html",
@@ -956,9 +1049,6 @@ mimetype.assign             = (
 # Use the "Content-Type" extended attribute to obtain mime type if possible
 #mimetypes.use-xattr        = "enable"
 
-#### accesslog module
-#accesslog.filename          = "/dev/null"
-
 ## deny access the file-extensions
 #
 # ~    is for backupfiles from vi, emacs, joe, ...
@@ -970,14 +1060,32 @@ url.access-deny             = ( "~", ".inc" )
 ######### Options that are good to be but not neccesary to be changed #######
 
 ## bind to port (default: 80)
-server.port                = {$lighty_port}
+
+EOD;
+
+	$lighty_config .= "server.bind  = \"0.0.0.0\"\n";
+	$lighty_config .= "server.port  = {$lighty_port}\n";
+	$lighty_config .= "\$SERVER[\"socket\"]  == \"0.0.0.0:{$lighty_port}\" { }\n";
+	$lighty_config .= "\$SERVER[\"socket\"]  == \"[::]:{$lighty_port}\" { \n";
+	if($cert <> "" and $key <> "") {
+		$lighty_config .= "\n";
+		$lighty_config .= "## ssl configuration\n";
+		$lighty_config .= "ssl.engine = \"enable\"\n";
+		$lighty_config .= "ssl.pemfile = \"{$g['varetc_path']}/{$cert_location}\"\n\n";
+		if($ca <> "")
+			$lighty_config .= "ssl.ca-file = \"{$g['varetc_path']}/{$ca_location}\"\n\n";
+	}
+	$lighty_config .= " }\n";
+
+
+	$lighty_config .= <<<EOD
 
 ## error-handler for status 404
 #server.error-handler-404   = "/error-handler.html"
 #server.error-handler-404   = "/error-handler.php"
 
 ## to help the rc.scripts
-server.pid-file            = "/var/run/{$pid_file}"
+server.pid-file            = "{$g['varrun_path']}/{$pid_file}"
 
 ## virtual directory listings
 server.dir-listing         = "disable"
@@ -1019,7 +1127,7 @@ EOD;
 	if($cert <> "" and $key <> "") {
 		$fd = fopen("{$g['varetc_path']}/{$cert_location}", "w");
 		if (!$fd) {
-			printf("Error: cannot open cert.pem in system_webgui_start().\n");
+			printf(gettext("Error: cannot open cert.pem in system_webgui_start().%s"), "\n");
 			return 1;
 		}
 		chmod("{$g['varetc_path']}/{$cert_location}", 0600);
@@ -1030,7 +1138,7 @@ EOD;
 		if(!(empty($ca) || (strlen(trim($ca)) == 0))) {
 			$fd = fopen("{$g['varetc_path']}/{$ca_location}", "w");
 			if (!$fd) {
-				printf("Error: cannot open ca.pem in system_webgui_start().\n");
+				printf(gettext("Error: cannot open ca.pem in system_webgui_start().%s"), "\n");
 				return 1;
 			}
 			chmod("{$g['varetc_path']}/{$ca_location}", 0600);
@@ -1038,20 +1146,40 @@ EOD;
 			fclose($fd);
 		}
 		$lighty_config .= "\n";
-		$lighty_config .= "## ssl configuration\n";
+		$lighty_config .= "## " . gettext("ssl configuration") . "\n";
 		$lighty_config .= "ssl.engine = \"enable\"\n";
 		$lighty_config .= "ssl.pemfile = \"{$g['varetc_path']}/{$cert_location}\"\n\n";
 
 		// Harden SSL a bit for PCI conformance testing
 		$lighty_config .= "ssl.use-sslv2 = \"disable\"\n";
-		$lighty_config .= "ssl.cipher-list = \"TLSv1+HIGH !SSLv2 RC4+MEDIUM !aNULL !eNULL !3DES @STRENGTH\"\n";
+
+		/* Hifn accelerators do NOT work with the BEAST mitigation code. Do not allow it to be enabled if a Hifn card has been detected. */
+		$fd = @fopen("{$g['varlog_path']}/dmesg.boot", "r");
+		if ($fd) {
+			while (!feof($fd)) {
+				$dmesgl = fgets($fd);
+				if (preg_match("/^hifn.: (.*?),/", $dmesgl, $matches) && isset($config['system']['webgui']['beast_protection'])) {
+						unset($config['system']['webgui']['beast_protection']);
+						log_error("BEAST Protection disabled because a conflicting cryptographic accelerator card has been detected (" . $matches[1] . ")");
+					break;
+				}
+			}
+			fclose($fd);
+		}
+
+		if (isset($config['system']['webgui']['beast_protection'])) {
+			$lighty_config .= "ssl.honor-cipher-order = \"enable\"\n";
+			$lighty_config .= "ssl.cipher-list = \"ECDHE-RSA-AES256-SHA384:AES256-SHA256:RC4-SHA:RC4:HIGH:!MD5:!aNULL:!EDH:!AESGCM\"\n";
+		} else {
+			$lighty_config .= "ssl.cipher-list = \"DHE-RSA-CAMELLIA256-SHA:DHE-DSS-CAMELLIA256-SHA:CAMELLIA256-SHA:DHE-DSS-AES256-SHA:AES256-SHA:DHE-RSA-CAMELLIA128-SHA:DHE-DSS-CAMELLIA128-SHA:CAMELLIA128-SHA:DHE-RSA-AES128-SHA:DHE-DSS-AES128-SHA:AES128-SHA:RC4-SHA:RC4-MD5:!aNULL:!eNULL:!3DES:@STRENGTH\"\n";
+		}
 
 		if(!(empty($ca) || (strlen(trim($ca)) == 0)))
 			$lighty_config .= "ssl.ca-file = \"{$g['varetc_path']}/{$ca_location}\"\n\n";
 	}
 
 	// Add HTTP to HTTPS redirect	
-	if ($captive_portal == false && $config['system']['webgui']['protocol'] == "https" && !isset($config['system']['webgui']['disablehttpredirect'])) {
+	if ($captive_portal === false && $config['system']['webgui']['protocol'] == "https" && !isset($config['system']['webgui']['disablehttpredirect'])) {
 		if($lighty_port != "443") 
 			$redirectport = ":{$lighty_port}";
 		$lighty_config .= <<<EOD
@@ -1065,7 +1193,7 @@ EOD;
 
 	$fd = fopen("{$filename}", "w");
 	if (!$fd) {
-		printf("Error: cannot open {$filename} in system_generate_lighty_config().\n");
+		printf(gettext("Error: cannot open %s in system_generate_lighty_config().%s"), $filename, "\n");
 		return 1;
 	}
 	fwrite($fd, $lighty_config);
@@ -1085,11 +1213,21 @@ function system_timezone_configure() {
 	$syscfg = $config['system'];
 
 	if ($g['booting'])
-		echo "Setting timezone...";
+		echo gettext("Setting timezone...");
 
 	/* extract appropriate timezone file */
 	$timezone = $syscfg['timezone'];
-	if (!$timezone)
+	if ($timezone) {
+		exec('/usr/bin/tar -tvzf /usr/share/zoneinfo.tgz', $tzs);
+		foreach ($tzs as $tz) {
+			if (preg_match(",{$timezone}$,", $tz))
+				break;
+			if (preg_match(",{$timezone} link to *(.*)$,", $tz, $matches)) {
+				$timezone = $matches[1];
+				break;
+			}
+		}
+	} else
 		$timezone = "Etc/UTC";
 
 	conf_mount_rw();
@@ -1101,77 +1239,140 @@ function system_timezone_configure() {
 	conf_mount_ro();
 
 	if ($g['booting'])
-		echo "done.\n";
+		echo gettext("done.") . "\n";
 }
 
-function system_ntp_configure() {
+function system_ntp_setup_gps($serialport) {
+	$gps_device = '/dev/gps0';
+	$serialport = '/dev/'.$serialport;
+
+	if (!file_exists($serialport))
+		return false;
+
+	conf_mount_rw();
+	// Create symlink that ntpd requires
+	unlink_if_exists($gps_device);
+	symlink($serialport, $gps_device);
+
+	/* Send the following to the GPS port to initialize the GPS */
+	$gps_init = <<<EOF
+\$PUBX,40,GSV,0,0,0,0*59
+\$PUBX,40,GLL,0,0,0,0*5C
+\$PUBX,40,ZDA,0,0,0,0*44
+\$PUBX,40,VTG,0,0,0,0*5E
+\$PUBX,40,GSV,0,0,0,0*59
+\$PUBX,40,GSA,0,0,0,0*4E
+\$PUBX,40,GGA,0,0,0,0
+\$PUBX,40,TXT,0,0,0,0
+\$PUBX,40,RMC,0,0,0,0*46
+\$PUBX,41,1,0007,0003,4800,0
+\$PUBX,40,ZDA,1,1,1,1
+EOF;
+	file_put_contents("/tmp/gps.init", $gps_init);
+	`cat /tmp/gps.init > $serialport`;
+
+	/* Add /etc/remote entry in case we need to read from the GPS with tip */
+	if (intval(`grep -c '^gps0' /etc/remote`) == 0)
+		`echo "gps0:dv={$serialport}:br#4800:pa=none:" >> /etc/remote`;
+
+	conf_mount_ro();
+
+	return true;
+}
+
+function system_ntp_configure($start_ntpd=true) {
 	global $config, $g;
+	$driftfile = "/var/db/ntpd.drift";
+	$statsdir = "/var/log/ntp";
+	$gps_device = '/dev/gps0';
+
+	if ($g['platform'] == 'jail')
+		return;
+
+	safe_mkdir($statsdir);
 
 	$ntpcfg = "# \n";
-	$ntpcfg .= "# pfSense OpenNTPD configuration file \n";
+	$ntpcfg .= "# pfSense ntp configuration file \n";
 	$ntpcfg .= "# \n\n";
+	$ntpcfg .= "tinker panic 0 \n";
 
+	if (!empty($config['ntpd']['gpsport'])
+		&& file_exists('/dev/'.$config['ntpd']['gpsport'])
+		&& system_ntp_setup_gps($config['ntpd']['gpsport'])) {
+		$ntpcfg .= "# GPS Setup\n";
+		$ntpcfg .= "server 127.127.20.0 mode 0 minpoll 4 maxpoll 4 prefer\n";
+		$ntpcfg .= "fudge 127.127.20.0 time1 0.155 time2 0.000 flag1 1 flag2 0 flag3 1\n";
+		// Fall back to local clock if GPS is out of sync?
+		$ntpcfg .= "server 127.127.1.0\n";
+		$ntpcfg .= "fudge 127.127.1.0 stratum 12\n";
+	}
+
+	$ntpcfg .= "\n\n# Upstream Servers\n";
 	/* foreach through servers and write out to ntpd.conf */
 	foreach (explode(' ', $config['system']['timeservers']) as $ts)
-		$ntpcfg .= "servers {$ts}\n";
+		$ntpcfg .= "server {$ts} iburst maxpoll 9\n";
 
-	/* Setup listener(s) if the user has configured one */
-        if ($config['installedpackages']['openntpd']) {
-    		/* server config is in coregui1 */
-		$xmlsettings = $config['installedpackages']['openntpd']['config'][0];
-		if ($xmlsettings['enable'] == 'on') {
-			$ifaces = explode(',', $xmlsettings['interface']);
-			$ips = array();
-			foreach ($ifaces as $if) {
-				if (is_ipaddr($if)) {
-					$ips[] = $if;
-				} else {
-					$if = get_real_interface($if);
-					if (does_interface_exist($if))
-						$ips[] = find_interface_ip($if);
-				}
+	$ntpcfg .= "disable monitor\n";
+	$ntpcfg .= "enable stats\n";
+	$ntpcfg .= "statistics clockstats\n";
+	$ntpcfg .= "statsdir {$statsdir}\n";
+	$ntpcfg .= "logconfig =syncall +clockall\n";
+	$ntpcfg .= "driftfile {$driftfile}\n";
+	$ntpcfg .= "restrict default kod nomodify notrap nopeer\n";
+	$ntpcfg .= "restrict -6 default kod nomodify notrap nopeer\n";
+
+	if (empty($config['ntpd']['interface']))
+		if (is_array($config['installedpackages']['openntpd']) && !empty($config['installedpackages']['openntpd']['config'][0]['interface']))
+			$interfaces = explode(",", $config['installedpackages']['openntpd']['config'][0]['interface']);
+		else
+			$interfaces = array();
+	else
+		$interfaces = explode(",", $config['ntpd']['interface']);
+
+	if (is_array($interfaces) && count($interfaces)) {
+		$ntpcfg .= "interface ignore all\n";
+		foreach ($interfaces as $interface) {
+			if (!is_ipaddr($interface)) {
+				$interface = get_real_interface($interface);
 			}
-			foreach ($ips as $ip) {
-				if (is_ipaddr($ip))
-					$ntpcfg .= "listen on $ip\n";
-			}
+			if (!empty($interface))
+				$ntpcfg .= "interface listen {$interface}\n";
 		}
 	}
-	$ntpcfg .= "\n";
 
 	/* open configuration for wrting or bail */
-	$fd = fopen("{$g['varetc_path']}/ntpd.conf","w");
-	if(!$fd) {
+	if (!@file_put_contents("{$g['varetc_path']}/ntpd.conf", $ntpcfg)) {
 		log_error("Could not open {$g['varetc_path']}/ntpd.conf for writing");
 		return;
 	}
-	fwrite($fd, $ntpcfg);
 
-	/* slurp! */
-	fclose($fd);
+	/* At bootup we just want to write out the config. */
+	if (!$start_ntpd)
+		return;
 
-	/* if openntpd is running, kill it */
-	while(is_process_running("ntpd")) {
-		killbyname("ntpd");
+	/* if ntpd is running, kill it */
+	while (isvalidpid("{$g['varrun_path']}/ntpd.pid")) {
+		killbypid("{$g['varrun_path']}/ntpd.pid");
 	}
+	@unlink("{$g['varrun_path']}/ntpd.pid");
 
 	/* if /var/empty does not exist, create it */
 	if(!is_dir("/var/empty"))
-		exec("/bin/mkdir -p /var/empty && chmod ug+rw /var/empty/.");
+		mkdir("/var/empty", 0775, true);
 
 	/* start opentpd, set time now and use /var/etc/ntpd.conf */
-	exec("/usr/local/sbin/ntpd -s -f {$g['varetc_path']}/ntpd.conf");
+	mwexec("/usr/local/sbin/ntpd -g -c {$g['varetc_path']}/ntpd.conf -p {$g['varrun_path']}/ntpd.pid", false, true);
 	
 	// Note that we are starting up
-	log_error("OpenNTPD is starting up.");
-
+	log_error("NTPD is starting up.");
+	return;
 }
 
 function sync_system_time() {
 	global $config, $g;
 
 	if ($g['booting'])
-		echo "Syncing system time before startup...";
+		echo gettext("Syncing system time before startup...");
 
 	/* foreach through servers and write out to ntpd.conf */
 	foreach (explode(' ', $config['system']['timeservers']) as $ts) {
@@ -1179,7 +1380,7 @@ function sync_system_time() {
 	}
 	
 	if ($g['booting'])
-		echo "done.\n";
+		echo gettext("done.") . "\n";
 	
 }
 
@@ -1208,12 +1409,20 @@ function system_reboot_sync() {
 }
 
 function system_reboot_cleanup() {
+	global $config, $cpzone;
+
 	mwexec("/usr/local/bin/beep.sh stop");
 	require_once("captiveportal.inc");
-	captiveportal_radius_stop_all();
+	if (is_array($config['captiveportal'])) {
+		foreach ($config['captiveportal'] as $cpzone=>$cp) {
+			captiveportal_radius_stop_all();
+			captiveportal_send_server_accounting(true);
+		}
+	}
 	require_once("voucher.inc");
 	voucher_save_db_to_config();
-	mwexec("/etc/rc.stop_packages");
+	require_once("pkg-utils.inc");
+	stop_packages();
 }
 
 function system_do_shell_commands($early = 0) {
@@ -1277,7 +1486,7 @@ function system_dmesg_save() {
 
 	$fd = fopen("{$g['varlog_path']}/dmesg.boot", "w");
 	if (!$fd) {
-		printf("Error: cannot open dmesg.boot in system_dmesg_save().\n");
+		printf(gettext("Error: cannot open dmesg.boot in system_dmesg_save().%s"), "\n");
 		return 1;
 	}
 
@@ -1298,7 +1507,7 @@ function system_set_harddisk_standby() {
 
 	if (isset($config['system']['harddiskstandby'])) {
 		if ($g['booting']) {
-			echo 'Setting hard disk standby... ';
+			echo gettext('Setting hard disk standby... ');
 		}
 
 		$standby = $config['system']['harddiskstandby'];
@@ -1310,13 +1519,13 @@ function system_set_harddisk_standby() {
 				// Reinitialize ATA-drives
 				mwexec('/usr/local/sbin/atareinit');
 				if ($g['booting']) {
-					echo "done.\n";
+					echo gettext("done.") . "\n";
 				}
 			} else if ($g['booting']) {
-				echo "failed!\n";
+				echo gettext("failed!") . "\n";
 			}
 		} else if ($g['booting']) {
-			echo "failed!\n";
+			echo gettext("failed!") . "\n";
 		}
 	}
 }
@@ -1415,10 +1624,10 @@ function system_identify_specific_platform() {
 	global $g;
 	
 	if ($g['platform'] == 'generic-pc')
-		return array('name' => 'generic-pc', 'descr' => "Generic PC");
+		return array('name' => 'generic-pc', 'descr' => gettext("Generic PC"));
 	
 	if ($g['platform'] == 'generic-pc-cdrom')
-		return array('name' => 'generic-pc-cdrom', 'descr' => "Generic PC (CD-ROM)");
+		return array('name' => 'generic-pc-cdrom', 'descr' => gettext("Generic PC (CD-ROM)"));
 	
 	/* the rest of the code only deals with 'embedded' platforms */
 	if ($g['platform'] != 'nanobsd')
@@ -1427,10 +1636,10 @@ function system_identify_specific_platform() {
 	$dmesg = system_get_dmesg_boot();
 	
 	if (strpos($dmesg, "PC Engines WRAP") !== false)
-		return array('name' => 'wrap', 'descr' => 'PC Engines WRAP');
+		return array('name' => 'wrap', 'descr' => gettext('PC Engines WRAP'));
 	
 	if (strpos($dmesg, "PC Engines ALIX") !== false)
-		return array('name' => 'alix', 'descr' => 'PC Engines ALIX');
+		return array('name' => 'alix', 'descr' => gettext('PC Engines ALIX'));
 
 	if (preg_match("/Soekris net45../", $dmesg, $matches))
 		return array('name' => 'net45xx', 'descr' => $matches[0]);
@@ -1442,7 +1651,7 @@ function system_identify_specific_platform() {
 		return array('name' => 'net55xx', 'descr' => $matches[0]);
 	
 	/* unknown embedded platform */
-	return array('name' => 'embedded', 'descr' => 'embedded (unknown)');
+	return array('name' => 'embedded', 'descr' => gettext('embedded (unknown)'));
 }
 
 function system_get_dmesg_boot() {
@@ -1451,7 +1660,7 @@ function system_get_dmesg_boot() {
 	return file_get_contents("{$g['varlog_path']}/dmesg.boot");
 }
 
-function openntpd_get_listen_ips() {
+function get_possible_listen_ips($include_ipv6_link_local=false) {
 	$interfaces = get_configured_interface_with_descr();
 	$carplist = get_configured_carp_interface_list();
 	$listenips = array();
@@ -1464,10 +1673,36 @@ function openntpd_get_listen_ips() {
 		$tmp["name"]  = $ifacename;
 		$tmp["value"] = $iface;
 		$listenips[] = $tmp;
+		if ($include_ipv6_link_local) {
+			$llip = find_interface_ipv6_ll(get_real_interface($iface));
+			if (!empty($llip)) {
+				$tmp["name"]  = "{$ifacename} IPv6 Link-Local";
+				$tmp["value"] = $llip;
+				$listenips[] = $tmp;
+			}
+		}
 	}
 	$tmp["name"]  = "Localhost";
 	$tmp["value"] = "lo0";
 	$listenips[] = $tmp;
 	return $listenips;
+}
+
+function get_possible_traffic_source_addresses($include_ipv6_link_local=false) {
+	global $config;
+	$sourceips = get_possible_listen_ips($include_ipv6_link_local);
+	foreach (array('server', 'client') as $mode) {
+		if (is_array($config['openvpn']["openvpn-{$mode}"])) {
+			foreach ($config['openvpn']["openvpn-{$mode}"] as $id => $setting) {
+				if (!isset($setting['disable'])) {
+					$vpn = array();
+					$vpn['value'] = 'ovpn' . substr($mode, 0, 1) . $setting['vpnid'];
+					$vpn['name'] = gettext("OpenVPN") . " ".$mode.": ".htmlspecialchars($setting['description']);
+					$sourceips[] = $vpn;
+				}
+			}
+		}
+	}
+	return $sourceips;
 }
 ?>

@@ -44,8 +44,10 @@
 ##|-PRIV
 
 require("guiconfig.inc");
+require_once("config.inc");
 
 $pgtitle = array(gettext("Status"),gettext("DHCP leases"));
+$shortcut_section = "dhcp";
 
 $leasesfile = "{$g['dhcpd_chroot_path']}/var/db/dhcpd.leases";
 
@@ -54,16 +56,17 @@ if (($_GET['deleteip']) && (is_ipaddr($_GET['deleteip']))) {
 	killbyname("dhcpd");
 
 	/* Read existing leases */
-	$leases_contents = explode("\n", file_get_contents($leasesfile));
+	/* $leases_contents has the lines of the file, including the newline char at the end of each line. */
+	$leases_contents = file($leasesfile);
 	$newleases_contents = array();
 	$i=0;
 	while ($i < count($leases_contents)) {
 		/* Find the lease(s) we want to delete */
-		if ($leases_contents[$i] == "lease {$_GET['deleteip']} {") {
+		if ($leases_contents[$i] == "lease {$_GET['deleteip']} {\n") {
 			/* Skip to the end of the lease declaration */
 			do {
 				$i++;
-			} while ($leases_contents[$i] != "}");
+			} while ($leases_contents[$i] != "}\n");
 		} else {
 			/* It's a line we want to keep, copy it over. */
 			$newleases_contents[] = $leases_contents[$i];
@@ -94,8 +97,18 @@ function leasecmp($a, $b) {
 }
 
 function adjust_gmt($dt) {
-        $ts = strtotime($dt . " GMT");
-        return strftime("%Y/%m/%d %H:%M:%S", $ts);
+	global $config; 
+	$dhcpd = $config['dhcpd'];
+	foreach ($dhcpd as $dhcpditem) {
+		$dhcpleaseinlocaltime = $dhcpditem['dhcpleaseinlocaltime'];
+		if ($dhcpleaseinlocaltime == "yes") 
+			break;
+	}
+	if ($dhcpleaseinlocaltime == "yes") {
+		$ts = strtotime($dt . " GMT");
+		return strftime("%Y/%m/%d %I:%M:%S%p", $ts);
+	} else
+		return $dt;
 }
 
 function remove_duplicate($array, $field)
@@ -118,18 +131,17 @@ $splitpattern = "'BEGIN { RS=\"}\";} {for (i=1; i<=NF; i++) printf \"%s \", \$i;
 exec("/bin/cat {$leasesfile} | {$awk} {$cleanpattern} | {$awk} {$splitpattern}", $leases_content);
 $leases_count = count($leases_content);
 exec("/usr/sbin/arp -an", $rawdata);
-$arpdata = array();
+$arpdata_ip = array();
+$arpdata_mac = array();
 foreach ($rawdata as $line) {
 	$elements = explode(' ',$line);
 	if ($elements[3] != "(incomplete)") {
 		$arpent = array();
-		$arpent['ip'] = trim(str_replace(array('(',')'),'',$elements[1]));
-		// $arpent['mac'] = trim($elements[3]);
-		// $arpent['interface'] = trim($elements[5]);
-	$arpdata[] = $arpent['ip'];
+		$arpdata_ip[] = trim(str_replace(array('(',')'),'',$elements[1]));
+		$arpdata_mac[] = strtolower(trim($elements[3]));
 	}
 }
-
+unset($rawdata);
 $pools = array();
 $leases = array();
 $i = 0;
@@ -137,9 +149,9 @@ $l = 0;
 $p = 0;
 
 // Put everything together again
-while($i < $leases_count) {
+foreach($leases_content as $lease) {
 	/* split the line by space */
-	$data = explode(" ", $leases_content[$i]);
+	$data = explode(" ", $lease);
 	/* walk the fields */
 	$f = 0;
 	$fcount = count($data);
@@ -151,7 +163,8 @@ while($i < $leases_count) {
 	while($f < $fcount) {
 		switch($data[$f]) {
 			case "failover":
-				$pools[$p]['name'] = $data[$f+2];
+				$pools[$p]['name'] = trim($data[$f+2], '"');
+				$pools[$p]['name'] = "{$pools[$p]['name']} (" . convert_friendly_interface_to_friendly_descr(substr($pools[$p]['name'], 5)) . ")";
 				$pools[$p]['mystate'] = $data[$f+7];
 				$pools[$p]['peerstate'] = $data[$f+14];
 				$pools[$p]['mydate'] = $data[$f+10];
@@ -215,7 +228,7 @@ while($i < $leases_count) {
 			case "hardware":
 				$leases[$l]['mac'] = $data[$f+2];
 				/* check if it's online and the lease is active */
-				if (in_array($leases[$l]['ip'], $arpdata)) {
+				if (in_array($leases[$l]['ip'], $arpdata_ip)) {
 					$leases[$l]['online'] = 'online';
 				} else {
 					$leases[$l]['online'] = 'offline';
@@ -241,7 +254,11 @@ while($i < $leases_count) {
 	}
 	$l++;
 	$i++;
+	/* slowly chisel away at the source array */
+	array_shift($leases_content);
 }
+/* remove the old array */
+unset($lease_content);
 
 /* remove duplicate items by mac address */
 if(count($leases) > 0) {
@@ -265,12 +282,7 @@ foreach($config['interfaces'] as $ifname => $ifarr) {
 			$slease['end'] = "";
 			$slease['hostname'] = htmlentities($static['hostname']);
 			$slease['act'] = "static";
-			$online = exec("/usr/sbin/arp -an |/usr/bin/grep {$slease['mac']}| /usr/bin/wc -l|/usr/bin/awk '{print $1;}'");
-			if ($online == 1) {
-				$slease['online'] = 'online';
-			} else {
-				$slease['online'] = 'offline';
-			}
+			$slease['online'] = in_array(strtolower($slease['mac']), $arpdata_mac) ? 'online' : 'offline';
 			$leases[] = $slease;
 		}
 	}
@@ -311,7 +323,6 @@ foreach ($pools as $data) {
 }
 ?>
 
-<p>
 
 <table class="tabcont sortable" width="100%" border="0" cellpadding="0" cellspacing="0">
   <tr>
@@ -350,7 +361,9 @@ foreach ($leases as $data) {
 					break;
 			}
 		} else {
-                	foreach ($config['dhcpd'] as $dhcpif => $dhcpifconf) {	
+			foreach ($config['dhcpd'] as $dhcpif => $dhcpifconf) {
+				if (!is_array($dhcpifconf['range']))
+					continue;
                         	if (($lip >= ip2ulong($dhcpifconf['range']['from'])) && ($lip <= ip2ulong($dhcpifconf['range']['to']))) {
                                 	$data['if'] = $dhcpif;
                                 	break;
@@ -363,9 +376,9 @@ foreach ($leases as $data) {
 		$mac_hi = strtoupper($mac[0] . $mac[1] . $mac[3] . $mac[4] . $mac[6] . $mac[7]);
                 if ($data['online'] != "online") {
 			if(isset($mac_man[$mac_hi])){ // Manufacturer for this MAC is defined
-	                        echo "<td class=\"listr\">{$fspans}<a href=\"services_wol.php?if={$data['if']}&mac=$mac\" title=\"" . gettext("$mac - send Wake on LAN packet to this MAC address") ."\">{$mac}</a><br/><font size=\"-2\"><i>{$mac_man[$mac_hi]}</i></font>{$fspane}&nbsp;</td>\n";
+	                        echo "<td class=\"listr\">{$fspans}<a href=\"services_wol.php?if={$data['if']}&amp;mac=$mac\" title=\"" . gettext("$mac - send Wake on LAN packet to this MAC address") ."\">{$mac}</a><br/><font size=\"-2\"><i>{$mac_man[$mac_hi]}</i></font>{$fspane}&nbsp;</td>\n";
 			}else{	
-                        	echo "<td class=\"listr\">{$fspans}<a href=\"services_wol.php?if={$data['if']}&mac={$data['mac']}\" title=\"" . gettext("send Wake on LAN packet to this MAC address") ."\">{$data['mac']}</a>{$fspane}&nbsp;</td>\n";
+                        	echo "<td class=\"listr\">{$fspans}<a href=\"services_wol.php?if={$data['if']}&amp;mac={$data['mac']}\" title=\"" . gettext("send Wake on LAN packet to this MAC address") ."\">{$data['mac']}</a>{$fspane}&nbsp;</td>\n";
 			}
                 }else{
 			if(isset($mac_man[$mac_hi])){ // Manufacturer for this MAC is defined
@@ -386,20 +399,20 @@ foreach ($leases as $data) {
                 echo "<td class=\"listr\">{$fspans}{$data['act']}{$fspane}&nbsp;</td>\n";
 		
 		if ($data['type'] == "dynamic") {
-			echo "<td valign=\"middle\"><a href=\"services_dhcp_edit.php?if={$data['if']}&mac={$data['mac']}&hostname={$data['hostname']}\">";
-			echo "<img src=\"/themes/{$g['theme']}/images/icons/icon_plus.gif\" width=\"17\" height=\"17\" border=\"0\" title=\"" . gettext("add a static mapping for this MAC address") ."\"></a></td>\n";
+			echo "<td valign=\"middle\"><a href=\"services_dhcp_edit.php?if={$data['if']}&amp;mac={$data['mac']}&amp;hostname={$data['hostname']}\">";
+			echo "<img src=\"/themes/{$g['theme']}/images/icons/icon_plus.gif\" width=\"17\" height=\"17\" border=\"0\" title=\"" . gettext("add a static mapping for this MAC address") ."\" alt=\"\"/></a></td>\n";
 		} else {
                 	echo "<td class=\"list\" valign=\"middle\">";
-			echo "<img src=\"/themes/{$g['theme']}/images/icons/icon_plus_mo.gif\" width=\"17\" height=\"17\" border=\"0\"></td>\n";
+			echo "<img src=\"/themes/{$g['theme']}/images/icons/icon_plus_mo.gif\" width=\"17\" height=\"17\" border=\"0\" alt=\"\"/></td>\n";
 		}
 
-                echo "<td valign=\"middle\"><a href=\"services_wol_edit.php?if={$data['if']}&mac={$data['mac']}&descr={$data['hostname']}\">";
-		echo "<img src=\"/themes/{$g['theme']}/images/icons/icon_wol_all.gif\" width=\"17\" height=\"17\" border=\"0\" title=\"" . gettext("add a Wake on LAN mapping for this MAC address") ."\"></a></td>\n";
+                echo "<td valign=\"middle\"><a href=\"services_wol_edit.php?if={$data['if']}&amp;mac={$data['mac']}&amp;descr={$data['hostname']}\">";
+		echo "<img src=\"/themes/{$g['theme']}/images/icons/icon_wol_all.gif\" width=\"17\" height=\"17\" border=\"0\" title=\"" . gettext("add a Wake on LAN mapping for this MAC address") ."\" alt=\"\"/></a></td>\n";
 
 		/* Only show the button for offline dynamic leases */
 		if (($data['type'] == "dynamic") && ($data['online'] != "online")) {
-			echo "<td class=\"list\" valign=\"middle\"><a href=\"status_dhcp_leases.php?deleteip={$data['ip']}&all=" . htmlspecialchars($_GET['all']) . "\">";
-			echo "<img src=\"/themes/{$g['theme']}/images/icons/icon_x.gif\" width=\"17\" height=\"17\" border=\"0\" title=\"" . gettext("delete this DHCP lease") . "\"></a></td>\n";
+			echo "<td class=\"list\" valign=\"middle\"><a href=\"status_dhcp_leases.php?deleteip={$data['ip']}&amp;all=" . htmlspecialchars($_GET['all']) . "\">";
+			echo "<img src=\"/themes/{$g['theme']}/images/icons/icon_x.gif\" width=\"17\" height=\"17\" border=\"0\" title=\"" . gettext("delete this DHCP lease") . "\" alt=\"\"/></a></td>\n";
 		}
                 echo "</tr>\n";
 	}
@@ -407,15 +420,15 @@ foreach ($leases as $data) {
 
 ?>
 </table>
-<p>
-<form action="status_dhcp_leases.php" method="GET">
-<input type="hidden" name="order" value="<?=htmlspecialchars($_GET['order']);?>">
+
+<form action="status_dhcp_leases.php" method="get">
+<input type="hidden" name="order" value="<?=htmlspecialchars($_GET['order']);?>"/>
 <?php if ($_GET['all']): ?>
-<input type="hidden" name="all" value="0">
-<input type="submit" class="formbtn" value="<?=gettext("Show active and static leases only"); ?>">
+<input type="hidden" name="all" value="0"/>
+<input type="submit" class="formbtn" value="<?=gettext("Show active and static leases only"); ?>"/>
 <?php else: ?>
-<input type="hidden" name="all" value="1">
-<input type="submit" class="formbtn" value="<?=gettext("Show all configured leases"); ?>">
+<input type="hidden" name="all" value="1"/>
+<input type="submit" class="formbtn" value="<?=gettext("Show all configured leases"); ?>"/>
 <?php endif; ?>
 </form>
 <?php if($leases == 0): ?>

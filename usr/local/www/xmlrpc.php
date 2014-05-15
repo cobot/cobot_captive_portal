@@ -38,26 +38,26 @@
 
 require("config.inc");
 require("functions.inc");
-require("filter.inc");
+require_once("filter.inc");
+require("ipsec.inc");
+require("vpn.inc");
 require("shaper.inc");
 require("xmlrpc_server.inc");
 require("xmlrpc.inc");
 require("array_intersect_key.inc");
 
-/* grab sync to ip if enabled */
-if($config['installedpackages']['carpsettings']) {
-	if ($config['installedpackages']['carpsettings']['config']) {
-		foreach ($config['installedpackages']['carpsettings']['config'] as $carp) {
-			$synchronizetoip = $carp['synchronizetoip'];
-		}
-	}
-}
+function xmlrpc_loop_detect() {
+	global $config;
 
-if($synchronizetoip) {
-	if($synchronizetoip == $_SERVER['REMOTE_ADDR']) {
-		log_error(gettext("Disallowing CARP sync loop."));
-		die;	
+	/* grab sync to ip if enabled */
+	if ($config['hasync'])
+		$synchronizetoip = $config['hasync']['synchronizetoip'];
+	if($synchronizetoip) {
+		if($synchronizetoip == $_SERVER['REMOTE_ADDR'])
+			return true;	
 	}
+
+	return false;
 }
 
 $xmlrpc_g = array(
@@ -142,6 +142,11 @@ $backup_config_section_sig = array(
 function backup_config_section_xmlrpc($raw_params) {
 	global $config, $xmlrpc_g;
 
+	if (xmlrpc_loop_detect()) {
+		log_error("Disallowing CARP sync loop");
+		return;
+	}
+
 	$params = xmlrpc_params_to_php($raw_params);
 	if(!xmlrpc_auth($params)) {
 		xmlrpc_authfail();
@@ -165,6 +170,13 @@ $restore_config_section_sig = array(
 function restore_config_section_xmlrpc($raw_params) {
 	global $config, $xmlrpc_g;
 
+	$old_config = $config;
+
+	if (xmlrpc_loop_detect()) {
+		log_error("Disallowing CARP sync loop");
+		return;
+	}
+
 	$params = xmlrpc_params_to_php($raw_params);
 	if(!xmlrpc_auth($params)) {
 		xmlrpc_authfail();
@@ -173,7 +185,7 @@ function restore_config_section_xmlrpc($raw_params) {
 
 	// Some sections should just be copied and not merged or we end
 	//   up unable to sync the deletion of the last item in a section
-	$sync_full = array('ipsec', 'aliases', 'wol', 'load_balancer', 'openvpn', 'cert', 'ca', 'crl', 'schedules');
+	$sync_full = array('ipsec', 'aliases', 'wol', 'load_balancer', 'openvpn', 'cert', 'ca', 'crl', 'schedules', 'filter', 'nat', 'dhcpd', 'dhcpv6');
 	$sync_full_done = array();
 	foreach ($sync_full as $syncfull) {
 		if (isset($params[0][$syncfull])) {
@@ -186,13 +198,13 @@ function restore_config_section_xmlrpc($raw_params) {
 	$vipbackup = array();
 	$oldvips = array();
 	if (isset($params[0]['virtualip'])) {
-		if(is_array($config['virtualip']['vip'])) {
+		if (is_array($config['virtualip']['vip'])) {
 			foreach ($config['virtualip']['vip'] as $vipindex => $vip) {
 				if ($vip['mode'] == "carp")
-					$oldvips[$vip['vhid']] = "{$vip['password']}{$vip['advskew']}{$vip['subnet']}{$vip['subnet_bits']}{$vip['advbase']}";
-				else if ($vip['mode'] == "ipalias" && substr($vip['interface'], 0, 3) == "vip")
+					$oldvips["{$vip['interface']}_vip{$vip['vhid']}"] = "{$vip['password']}{$vip['advskew']}{$vip['subnet']}{$vip['subnet_bits']}{$vip['advbase']}";
+				else if ($vip['mode'] == "ipalias" && (strstr($vip['interface'], "_vip") || strstr($vip['interface'], "lo0")))
 					$oldvips[$vip['subnet']] = "{$vip['interface']}{$vip['subnet']}{$vip['subnet_bits']}";
-				else if (($vip['mode'] == "ipalias" || $vip['mode'] == 'proxyarp') && substr($vip['interface'], 0, 3) != "vip")
+				else if (($vip['mode'] == "ipalias" || $vip['mode'] == 'proxyarp') && !(strstr($vip['interface'], "_vip") || strstr($vip['interface'], "lo0")))
 					$vipbackup[] = $vip;
 			}
 		}
@@ -223,15 +235,15 @@ function restore_config_section_xmlrpc($raw_params) {
 		$carp_setuped = false;
 		$anyproxyarp = false;
 		foreach ($config['virtualip']['vip'] as $vip) {
-			if ($vip['mode'] == "carp" && isset($oldvips[$vip['vhid']])) {
-				if ($oldvips[$vip['vhid']] == "{$vip['password']}{$vip['advskew']}{$vip['subnet']}{$vip['subnet_bits']}{$vip['advbase']}") {
+			if ($vip['mode'] == "carp" && isset($oldvips["{$vip['interface']}_vip{$vip['vhid']}"])) {
+				if ($oldvips["{$vip['interface']}_vip{$vip['vhid']}"] == "{$vip['password']}{$vip['advskew']}{$vip['subnet']}{$vip['subnet_bits']}{$vip['advbase']}") {
 					if (does_vip_exist($vip)) {
-						unset($oldvips[$vip['vhid']]);
+						unset($oldvips["{$vip['interface']}_vip{$vip['vhid']}"]);
 						continue; // Skip reconfiguring this vips since nothing has changed.
 					}
 				}
-				unset($oldvips[$vip['vhid']]);
-			} else if ($vip['mode'] == "ipalias" && substr($vip['interface'], 0, 3) == "vip" && isset($oldvips[$vip['subnet']])) {
+				unset($oldvips["{$vip['interface']}_vip{$vip['vhid']}"]);
+			} else if ($vip['mode'] == "ipalias" && strstr($vip['interface'], "_vip") && isset($oldvips[$vip['subnet']])) {
 				if ($oldvips[$vip['subnet']] = "{$vip['interface']}{$vip['subnet']}{$vip['subnet_bits']}") {
 					if (does_vip_exist($vip)) {
 						unset($oldvips[$vip['subnet']]);
@@ -246,28 +258,30 @@ function restore_config_section_xmlrpc($raw_params) {
 				$anyproxyarp = true;
 				break;
 			case "ipalias":
-				interface_ipalias_configure(&$vip);
+				interface_ipalias_configure($vip);
 				break;
 			case "carp":
 				if ($carp_setuped == false)
                                         $carp_setuped = true;
 				interface_carp_configure($vip);
 				break;
-			case "carpdev-dhcp":
-				interface_carpdev_configure($vip);
-				break;
 			}
 		}
 		/* Cleanup remaining old carps */
 		foreach ($oldvips as $oldvipif => $oldvippar) {
-			if (!is_ipaddr($oldvipif) && does_interface_exist("vip{$oldvipif}"))
-				pfSense_interface_destroy("vip{$oldvipif}");
+			if (!is_ipaddr($oldvipif) && does_interface_exist($oldvipif))
+					pfSense_interface_destroy($oldvipif);
 		}
 		if ($carp_setuped == true)
 			interfaces_carp_setup();
 		if ($anyproxyarp == true)
 			interface_proxyarp_configure();
 	}
+
+	if (isset($old_config['ipsec']['enable']) !== isset($config['ipsec']['enable']))
+		vpn_ipsec_configure();
+
+	unset($old_config);
 
 	return $xmlrpc_g['return']['true'];
 }
@@ -284,6 +298,11 @@ $merge_config_section_sig = array(
 
 function merge_installedpackages_section_xmlrpc($raw_params) {
 	global $config, $xmlrpc_g;
+
+	if (xmlrpc_loop_detect()) {
+		log_error("Disallowing CARP sync loop");
+		return;
+	}
 
 	$params = xmlrpc_params_to_php($raw_params);
 	if(!xmlrpc_auth($params)) {
@@ -309,6 +328,12 @@ $merge_config_section_sig = array(
 
 function merge_config_section_xmlrpc($raw_params) {
 	global $config, $xmlrpc_g;
+
+	if (xmlrpc_loop_detect()) {
+		log_error("Disallowing CARP sync loop");
+		return;
+	}
+
 	$params = xmlrpc_params_to_php($raw_params);
 	if(!xmlrpc_auth($params)) {
 		xmlrpc_authfail();
@@ -362,6 +387,11 @@ $carp_configure_sig = array(
 
 function interfaces_carp_configure_xmlrpc($raw_params) {
 	global $xmlrpc_g;
+
+	if (xmlrpc_loop_detect()) {
+		log_error("Disallowing CARP sync loop");
+		return;
+	}
 
 	$params = xmlrpc_params_to_php($raw_params);
 	if(!xmlrpc_auth($params)) {

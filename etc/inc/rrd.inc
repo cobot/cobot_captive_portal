@@ -36,39 +36,81 @@
 
 function dump_rrd_to_xml($rrddatabase, $xmldumpfile) {
 	$rrdtool = "/usr/bin/nice -n20 /usr/local/bin/rrdtool";
-	if(file_exists($xmldumpfile))
-		mwexec("rm {$xmldumpfile}");
+	unlink_if_exists($xmldumpfile);
 
-	exec("$rrdtool dump {$rrddatabase} {$xmldumpfile} 2>&1", $dumpout, $dumpret);
+	exec("$rrdtool dump " . escapeshellarg($rrddatabase) . " {$xmldumpfile} 2>&1", $dumpout, $dumpret);
 	if ($dumpret <> 0) {
 		$dumpout = implode(" ", $dumpout);
-		log_error("RRD dump failed exited with $dumpret, the error is: $dumpout");
+		log_error(sprintf(gettext('RRD dump failed exited with %1$s, the error is: %2$s'), $dumpret, $dumpout));
 	}
 	return($dumpret);
+}
+
+function restore_rrd() {
+	global $g, $config;
+
+	$rrddbpath = "/var/db/rrd/";
+	$rrdtool = "/usr/bin/nice -n20 /usr/local/bin/rrdtool";
+
+	$rrdrestore = "";
+	$rrdreturn = "";
+	if (file_exists("{$g['cf_conf_path']}/rrd.tgz")) {
+		foreach (glob("{$rrddbpath}/*.xml") as $xml_file) {
+			@unlink($xml_file);
+		}
+		$_gb = exec("cd /;LANG=C /usr/bin/tar -xzf {$g['cf_conf_path']}/rrd.tgz 2>&1", $rrdrestore, $rrdreturn);
+		$rrdrestore = implode(" ", $rrdrestore);
+		if($rrdreturn != 0) {
+			log_error("RRD restore failed exited with $rrdreturn, the error is: $rrdrestore\n");
+		}
+		unset($rrdrestore);
+		foreach (glob("{$rrddbpath}/*.xml") as $xml_file) {
+			$rrd_file = preg_replace('/\.xml$/', ".rrd", $xml_file);
+			if (file_exists("{$rrd_file}")) {
+				@unlink($rrd_file);
+			}
+			$output = array();
+			$status = null;
+			$_gb = exec("$rrdtool restore -f '{$xml_file}' '{$rrd_file}'", $output, $status);
+			if ($status) {
+				log_error("rrdtool restore -f '{$xml_file}' '{$rrd_file}' failed returning {$status}.");
+				continue;
+			}
+			unset($output);
+			@unlink($xml_file);
+		}
+		/* If this backup is still there on a full install, but we aren't going to use ram disks, remove the archive since this is a transition. */
+		if (($g['platform'] == "pfSense") && !isset($config['system']['use_mfs_tmpvar'])) {
+			unlink_if_exists("{$g['cf_conf_path']}/rrd.tgz");
+		}
+		return true;
+	}
+	return false;
 }
 
 function create_new_rrd($rrdcreatecmd) {
 	$rrdcreateoutput = array();
 	$rrdcreatereturn = 0;
-	exec("$rrdcreatecmd 2>&1", $rrdcreateoutput, $rrdcreatereturn);
+	$_gb = exec("$rrdcreatecmd 2>&1", $rrdcreateoutput, $rrdcreatereturn);
 	if ($rrdcreatereturn <> 0) {
 		$rrdcreateoutput = implode(" ", $rrdcreateoutput);
-		log_error("RRD create failed exited with $rrdcreatereturn, the error is: $rrdcreateoutput");
+		log_error(sprintf(gettext('RRD create failed exited with %1$s, the error is: %2$s'), $rrdcreatereturn, $rrdcreateoutput));
 	}
+	unset($rrdcreateoutput);
 	return $rrdcreatereturn;
 }
 
 function migrate_rrd_format($rrdoldxml, $rrdnewxml) {
 	if(!file_exists("/tmp/rrd_notice_sent.txt")) {
-		exec("echo 'Converting RRD configuration to new format.  This might take a bit...' | wall");
-		touch("/tmp/rrd_notice_sent.txt");
+		$_gb = exec("echo 'Converting RRD configuration to new format.  This might take a bit...' | wall");
+		@touch("/tmp/rrd_notice_sent.txt");
 	}
 	$numrraold = count($rrdoldxml['rra']);
-	$numdsold = count($rrdoldxml['ds']);
 	$numrranew = count($rrdnewxml['rra']);
+	$numdsold = count($rrdoldxml['ds']);
 	$numdsnew = count($rrdnewxml['ds']);
-	log_error("Import RRD has $numdsold DS values and $numrraold RRA databases, new format RRD has $numdsnew DS values and $numrranew RRA databases");
-	
+	log_error(sprintf(gettext('Import RRD has %1$s DS values and %2$s RRA databases, new format RRD has %3$s DS values and %4$s RRA databases'), $numdsold, $numrraold, $numdsnew ,$numrranew));
+
 	/* add data sources not found in the old array from the new array */
 	$i = 0;
 	foreach($rrdnewxml['ds'] as $ds) {
@@ -151,15 +193,15 @@ function migrate_rrd_format($rrdoldxml, $rrdnewxml) {
 
 	$numrranew = count($rrdoldxml['rra']);
 	$numdsnew = count($rrdoldxml['ds']);
-	log_error("The new RRD now has $numdsnew DS values and $numrranew RRA databases");
+	log_error(sprintf(gettext('The new RRD now has %1$s DS values and %2$s RRA databases'), $numdsnew, $numrranew));
 	return $rrdoldxml;
 }
 
 function enable_rrd_graphing() {
 	global $config, $g, $altq_list_queues;
 
-	if($g['booting']) 
-		echo "Generating RRD graphs...";
+	if($g['booting'])
+		echo gettext("Generating RRD graphs...");
 
 	$rrddbpath = "/var/db/rrd/";
 	$rrdgraphpath = "/usr/local/www/rrd";
@@ -173,11 +215,11 @@ function enable_rrd_graphing() {
 	$spamd = "-spamd.rrd";
 	$proc = "-processor.rrd";
 	$mem = "-memory.rrd";
+	$mbuf = "-mbuf.rrd";
 	$cellular = "-cellular.rrd";
 	$vpnusers = "-vpnusers.rrd";
 	$captiveportalconcurrent = "-concurrent.rrd";
 	$captiveportalloggedin = "-loggedin.rrd";
-	$captiveportaltotalusers = "-totalusers.rrd";
 
 	$rrdtool = "/usr/bin/nice -n20 /usr/local/bin/rrdtool";
 	$netstat = "/usr/bin/netstat";
@@ -201,6 +243,7 @@ function enable_rrd_graphing() {
 	$rrdlbpoolinterval = 60;
 	$rrdprocinterval = 60;
 	$rrdmeminterval = 60;
+	$rrdmbufinterval = 60;
 	$rrdcellularinterval = 60;
 	$rrdvpninterval = 60;
 	$rrdcaptiveportalinterval = 60;
@@ -215,19 +258,17 @@ function enable_rrd_graphing() {
 	$lbpoolvalid = $rrdlbpoolinterval * 2;
 	$procvalid = $rrdlbpoolinterval * 2;
 	$memvalid = $rrdmeminterval * 2;
+	$mbufvalid = $rrdmbufinterval * 2;
 	$cellularvalid = $rrdcellularinterval * 2;
 	$vpnvalid = $rrdvpninterval * 2;
 	$captiveportalvalid = $rrdcaptiveportalinterval * 2;
 
-	/* Asume GigE for now */
-	$downstream = 125000000;
-	$upstream = 125000000;
+	/* Assume 2*10GigE for now */
+	$downstream = 2500000000;
+	$upstream = 2500000000;
 
 	/* read the shaper config */
 	read_altq_config();
-
-	$rrdrestore = "";
-	$rrdreturn = "";
 
 	if (isset ($config['rrd']['enable'])) {
 
@@ -238,20 +279,15 @@ function enable_rrd_graphing() {
 		chown($rrddbpath, "nobody");
 
 		if ($g['booting']) {
-			if ($g['platform'] != "pfSense") {
-				/* restore the databases, if we have one */
-				if (file_exists("{$g['cf_conf_path']}/rrd.tgz")) {
-					exec("cd /;LANG=C /usr/bin/tar -xzf {$g['cf_conf_path']}/rrd.tgz 2>&1", $rrdrestore, $rrdreturn);
-					$rrdrestore = implode(" ", $rrdrestore);
-					if($rrdreturn <> 0) {
-						log_error("RRD restore failed exited with $rrdreturn, the error is: $rrdrestore\n");
-					}
-				}
-			}
+			restore_rrd();
 		}
 
 		/* db update script */
 		$rrdupdatesh = "#!/bin/sh\n";
+		$rrdupdatesh .= "\n";
+		$rrdupdatesh .= "export TERM=dumb\n";
+		$rrdupdatesh .= "\n";
+		$rrdupdatesh .= 'echo $$ > ' . $g['varrun_path'] . '/updaterrd.sh.pid';
 		$rrdupdatesh .= "\n";
 		$rrdupdatesh .= "counter=1\n";
 		$rrdupdatesh .= "while [ \"\$counter\" -ne 0 ]\n";
@@ -284,27 +320,31 @@ function enable_rrd_graphing() {
 				$rrdcreate .= "DS:outpass:COUNTER:$trafficvalid:0:$upstream ";
 				$rrdcreate .= "DS:inblock:COUNTER:$trafficvalid:0:$downstream ";
 				$rrdcreate .= "DS:outblock:COUNTER:$trafficvalid:0:$upstream ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:1:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:5:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:60:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:720:3000 ";
+				$rrdcreate .= "DS:inpass6:COUNTER:$trafficvalid:0:$downstream ";
+				$rrdcreate .= "DS:outpass6:COUNTER:$trafficvalid:0:$upstream ";
+				$rrdcreate .= "DS:inblock6:COUNTER:$trafficvalid:0:$downstream ";
+				$rrdcreate .= "DS:outblock6:COUNTER:$trafficvalid:0:$upstream ";
+				$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+				$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+				$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+				$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
 
 				create_new_rrd($rrdcreate);
+				unset($rrdcreate);
 			}
 
 			/* enter UNKNOWN values in the RRD so it knows we rebooted. */
 			if($g['booting']) {
-				mwexec("$rrdtool update $rrddbpath$ifname$traffic N:U:U:U:U");
+				mwexec("$rrdtool update $rrddbpath$ifname$traffic N:U:U:U:U:U:U:U:U");
 			}
 
 			$rrdupdatesh .= "\n";
-			$rrdupdatesh .= "# polling traffic for interface $ifname $realif \n";
-			$rrdupdatesh .= "TMPFILE=`mktemp -q /tmp/STATS_{$realif}.XXXXXX` \n";
-			$rrdupdatesh .= "$pfctl -vvsI -i {$realif} > \$TMPFILE \n";
-			$rrdupdatesh .= "unset BYTES \n";
-			$rrdupdatesh .= "BYTES=`cat \$TMPFILE | awk '/In4\/Pass|Out4\/Pass/ {printf \$6 \":\"}'`\\\n";
-			$rrdupdatesh .= "`cat \$TMPFILE | awk '/In4\/Block|Out4\/Block/ {printf \$6 \":\"}'|sed -e 's/.\$//'`\n";
-			$rrdupdatesh .= "$rrdtool update $rrddbpath$ifname$traffic N:\$BYTES\n";
+			$rrdupdatesh .= "# polling traffic for interface $ifname $realif IPv4/IPv6 counters \n";
+			$rrdupdatesh .= "$rrdtool update $rrddbpath$ifname$traffic N:";
+			$rrdupdatesh .= "`$pfctl -vvsI -i {$realif} | awk '\\\n";
+			$rrdupdatesh .= "/In4\/Pass/ { b4pi = \$6 };/Out4\/Pass/ { b4po = \$6 };/In4\/Block/ { b4bi = \$6 };/Out4\/Block/ { b4bo = \$6 };\\\n";
+			$rrdupdatesh .= "/In6\/Pass/ { b6pi = \$6 };/Out6\/Pass/ { b6po = \$6 };/In6\/Block/ { b6bi = \$6 };/Out6\/Block/ { b6bo = \$6 };\\\n";
+			$rrdupdatesh .= "END {print b4pi \":\" b4po \":\" b4bi \":\" b4bo \":\" b6pi \":\" b6po \":\" b6bi \":\" b6bo};'`\n";
 
 			/* PACKETS, set up the rrd file */
 			if (!file_exists("$rrddbpath$ifname$packets")) {
@@ -313,26 +353,31 @@ function enable_rrd_graphing() {
 				$rrdcreate .= "DS:outpass:COUNTER:$packetsvalid:0:$upstream ";
 				$rrdcreate .= "DS:inblock:COUNTER:$packetsvalid:0:$downstream ";
 				$rrdcreate .= "DS:outblock:COUNTER:$packetsvalid:0:$upstream ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:1:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:5:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:60:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:720:3000 ";
+				$rrdcreate .= "DS:inpass6:COUNTER:$packetsvalid:0:$downstream ";
+				$rrdcreate .= "DS:outpass6:COUNTER:$packetsvalid:0:$upstream ";
+				$rrdcreate .= "DS:inblock6:COUNTER:$packetsvalid:0:$downstream ";
+				$rrdcreate .= "DS:outblock6:COUNTER:$packetsvalid:0:$upstream ";
+				$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+				$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+				$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+				$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
 
 				create_new_rrd($rrdcreate);
+				unset($rrdcreate);
 			}
 
 			/* enter UNKNOWN values in the RRD so it knows we rebooted. */
 			if($g['booting']) {
-				mwexec("$rrdtool update $rrddbpath$ifname$packets N:U:U:U:U");
+				mwexec("$rrdtool update $rrddbpath$ifname$packets N:U:U:U:U:U:U:U:U");
 			}
 
 			$rrdupdatesh .= "\n";
 			$rrdupdatesh .= "# polling packets for interface $ifname $realif \n";
-			$rrdupdatesh .= "unset PACKETS \n";
-			$rrdupdatesh .= "PACKETS=`cat \$TMPFILE | awk '/In4\/Pass|Out4\/Pass/ {printf \$4 \":\"}'`\\\n";
-			$rrdupdatesh .= "`cat \$TMPFILE | awk '/In4\/Block|Out4\/Block/ {printf \$4 \":\"}'|sed -e 's/.\$//'`\n";
-			$rrdupdatesh .= "$rrdtool update $rrddbpath$ifname$packets N:\$PACKETS\n";
-			$rrdupdatesh .= "rm \$TMPFILE \n";
+			$rrdupdatesh .= "$rrdtool update $rrddbpath$ifname$packets N:";
+			$rrdupdatesh .= "`$pfctl -vvsI -i {$realif} | awk '\\\n";
+			$rrdupdatesh .= "/In4\/Pass/ { b4pi = \$4 };/Out4\/Pass/ { b4po = \$4 };/In4\/Block/ { b4bi = \$4 };/Out4\/Block/ { b4bo = \$4 };\\\n";
+			$rrdupdatesh .= "/In6\/Pass/ { b6pi = \$4 };/Out6\/Pass/ { b6po = \$4 };/In6\/Block/ { b6bi = \$4 };/Out6\/Block/ { b6bo = \$4 };\\\n";
+			$rrdupdatesh .= "END {print b4pi \":\" b4po \":\" b4bi \":\" b4bo \":\" b6pi \":\" b6po \":\" b6bi \":\" b6bo};'`\n";
 
 			/* WIRELESS, set up the rrd file */
 			if($config['interfaces'][$ifname]['wireless']['mode'] == "bss") {
@@ -341,12 +386,13 @@ function enable_rrd_graphing() {
 					$rrdcreate .= "DS:snr:GAUGE:$wirelessvalid:0:1000 ";
 					$rrdcreate .= "DS:rate:GAUGE:$wirelessvalid:0:1000 ";
 					$rrdcreate .= "DS:channel:GAUGE:$wirelessvalid:0:1000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:1:1000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:5:1000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:60:1000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:720:3000 ";
-	
+					$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
+
 					create_new_rrd($rrdcreate);
+					unset($rrdcreate);
 				}
 
 				/* enter UNKNOWN values in the RRD so it knows we rebooted. */
@@ -357,7 +403,7 @@ function enable_rrd_graphing() {
 				$rrdupdatesh .= "\n";
 				$rrdupdatesh .= "# polling wireless for interface $ifname $realif \n";
 				$rrdupdatesh .= "WIFI=`$ifconfig {$realif} list sta| $awk 'gsub(\"M\", \"\") {getline 2;print substr(\$5, 0, length(\$5)-2) \":\" $4 \":\" $3}'`\n";
-				$rrdupdatesh .= "$rrdtool update $rrddbpath$ifname$wireless N:${WIFI}\n";
+				$rrdupdatesh .= "$rrdtool update $rrddbpath$ifname$wireless N:\${WIFI}\n";
 			}
 
 			/* OpenVPN, set up the rrd file */
@@ -365,12 +411,13 @@ function enable_rrd_graphing() {
 				if (!file_exists("$rrddbpath$ifname$vpnusers")) {
 					$rrdcreate = "$rrdtool create $rrddbpath$ifname$vpnusers --step $rrdvpninterval ";
 					$rrdcreate .= "DS:users:GAUGE:$vpnvalid:0:10000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:1:1000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:5:1000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:60:1000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:720:3000 ";
-	
+					$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
+
 					create_new_rrd($rrdcreate);
+					unset($rrdcreate);
 				}
 
 				/* enter UNKNOWN values in the RRD so it knows we rebooted. */
@@ -430,12 +477,13 @@ function enable_rrd_graphing() {
 						$rrdcreate .= "DS:$qname:COUNTER:$queuesvalid:0:$qbandwidth ";
 					}
 
-					$rrdcreate .= "RRA:AVERAGE:0.5:1:1000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:5:1000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:60:1000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:720:3000 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
 
 					create_new_rrd($rrdcreate);
+					unset($rrdcreate);
 				}
 
 				if (!file_exists("$rrddbpath$ifname$queuesdrop")) {
@@ -446,12 +494,13 @@ function enable_rrd_graphing() {
 						$rrdcreate .= "DS:$qname:COUNTER:$queuesdropvalid:0:$qbandwidth ";
 					}
 
-					$rrdcreate .= "RRA:AVERAGE:0.5:1:1000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:5:1000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:60:1000 ";
-					$rrdcreate .= "RRA:AVERAGE:0.5:720:3000 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
 
 					create_new_rrd($rrdcreate);
+					unset($rrdcreate);
 				}
 
 				if($g['booting']) {
@@ -505,6 +554,33 @@ function enable_rrd_graphing() {
 				$rrdupdatesh .= " printf \"-t \" dsname \" N:\" dsdata }' ";
 				$rrdupdatesh .= " dsname=\"\" dsdata=\"\"`\n\n";
 			}
+
+			/* 3G interfaces */
+			if(preg_match("/ppp[0-9]+/i", $realif))	{
+				if (!file_exists("$rrddbpath$ifname$cellular")) {
+					$rrdcreate = "$rrdtool create $rrddbpath$ifname$cellular --step $rrdcellularinterval ";
+					$rrdcreate .= "DS:rssi:GAUGE:$cellularvalid:0:100 ";
+					$rrdcreate .= "DS:upstream:GAUGE:$cellularvalid:0:100000000 ";
+					$rrdcreate .= "DS:downstream:GAUGE:$cellularvalid:0:100000000 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
+					create_new_rrd($rrdcreate);
+					unset($rrdcreate);
+				}
+
+				/* enter UNKNOWN values in the RRD so it knows we rebooted. */
+				if($g['booting']) {
+					mwexec("$rrdtool update $rrddbpath$ifname$cellular N:U:U:U");
+				}
+
+				$rrdupdatesh .= "\n";
+				$rrdupdatesh .= "# polling 3G\n";
+				$rrdupdatesh .= "GSTATS=`awk -F, 'getline 2 {print \$2 \":\" \$8 \":\" \$9}' < /tmp/3gstats.$ifname`\n";
+				$rrdupdatesh .= "$rrdtool update $rrddbpath$ifname$cellular N:\"\$GSTATS\"";
+			}
+
 		}
 		$i++;
 
@@ -519,12 +595,13 @@ function enable_rrd_graphing() {
 			$rrdcreate .= "DS:pfnat:GAUGE:$statesvalid:0:10000000 ";
 			$rrdcreate .= "DS:srcip:GAUGE:$statesvalid:0:10000000 ";
 			$rrdcreate .= "DS:dstip:GAUGE:$statesvalid:0:10000000 ";
-			$rrdcreate .= "RRA:AVERAGE:0.5:1:1000 ";
-			$rrdcreate .= "RRA:AVERAGE:0.5:5:1000 ";
-			$rrdcreate .= "RRA:AVERAGE:0.5:60:1000 ";
-			$rrdcreate .= "RRA:AVERAGE:0.5:720:3000 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
 
 			create_new_rrd($rrdcreate);
+			unset($rrdcreate);
 		}
 
 		/* enter UNKNOWN values in the RRD so it knows we rebooted. */
@@ -553,12 +630,13 @@ function enable_rrd_graphing() {
 			$rrdcreate .= "DS:system:GAUGE:$procvalid:0:10000000 ";
 			$rrdcreate .= "DS:interrupt:GAUGE:$procvalid:0:10000000 ";
 			$rrdcreate .= "DS:processes:GAUGE:$procvalid:0:10000000 ";
-			$rrdcreate .= "RRA:AVERAGE:0.5:1:1000 ";
-			$rrdcreate .= "RRA:AVERAGE:0.5:5:1000 ";
-			$rrdcreate .= "RRA:AVERAGE:0.5:60:1000 ";
-			$rrdcreate .= "RRA:AVERAGE:0.5:720:3000 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
 
 			create_new_rrd($rrdcreate);
+			unset($rrdcreate);
 		}
 
 		/* enter UNKNOWN values in the RRD so it knows we rebooted. */
@@ -582,20 +660,21 @@ function enable_rrd_graphing() {
 			$rrdcreate .= "DS:free:GAUGE:$memvalid:0:10000000 ";
 			$rrdcreate .= "DS:cache:GAUGE:$memvalid:0:10000000 ";
 			$rrdcreate .= "DS:wire:GAUGE:$memvalid:0:10000000 ";
-			$rrdcreate .= "RRA:MIN:0.5:1:1000 ";
-			$rrdcreate .= "RRA:MIN:0.5:5:1000 ";
-			$rrdcreate .= "RRA:MIN:0.5:60:1000 ";
-			$rrdcreate .= "RRA:MIN:0.5:720:3000 ";
-			$rrdcreate .= "RRA:AVERAGE:0.5:1:1000 ";
-			$rrdcreate .= "RRA:AVERAGE:0.5:5:1000 ";
-			$rrdcreate .= "RRA:AVERAGE:0.5:60:1000 ";
-			$rrdcreate .= "RRA:AVERAGE:0.5:720:3000 ";
-			$rrdcreate .= "RRA:MAX:0.5:1:1000 ";
-			$rrdcreate .= "RRA:MAX:0.5:5:1000 ";
-			$rrdcreate .= "RRA:MAX:0.5:60:1000 ";
-			$rrdcreate .= "RRA:MAX:0.5:720:3000";
+			$rrdcreate .= "RRA:MIN:0.5:1:1200 ";
+			$rrdcreate .= "RRA:MIN:0.5:5:720 ";
+			$rrdcreate .= "RRA:MIN:0.5:60:1860 ";
+			$rrdcreate .= "RRA:MIN:0.5:1440:2284 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
+			$rrdcreate .= "RRA:MAX:0.5:1:1200 ";
+			$rrdcreate .= "RRA:MAX:0.5:5:720 ";
+			$rrdcreate .= "RRA:MAX:0.5:60:1860 ";
+			$rrdcreate .= "RRA:MAX:0.5:1440:2284";
 
 			create_new_rrd($rrdcreate);
+			unset($rrdcreate);
 		}
 
 		/* enter UNKNOWN values in the RRD so it knows we rebooted. */
@@ -608,8 +687,44 @@ function enable_rrd_graphing() {
 		$rrdupdatesh .= " $awk '{getline active;getline inactive;getline free;getline cache;getline wire;printf ";
 		$rrdupdatesh .= "((active/$0) * 100)\":\"((inactive/$0) * 100)\":\"((free/$0) * 100)\":\"((cache/$0) * 100)\":\"(wire/$0 * 100)}'`\n";
 		$rrdupdatesh .= "$rrdtool update $rrddbpath$ifname$mem N:\${MEM}\n";
-		
+
 		/* End Memory statistics */
+
+		/* mbuf, create mbuf statistics database */
+		if(! file_exists("$rrddbpath$ifname$mbuf")) {
+			$rrdcreate = "$rrdtool create $rrddbpath$ifname$mbuf --step $rrdmbufinterval ";
+			$rrdcreate .= "DS:current:GAUGE:$mbufvalid:0:10000000 ";
+			$rrdcreate .= "DS:cache:GAUGE:$mbufvalid:0:10000000 ";
+			$rrdcreate .= "DS:total:GAUGE:$mbufvalid:0:10000000 ";
+			$rrdcreate .= "DS:max:GAUGE:$mbufvalid:0:10000000 ";
+			$rrdcreate .= "RRA:MIN:0.5:1:1200 ";
+			$rrdcreate .= "RRA:MIN:0.5:5:720 ";
+			$rrdcreate .= "RRA:MIN:0.5:60:1860 ";
+			$rrdcreate .= "RRA:MIN:0.5:1440:2284 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+			$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
+			$rrdcreate .= "RRA:MAX:0.5:1:1200 ";
+			$rrdcreate .= "RRA:MAX:0.5:5:720 ";
+			$rrdcreate .= "RRA:MAX:0.5:60:1860 ";
+			$rrdcreate .= "RRA:MAX:0.5:1440:2284";
+
+			create_new_rrd($rrdcreate);
+			unset($rrdcreate);
+		}
+
+		/* enter UNKNOWN values in the RRD so it knows we rebooted. */
+		if($g['booting']) {
+			mwexec("$rrdtool update $rrddbpath$ifname$mbuf N:U:U:U:U");
+		}
+
+		/* the mbuf stats gathering function. */
+		$rrdupdatesh .= "MBUF=`$netstat -m | ";
+		$rrdupdatesh .= " $awk '/mbuf clusters in use/ { gsub(/\//, \":\", $1); print $1; }'`\n";
+		$rrdupdatesh .= "$rrdtool update $rrddbpath$ifname$mbuf N:\${MBUF}\n";
+
+		/* End mbuf statistics */
 
 		/* SPAMD, set up the spamd rrd file */
 		if (isset($config['installedpackages']['spamdsettings']) &&
@@ -619,20 +734,21 @@ function enable_rrd_graphing() {
 				$rrdcreate = "$rrdtool create $rrddbpath$ifname$spamd --step $rrdspamdinterval ";
 				$rrdcreate .= "DS:conn:GAUGE:$spamdvalid:0:10000 ";
 				$rrdcreate .= "DS:time:GAUGE:$spamdvalid:0:86400 ";
-				$rrdcreate .= "RRA:MIN:0.5:1:1000 ";
-				$rrdcreate .= "RRA:MIN:0.5:5:1000 ";
-				$rrdcreate .= "RRA:MIN:0.5:60:1000 ";
-				$rrdcreate .= "RRA:MIN:0.5:720:3000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:1:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:5:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:60:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:720:3000 ";
-				$rrdcreate .= "RRA:MAX:0.5:1:1000 ";
-				$rrdcreate .= "RRA:MAX:0.5:5:1000 ";
-				$rrdcreate .= "RRA:MAX:0.5:60:1000 ";
-				$rrdcreate .= "RRA:MAX:0.5:720:3000 ";
+				$rrdcreate .= "RRA:MIN:0.5:1:1200 ";
+				$rrdcreate .= "RRA:MIN:0.5:5:720 ";
+				$rrdcreate .= "RRA:MIN:0.5:60:1860 ";
+				$rrdcreate .= "RRA:MIN:0.5:1440:2284 ";
+				$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+				$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+				$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+				$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
+				$rrdcreate .= "RRA:MAX:0.5:1:1200 ";
+				$rrdcreate .= "RRA:MAX:0.5:5:720 ";
+				$rrdcreate .= "RRA:MAX:0.5:60:1860 ";
+				$rrdcreate .= "RRA:MAX:0.5:1440:2284 ";
 
 				create_new_rrd($rrdcreate);
+				unset($rrdcreate);
 			}
 
 			$rrdupdatesh .= "\n";
@@ -643,116 +759,98 @@ function enable_rrd_graphing() {
 		}
 		/* End System statistics */
 
-		/* 3G WIRELESS, set up the rrd file */
-		/* XXX: Are multiple 3G interfaces not possible? smos@ */
-		if(isset($config['ppps']['ppp'])) {
-			$ifname = "ppp";
-			if (!file_exists("$rrddbpath$ifname$cellular")) {
-				$rrdcreate = "$rrdtool create $rrddbpath$ifname$cellular --step $rrdcellularinterval ";
-				$rrdcreate .= "DS:signal1:GAUGE:$cellularvalid:-200:200 ";
-				$rrdcreate .= "DS:signal2:GAUGE:$cellularvalid:-200:200 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:1:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:5:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:60:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:720:3000 ";
-
-				create_new_rrd($rrdcreate);
-			}
-
-			/* enter UNKNOWN values in the RRD so it knows we rebooted. */
-			if($g['booting']) {
-				mwexec("$rrdtool update $rrddbpath$ifname$cellular N:U:U");
-			}
-
-			$rrdupdatesh .= "\n";
-			$rrdupdatesh .= "# polling 3G\n";
-			$rrdupdatesh .= "dev=`usbconfig show_ifdrv | awk -F. '/ u3g|umodem/ {print \"/dev/\" $1 \".\" $2}'`\n";
-			$rrdupdatesh .= "if [ -n \"\$dev\" ]; then $rrdtool update $rrddbpath$ifname$cellular N:`3gstat -s -d \$dev`\n";
-			$rrdupdatesh .= "else $rrdtool update $rrddbpath$ifname$cellular N:U:U; fi\n";
-		}
-
 		/* Captive Portal statistics, set up the rrd file */
-		if(isset($config['captiveportal']['enable'])) {
-			$ifname= "captiveportal";
-			if (!file_exists("$rrddbpath$ifname$captiveportalconcurrent")) {
-				$rrdcreate = "$rrdtool create $rrddbpath$ifname$captiveportalconcurrent --step $rrdcaptiveportalinterval ";
-				$rrdcreate .= "DS:concurrentusers:GAUGE:$captiveportalvalid:0:10000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:1:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:5:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:60:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:720:3000 ";
-				$rrdcreate .= "RRA:MIN:0.5:1:1000 ";
-				$rrdcreate .= "RRA:MIN:0.5:5:1000 ";
-				$rrdcreate .= "RRA:MIN:0.5:60:1000 ";
-				$rrdcreate .= "RRA:MIN:0.5:720:3000 ";
-				$rrdcreate .= "RRA:MAX:0.5:1:1000 ";
-				$rrdcreate .= "RRA:MAX:0.5:5:1000 ";
-				$rrdcreate .= "RRA:MAX:0.5:60:1000 ";
-				$rrdcreate .= "RRA:MAX:0.5:720:3000 ";
-				$rrdcreate .= "RRA:LAST:0.5:1:1000 ";
-				$rrdcreate .= "RRA:LAST:0.5:5:1000 ";
-				$rrdcreate .= "RRA:LAST:0.5:60:1000 ";
-				$rrdcreate .= "RRA:LAST:0.5:720:3000 ";
+		if(is_array($config['captiveportal'])) {
+			foreach ($config['captiveportal'] as $cpkey => $cp) {
+				if (!isset($cp['enable']))
+					continue;
 
-				create_new_rrd($rrdcreate);
+				$ifname= "captiveportal";
+				$concurrent_filename = $rrddbpath . $ifname . '-' . $cpkey . $captiveportalconcurrent;
+				if (!file_exists("$concurrent_filename")) {
+					$rrdcreate = "$rrdtool create $concurrent_filename --step $rrdcaptiveportalinterval ";
+					$rrdcreate .= "DS:concurrentusers:GAUGE:$captiveportalvalid:0:10000 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
+					$rrdcreate .= "RRA:MIN:0.5:1:1200 ";
+					$rrdcreate .= "RRA:MIN:0.5:5:720 ";
+					$rrdcreate .= "RRA:MIN:0.5:60:1860 ";
+					$rrdcreate .= "RRA:MIN:0.5:1440:2284 ";
+					$rrdcreate .= "RRA:MAX:0.5:1:1200 ";
+					$rrdcreate .= "RRA:MAX:0.5:5:720 ";
+					$rrdcreate .= "RRA:MAX:0.5:60:1860 ";
+					$rrdcreate .= "RRA:MAX:0.5:1440:2284 ";
+					$rrdcreate .= "RRA:LAST:0.5:1:1200 ";
+					$rrdcreate .= "RRA:LAST:0.5:5:720 ";
+					$rrdcreate .= "RRA:LAST:0.5:60:1860 ";
+					$rrdcreate .= "RRA:LAST:0.5:1440:2284 ";
+
+					create_new_rrd($rrdcreate);
+					unset($rrdcreate);
+				}
+
+				/* enter UNKNOWN values in the RRD so it knows we rebooted. */
+				if($g['booting']) {
+					mwexec("$rrdtool update $concurrent_filename N:U");
+				}
+
+				/* the Captive Portal stats gathering function. */
+				$rrdupdatesh .= "\n";
+				$rrdupdatesh .= "# polling Captive Portal for number of concurrent users\n";
+				$rrdupdatesh .= "CP=`${php} -q ${captiveportal_gather} '${cpkey}' 'concurrent'`\n";
+				$rrdupdatesh .= "$rrdtool update $concurrent_filename \${CP}\n";
+
+				$loggedin_filename = $rrddbpath . $ifname . '-' . $cpkey . $captiveportalloggedin;
+				if (!file_exists("$loggedin_filename")) {
+					$rrdcreate = "$rrdtool create $loggedin_filename --step $rrdcaptiveportalinterval ";
+					$rrdcreate .= "DS:loggedinusers:GAUGE:$captiveportalvalid:0:10000 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:1:1200 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:5:720 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:60:1860 ";
+					$rrdcreate .= "RRA:AVERAGE:0.5:1440:2284 ";
+					$rrdcreate .= "RRA:MIN:0.5:1:1200 ";
+					$rrdcreate .= "RRA:MIN:0.5:5:720 ";
+					$rrdcreate .= "RRA:MIN:0.5:60:1860 ";
+					$rrdcreate .= "RRA:MIN:0.5:1440:2284 ";
+					$rrdcreate .= "RRA:MAX:0.5:1:1200 ";
+					$rrdcreate .= "RRA:MAX:0.5:5:720 ";
+					$rrdcreate .= "RRA:MAX:0.5:60:1860 ";
+					$rrdcreate .= "RRA:MAX:0.5:1440:2284 ";
+					$rrdcreate .= "RRA:LAST:0.5:1:1200 ";
+					$rrdcreate .= "RRA:LAST:0.5:5:720 ";
+					$rrdcreate .= "RRA:LAST:0.5:60:1860 ";
+					$rrdcreate .= "RRA:LAST:0.5:1440:2284 ";
+
+					create_new_rrd($rrdcreate);
+					unset($rrdcreate);
+				}
+
+				/* enter UNKNOWN values in the RRD so it knows we rebooted. */
+				if($g['booting']) {
+					mwexec("$rrdtool update $loggedin_filename N:U");
+				}
+
+				/* the Captive Portal stats gathering function. */
+				$rrdupdatesh .= "\n";
+				$rrdupdatesh .= "# polling Captive Portal for number of logged in users\n";
+				$rrdupdatesh .= "CP=`${php} -q ${captiveportal_gather} '${cpkey}' 'loggedin'`\n";
+				$rrdupdatesh .= "$rrdtool update $loggedin_filename \${CP}\n";
+
 			}
-
-			/* enter UNKNOWN values in the RRD so it knows we rebooted. */
-			if($g['booting']) {
-				mwexec("$rrdtool update $rrddbpath$ifname$captiveportalconcurrent N:U");
-			}
-			
-			/* the Captive Portal stats gathering function. */
-			$rrdupdatesh .= "\n";
-			$rrdupdatesh .= "# polling Captive Portal for number of concurrent users\n";
-			$rrdupdatesh .= "CP=`$php -q $captiveportal_gather concurrent`\n";
-			$rrdupdatesh .= "$rrdtool update $rrddbpath$ifname$captiveportalconcurrent \${CP}\n";
-			
-			$ifname= "captiveportal";
-			if (!file_exists("$rrddbpath$ifname$captiveportalloggedin")) {
-				$rrdcreate = "$rrdtool create $rrddbpath$ifname$captiveportalloggedin --step $rrdcaptiveportalinterval ";
-				$rrdcreate .= "DS:loggedinusers:GAUGE:$captiveportalvalid:0:10000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:1:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:5:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:60:1000 ";
-				$rrdcreate .= "RRA:AVERAGE:0.5:720:3000 ";
-				$rrdcreate .= "RRA:MIN:0.5:1:1000 ";
-				$rrdcreate .= "RRA:MIN:0.5:5:1000 ";
-				$rrdcreate .= "RRA:MIN:0.5:60:1000 ";
-				$rrdcreate .= "RRA:MIN:0.5:720:3000 ";
-				$rrdcreate .= "RRA:MAX:0.5:1:1000 ";
-				$rrdcreate .= "RRA:MAX:0.5:5:1000 ";
-				$rrdcreate .= "RRA:MAX:0.5:60:1000 ";
-				$rrdcreate .= "RRA:MAX:0.5:720:3000 ";
-				$rrdcreate .= "RRA:LAST:0.5:1:1000 ";
-				$rrdcreate .= "RRA:LAST:0.5:5:1000 ";
-				$rrdcreate .= "RRA:LAST:0.5:60:1000 ";
-				$rrdcreate .= "RRA:LAST:0.5:720:3000 ";
-
-				create_new_rrd($rrdcreate);
-			}
-
-			/* enter UNKNOWN values in the RRD so it knows we rebooted. */
-			if($g['booting']) {
-				mwexec("$rrdtool update $rrddbpath$ifname$captiveportalloggedin N:U");
-			}
-
-			/* the Captive Portal stats gathering function. */
-			$rrdupdatesh .= "\n";
-			$rrdupdatesh .= "# polling Captive Portal for number of logged in users\n";
-			$rrdupdatesh .= "CP=`$php -q $captiveportal_gather loggedin`\n";
-			$rrdupdatesh .= "$rrdtool update $rrddbpath$ifname$captiveportalloggedin \${CP}\n";
-
 		}
 
 		$rrdupdatesh .= "sleep 60\n";
 		$rrdupdatesh .= "done\n";
-		log_error("Creating rrd update script");
+		log_error(gettext("Creating rrd update script"));
 		/* write the rrd update script */
 		$updaterrdscript = "{$g['vardb_path']}/rrd/updaterrd.sh";
 		$fd = fopen("$updaterrdscript", "w");
 		fwrite($fd, "$rrdupdatesh");
 		fclose($fd);
+
+		unset($rrdupdatesh);
 
 		/* kill off traffic collectors */
 		kill_traffic_collector();
@@ -770,14 +868,15 @@ function enable_rrd_graphing() {
 		chown($database, "nobody");
 	}
 
-	if($g['booting']) 
-		echo "done.\n";
-		
+	if($g['booting'])
+		echo gettext("done.") . "\n";
+
 }
 
 function kill_traffic_collector() {
-	mwexec("killall rrdtool", true);
-	mwexec("/bin/pkill -a -f updaterrd.sh", true);
+	global $g;
+
+	killbypid("{$g['varrun_path']}/updaterrd.sh.pid");
 }
 
 ?>

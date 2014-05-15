@@ -36,21 +36,21 @@
 
 /* IPsec defines */
 $my_identifier_list = array(
-	'myaddress' => array( 'desc' => 'My IP address', 'mobile' => true ),
-	'address' => array( 'desc' => 'IP address', 'mobile' => true ),
-	'fqdn' => array( 'desc' => 'Distinguished name', 'mobile' => true ),
-	'user_fqdn' => array( 'desc' => 'User distinguished name', 'mobile' => true ),
-	'asn1dn' => array( 'desc' => 'ASN.1 distinguished Name', 'mobile' => true ),
-	'keyid tag' => array( 'desc' => 'KeyID tag', 'mobile' => true ),
-	'dyn_dns' => array( 'desc' => 'Dynamic DNS', 'mobile' => true ));
+	'myaddress' => array( 'desc' => gettext('My IP address'), 'mobile' => true ),
+	'address' => array( 'desc' => gettext('IP address'), 'mobile' => true ),
+	'fqdn' => array( 'desc' => gettext('Distinguished name'), 'mobile' => true ),
+	'user_fqdn' => array( 'desc' => gettext('User distinguished name'), 'mobile' => true ),
+	'asn1dn' => array( 'desc' => gettext('ASN.1 distinguished Name'), 'mobile' => true ),
+	'keyid tag' => array( 'desc' => gettext('KeyID tag'), 'mobile' => true ),
+	'dyn_dns' => array( 'desc' => gettext('Dynamic DNS'), 'mobile' => true ));
 
 $peer_identifier_list = array(
-	'peeraddress' => array( 'desc' => 'Peer IP address', 'mobile' => false ),
-	'address' => array( 'desc' => 'IP address', 'mobile' => false ),
-	'fqdn' => array( 'desc' => 'Distinguished name', 'mobile' => true ),
-	'user_fqdn' => array( 'desc' => 'User distinguished name', 'mobile' => true ),
-	'asn1dn' => array( 'desc' => 'ASN.1 distinguished Name', 'mobile' => true ),
-	'keyid tag' => array( 'desc' =>'KeyID tag', 'mobile' => true ));
+	'peeraddress' => array( 'desc' => gettext('Peer IP address'), 'mobile' => false ),
+	'address' => array( 'desc' => gettext('IP address'), 'mobile' => false ),
+	'fqdn' => array( 'desc' => gettext('Distinguished name'), 'mobile' => true ),
+	'user_fqdn' => array( 'desc' => gettext('User distinguished name'), 'mobile' => true ),
+	'asn1dn' => array( 'desc' => gettext('ASN.1 distinguished Name'), 'mobile' => true ),
+	'keyid tag' => array( 'desc' =>gettext('KeyID tag'), 'mobile' => true ));
 
 $p1_ealgos = array(
 	'aes' => array( 'name' => 'AES', 'keysel' => array( 'lo' => 128, 'hi' => 256, 'step' => 64 ) ),
@@ -67,12 +67,31 @@ $p2_ealgos = array(
 	'des' => array( 'name' => 'DES' ));
 
 $p1_halgos = array(
+	'md5' => 'MD5',
 	'sha1' => 'SHA1',
-	'md5' => 'MD5');
+	'sha256' => 'SHA256',
+	'sha384' => 'SHA384',
+	'sha512' => 'SHA512'
+);
+
+$p1_dhgroups = array(
+	1  => '1 (768 bit)',
+	2  => '2 (1024 bit)',
+	5  => '5 (1536 bit)',
+	14 => '14 (2048 bit)',
+	15 => '15 (3072 bit)',
+	16 => '16 (4096 bit)',
+	17 => '17 (6144 bit)',
+	18 => '18 (8192 bit)'
+);
 
 $p2_halgos = array(
+	'hmac_md5' => 'MD5',
 	'hmac_sha1' => 'SHA1',
-	'hmac_md5' => 'MD5');
+	'hmac_sha256' => 'SHA256',
+	'hmac_sha384' => 'SHA384',
+	'hmac_sha512' => 'SHA512'
+);
 
 $p1_authentication_methods = array(
 	'hybrid_rsa_server' => array( 'name' => 'Hybrid RSA + Xauth', 'mobile' => true ),
@@ -82,7 +101,8 @@ $p1_authentication_methods = array(
 	'pre_shared_key' => array( 'name' => 'Mutual PSK', 'mobile' => false ) );
 
 $p2_modes = array(
-	'tunnel' => 'Tunnel',
+	'tunnel' => 'Tunnel IPv4',
+	'tunnel6' => 'Tunnel IPv6',
 	'transport' => 'Transport');
 
 $p2_protos = array(
@@ -90,10 +110,16 @@ $p2_protos = array(
 	'ah' => 'AH');
 
 $p2_pfskeygroups = array(
-	'0' => 'off',
-	'1' => '1',
-	'2' => '2',
-	'5' => '5');
+	0 => 'off',
+	1  => '1 (768 bit)',
+	2  => '2 (1024 bit)',
+	5  => '5 (1536 bit)',
+	14 => '14 (2048 bit)',
+	15 => '15 (3072 bit)',
+	16 => '16 (4096 bit)',
+	17 => '17 (6144 bit)',
+	18 => '18 (8192 bit)'
+);
 
 /*
  * ikeid management functions
@@ -125,15 +151,22 @@ function ipsec_get_phase1_src(& $ph1ent) {
 
 	if ($ph1ent['interface']) {
 		if (!is_ipaddr($ph1ent['interface'])) {
-			$if = $ph1ent['interface'];
-			$interfaceip = get_interface_ip($if);
+			if ($ph1ent['protocol'] == "inet6") { 
+				$if = get_failover_interface($ph1ent['interface'], "inet6");
+				$interfaceip = get_interface_ipv6($if);
+			} else {
+				$if = get_failover_interface($ph1ent['interface']);
+				$interfaceip = get_interface_ip($if);
+			}
 		} else {
 			$interfaceip=$ph1ent['interface'];
 		}
-	}
-	else {
+	} else {
 		$if = "wan";
-		$interfaceip = get_interface_ip($if);
+		if ($ph1ent['protocol'] == "inet6")
+			$interfaceip = get_interface_ipv6($if);
+		else
+			$interfaceip = get_interface_ip($if);
 	}
 
 	return $interfaceip;
@@ -144,7 +177,8 @@ function ipsec_get_phase1_src(& $ph1ent) {
  */
 function ipsec_get_phase1_dst(& $ph1ent) {
 	global $g;
-	if (!$ph1ent['remote-gateway'])
+
+	if (empty($ph1ent['remote-gateway']))
 		return false;
 	$rg = $ph1ent['remote-gateway'];
 	if (!is_ipaddr($rg)) {
@@ -160,27 +194,43 @@ function ipsec_get_phase1_dst(& $ph1ent) {
 /*
  * Return phase2 idinfo in cidr format
  */
-function ipsec_idinfo_to_cidr(& $idinfo,$addrbits = false) {
+function ipsec_idinfo_to_cidr(& $idinfo, $addrbits = false, $mode = "") {
 	global $config;
 
-	switch ($idinfo['type'])
-	{
+	switch ($idinfo['type']) {
 		case "address":
-			if ($addrbits)
-				return $idinfo['address']."/32";
-			else
+			if ($addrbits) {
+				if ($mode == "tunnel6")
+					return $idinfo['address']."/128";
+				else
+					return $idinfo['address']."/32";
+			} else
 				return $idinfo['address'];
+			break; /* NOTREACHED */
 		case "network":
-			return $idinfo['address']."/".$idinfo['netbits'];
+			return "{$idinfo['address']}/{$idinfo['netbits']}";
+			break; /* NOTREACHED */
 		case "none":
 		case "mobile":
 			return "0.0.0.0/0";
+			break; /* NOTREACHED */
 		default:
-			$address = get_interface_ip($idinfo['type']);
-			$netbits = get_interface_subnet($idinfo['type']);
-			$address = gen_subnet($address,$netbits);
-			return $address."/".$netbits;
-    }
+			if (empty($mode) && !empty($idinfo['mode']))
+				$mode = $idinfo['mode'];
+
+			if ($mode == "tunnel6") {
+				$address = get_interface_ipv6($idinfo['type']);
+				$netbits = get_interface_subnetv6($idinfo['type']);
+				$address = gen_subnetv6($address,$netbits);
+				return "{$address}/{$netbits}";
+			} else {
+				$address = get_interface_ip($idinfo['type']);
+				$netbits = get_interface_subnet($idinfo['type']);
+				$address = gen_subnet($address,$netbits);
+				return "{$address}/{$netbits}";
+			}
+			break; /* NOTREACHED */
+	}
 }
 
 /*
@@ -189,65 +239,88 @@ function ipsec_idinfo_to_cidr(& $idinfo,$addrbits = false) {
 function ipsec_idinfo_to_subnet(& $idinfo,$addrbits = false) {
 	global $config;
 
-	switch ($idinfo['type'])
-	{
+	switch ($idinfo['type']) {
 		case "address":
-			if ($addrbits)
-				return $idinfo['address']."/255.255.255.255";
-			else
+			if ($addrbits) {
+				if ($idinfo['mode'] == "tunnel6")
+					return $idinfo['address']."/128";
+				else
+					return $idinfo['address']."/255.255.255.255";
+			} else
 				return $idinfo['address'];
+			break; /* NOTREACHED */
 		case "none":
 		case "network":
 			return $idinfo['address']."/".gen_subnet_mask($idinfo['netbits']);
+			break; /* NOTREACHED */
 		case "mobile":
 			return "0.0.0.0/0";
+			break; /* NOTREACHED */
 		default:
-			$address = get_interface_ip($idinfo['type']);
-			$netbits = get_interface_subnet($idinfo['type']);
-			$address = gen_subnet($address,$netbits);
-			$netbits = gen_subnet_mask($netbits);
-			return $address."/".netbits;
-    }
+			if ($idinfo['mode'] == "tunnel6") {
+				$address = get_interface_ipv6($idinfo['type']);
+				$netbits = get_interface_subnetv6($idinfo['type']);
+				$address = gen_subnetv6($address,$netbits);
+				return $address."/".$netbits;
+			} else {
+				$address = get_interface_ip($idinfo['type']);
+				$netbits = get_interface_subnet($idinfo['type']);
+				$address = gen_subnet($address,$netbits);
+				return $address."/".$netbits;
+			}
+			break; /* NOTREACHED */
+	}
 }
 
 /*
  *  Return phase2 idinfo in text format
  */
 function ipsec_idinfo_to_text(& $idinfo) {
+	global $config;
 
-    switch ($idinfo['type'])
-    {
+	switch ($idinfo['type']) {
         case "address":
-            return $idinfo['address'];
+		return $idinfo['address'];
+		break; /* NOTREACHED */
         case "network":
-            return $idinfo['address']."/".$idinfo['netbits'];
+		return $idinfo['address']."/".$idinfo['netbits'];
+		break; /* NOTREACHED */
 	case "mobile":
-		return "Mobile Client";
+		return gettext("Mobile Client");
+		break; /* NOTREACHED */
 	case "none":
-		return "None";
+		return gettext("None");
+		break; /* NOTREACHED */
         default:
-            return strtoupper($idinfo['type']);
-    }
+		if (!empty($config['interfaces'][$idinfo['type']]))
+			return convert_friendly_interface_to_friendly_descr($idinfo['type']);
+		else
+			return strtoupper($idinfo['type']);
+		break; /* NOTREACHED */
+	}
 }
 
 /*
  * Return phase1 association for phase2
  */
-function ipsec_lookup_phase1(& $ph2ent,& $ph1ent)
-{
-    global $config;
-    $a_phase1 = $config['ipsec']['phase1'];
+function ipsec_lookup_phase1(& $ph2ent,& $ph1ent) {
+	global $config;
 
-    if (is_array($a_phase1) && count($a_phase1)) {
-        foreach ($a_phase1 as $ph1tmp) {
-            if ($ph1tmp['ikeid'] == $ph2ent['ikeid']) {
-                $ph1ent = $ph1tmp;
-                return $ph1ent;
-            }
-        }
-    }
+	if (!is_array($config['ipsec']))
+		return;
+	if (!is_array($config['ipsec']['phase1']))
+		return;
+	if (empty($config['ipsec']['phase1']))
+		return;
 
-    return false;
+	foreach ($config['ipsec']['phase1'] as $ph1tmp) {
+	    if ($ph1tmp['ikeid'] == $ph2ent['ikeid']) {
+		$ph1ent = $ph1tmp;
+		return $ph1ent;
+	    }
+	}
+
+	return false;
 }
 
 /*
@@ -258,7 +331,7 @@ function ipsec_phase1_status(& $ph1ent) {
 	$loc_ip = get_ipsec_tunnel_src($ph1ent);
 	$rmt_ip = $ph1ent['remote-gateway'];
 
-	if(ipsec_lookup_ipsakmp_sa($loc_ip,$rmt_ip))
+	if (ipsec_lookup_ipsakmp_sa($loc_ip,$rmt_ip))
 		return true;
 
 	return false;
@@ -270,15 +343,20 @@ function ipsec_phase1_status(& $ph1ent) {
 function ipsec_phase2_status(& $spd,& $sad,& $ph1ent,& $ph2ent) {
 
 	$loc_ip = ipsec_get_phase1_src($ph1ent);
-	$rmt_ip = gethostbyname(ipsec_get_phase1_dst($ph1ent));
+	$rmt_ip = ipsec_get_phase1_dst($ph1ent);
 
-	$loc_id = ipsec_idinfo_to_cidr($ph2ent['localid'],true);
-	$rmt_id = ipsec_idinfo_to_cidr($ph2ent['remoteid'],true);
+	$loc_id = ipsec_idinfo_to_cidr($ph2ent['localid'],true,$ph2ent['mode']);
+	if (!empty($ph2ent['natlocalid']))
+		$natloc_id = ipsec_idinfo_to_cidr($ph2ent['natlocalid'],true,$ph2ent['mode']);
+	$rmt_id = ipsec_idinfo_to_cidr($ph2ent['remoteid'],true,$ph2ent['mode']);
 
 	/* check for established SA in both directions */
-	if( ipsec_lookup_ipsec_sa($spd,$sad,"out",$loc_ip,$rmt_ip,$loc_id,$rmt_id) &&
-		ipsec_lookup_ipsec_sa($spd,$sad,"in",$rmt_ip,$loc_ip,$rmt_id,$loc_id))
-		return true;
+	if( ipsec_lookup_ipsec_sa($spd,$sad,"out",$loc_ip,$rmt_ip,$loc_id,$rmt_id)) {
+		if (empty($ph2ent['natlocalid']) && ipsec_lookup_ipsec_sa($spd,$sad,"in",$rmt_ip,$loc_ip,$rmt_id,$loc_id))
+			return true;
+		else if (!empty($ph2ent['natlocalid']) && ipsec_lookup_ipsec_sa($spd,$sad,"out",$loc_ip,$rmt_ip,$loc_id,$rmt_id))
+			return true;
+	}
 
 	return false;
 }
@@ -297,6 +375,10 @@ function ipsec_lookup_isakmp_sa($in_srcip,$in_dstip) {
 function ipsec_lookup_ipsec_sa(& $spd,& $sad,$dir,$in_srcip,$in_dstip,$in_srcid,$in_dstid) {
 
 	/* match the phase1/2 to an SP */
+	$in_srcip = ipsec_fixup_ip($in_srcip);
+	$in_dstip = ipsec_fixup_ip($in_dstip);
+	$in_srcid = ipsec_fixup_ip($in_srcid);
+	$in_dstid = ipsec_fixup_ip($in_dstid);
 
 	foreach($spd as $sp) {
 
@@ -307,9 +389,9 @@ function ipsec_lookup_ipsec_sa(& $spd,& $sad,$dir,$in_srcip,$in_dstip,$in_srcid,
 
 		/* match IPs */
 
-		if($in_srcip != $sp['src'])
+		if($in_srcip != ipsec_fixup_ip($sp['src']))
 			continue;
-		if($in_dstip != $sp['dst'])
+		if($in_dstip != ipsec_fixup_ip($sp['dst']))
 			continue;
 
 		/* add netbits for address IDs */
@@ -317,16 +399,24 @@ function ipsec_lookup_ipsec_sa(& $spd,& $sad,$dir,$in_srcip,$in_dstip,$in_srcid,
 		$sp_srcid = $sp['srcid'];
 		$sp_dstid = $sp['dstid'];
 
-		if (!strstr($sp_srcid,"/"))
-			$sp_srcid .= '/32';
-		if (!strstr($sp_dstid,"/"))
-			$sp_dstid .= '/32';
+		if (!strstr($sp_srcid,"/")) {
+			if (is_ipaddrv4($sp_srcid))
+				$sp_srcid .= '/32';
+			elseif (is_ipaddrv6($sp_srcid))
+				$sp_srcid .= '/128';
+		}
+		if (!strstr($sp_dstid,"/")) {
+			if (is_ipaddrv4($sp_dstid))
+				$sp_dstid .= '/32';
+			elseif (is_ipaddrv6($sp_dstid))
+				$sp_dstid .= '/128';
+		}
 
 		/* match IDs */
 
-		if($in_srcid != $sp_srcid)
+		if($in_srcid != ipsec_fixup_ip($sp_srcid))
 			continue;
-		if($in_dstid != $sp_dstid)
+		if($in_dstid != ipsec_fixup_ip($sp_dstid))
 			continue;
 
 		/* match the SP to a unique SA by reqid */
@@ -350,9 +440,9 @@ function ipsec_lookup_ipsec_sa(& $spd,& $sad,$dir,$in_srcip,$in_dstip,$in_srcid,
 
 			/* match IPs */
 
-			if($in_srcip != $sa_srcip)
+			if($in_srcip != ipsec_fixup_ip($sa_srcip))
 				continue;
-			if($in_dstip != $sa_dstip)
+			if($in_dstip != ipsec_fixup_ip($sa_dstip))
 				continue;
 
 			return $sa;
@@ -422,7 +512,7 @@ function ipsec_dump_sad()
 	if ($fd) {
 		while (!feof($fd)) {
 			$line = chop(fgets($fd));
-			if (!$line)
+			if (!$line || $line[0] == " ")
 				continue;
 			if ($line == "No SAD entries.")
 				break;
@@ -466,6 +556,38 @@ function ipsec_dump_sad()
 	return $sad;
 }
 
+/*
+ * Return dump of mobile user list
+ */
+function ipsec_dump_mobile() {
+	$command = "/usr/local/sbin/racoonctl show-users";
+	$fd = @popen($command, "r");
+	$mobile = array();
+	if ($fd) {
+		while (!feof($fd)) {
+			$user = array();
+			$line = chop(fgets($fd));
+			if (!$line)
+				continue;
+			if ($line == "User|Source|Destination|CreatedOn|SPI")
+				continue;
+
+			// jim|192.168.20.243:4500|192.168.20.5:24146|2012-05-25 09:54:39|989d10e1e2d4eca4:7243830d5fd2afe7
+			$linea = explode("|", trim($line));
+			$user['username'] = $linea[0];
+			$user['local'] = $linea[1];
+			$user['remote'] = $linea[2];
+			$user['logintime'] = $linea[3];
+			$user['spi'] = $linea[4];
+			if (!empty($user['username']))
+				$mobile[] = $user;
+		}
+		pclose($fd);
+	}
+
+	return $mobile;
+}
+
 function ipsec_mobilekey_sort() {
 	global $config;
 
@@ -491,6 +613,19 @@ function ipsec_get_number_of_phase2($ikeid) {
 	}
 
 	return $nbph2;
+}
+
+function ipsec_disconnect_mobile($username) {
+	if (empty($username))
+		return false;
+	exec("/usr/local/sbin/racoonctl logout-user " . escapeshellarg($username));
+}
+
+function ipsec_fixup_ip($ipaddr) {
+	if (is_ipaddrv6($ipaddr) || is_subnetv6($ipaddr))
+		return Net_IPv6::compress(Net_IPv6::uncompress($ipaddr));
+	else
+		return $ipaddr;
 }
 
 ?>

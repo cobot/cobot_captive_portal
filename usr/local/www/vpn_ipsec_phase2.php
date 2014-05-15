@@ -51,11 +51,12 @@ if (!is_array($config['ipsec']['phase2']))
 
 $a_phase2 = &$config['ipsec']['phase2'];
 
-$p2index = $_GET['p2index'];
-if (isset($_POST['p2index']))
+if (is_numericint($_GET['p2index']))
+	$p2index = $_GET['p2index'];
+if (isset($_POST['p2index']) && is_numericint($_POST['p2index']))
 	$p2index = $_POST['p2index'];
 
-if (isset($_GET['dup']))
+if (isset($_GET['dup']) && is_numericint($_GET['dup']))
 	$p2index = $_GET['dup'];
 
 if (isset($p2index) && $a_phase2[$p2index])
@@ -66,6 +67,8 @@ if (isset($p2index) && $a_phase2[$p2index])
 	$pconfig['descr'] = $a_phase2[$p2index]['descr'];
 	$old_ph2ent = $a_phase2[$p2index];
 
+	if (!empty($a_phase2[$p2index]['natlocalid']))
+		idinfo_to_pconfig("natlocal",$a_phase2[$p2index]['natlocalid'],$pconfig);
 	idinfo_to_pconfig("local",$a_phase2[$p2index]['localid'],$pconfig);
 	idinfo_to_pconfig("remote",$a_phase2[$p2index]['remoteid'],$pconfig);
 
@@ -97,7 +100,7 @@ else
         $pconfig['mobile']=true;
 }
 
-if (isset($_GET['dup']))
+if (isset($_GET['dup']) && is_numericint($_GET['dup']))
 	unset($p2index);
 
 if ($_POST) {
@@ -118,7 +121,7 @@ if ($_POST) {
 
 	do_input_validation($_POST, $reqdfields, $reqdfieldsn, &$input_errors);
 
-	if($pconfig['mode'] == "tunnel")
+	if(($pconfig['mode'] == "tunnel") || ($pconfig['mode'] == "tunnel6")) 
 	{
 		switch ($pconfig['localid_type']) {
 			case "network":
@@ -127,7 +130,47 @@ if ($_POST) {
 			case "address":
 				if (!$pconfig['localid_address'] || !is_ipaddr($pconfig['localid_address']))
 					$input_errors[] = gettext("A valid local network IP address must be specified.");
+				elseif (is_ipaddrv4($pconfig['localid_address']) && ($pconfig['mode'] != "tunnel"))
+					$input_errors[] = gettext("A valid local network IPv4 address must be specified or you need to change Mode to IPv6");
+				elseif (is_ipaddrv6($pconfig['localid_address']) && ($pconfig['mode'] != "tunnel6"))
+					$input_errors[] = gettext("A valid local network IPv6 address must be specified or you need to change Mode to IPv4");
 				break;
+		}
+		/* Check if the localid_type is an interface, to confirm if it has a valid subnet. */
+		if (is_array($config['interfaces'][$pconfig['localid_type']])) {
+			// Don't let an empty subnet into racoon.conf, it can cause parse errors. Ticket #2201.
+			$address = get_interface_ip($pconfig['localid_type']);
+			$netbits = get_interface_subnet($pconfig['localid_type']);
+
+			if (empty($address) || empty($netbits))
+				$input_errors[] = gettext("Invalid Local Network.") . " " . convert_friendly_interface_to_friendly_descr($pconfig['localid_type']) . " " . gettext("has no subnet.");
+		}
+
+		if (!empty($pconfig['natlocalid_address'])) {
+			switch ($pconfig['natlocalid_type']) {
+				case "network":
+					if (($pconfig['natlocalid_netbits'] != 0 && !$pconfig['natlocalid_netbits']) || !is_numeric($pconfig['natlocalid_netbits']))
+						$input_errors[] = gettext("A valid NAT local network bit count must be specified.");
+					if ($pconfig['localid_type'] == "address")
+						$input_errors[] = gettext("You cannot configure a network type address for NAT while only an address type is selected for local source."); 
+				case "address":
+					if (!empty($pconfig['natlocalid_address']) && !is_ipaddr($pconfig['natlocalid_address']))
+						$input_errors[] = gettext("A valid NAT local network IP address must be specified.");
+					elseif (is_ipaddrv4($pconfig['natlocalid_address']) && ($pconfig['mode'] != "tunnel"))
+						$input_errors[] = gettext("A valid NAT local network IPv4 address must be specified or you need to change Mode to IPv6");
+					elseif (is_ipaddrv6($pconfig['natlocalid_address']) && ($pconfig['mode'] != "tunnel6"))
+						$input_errors[] = gettext("A valid NAT local network IPv6 address must be specified or you need to change Mode to IPv4");
+					break;
+			}
+
+			if (is_array($config['interfaces'][$pconfig['natlocalid_type']])) {
+				// Don't let an empty subnet into racoon.conf, it can cause parse errors. Ticket #2201.
+				$address = get_interface_ip($pconfig['natlocalid_type']);
+				$netbits = get_interface_subnet($pconfig['natlocalid_type']);
+
+				if (empty($address) || empty($netbits))
+					$input_errors[] = gettext("Invalid Local Network.") . " " . convert_friendly_interface_to_friendly_descr($pconfig['natlocalid_type']) . " " . gettext("has no subnet.");
+			}
 		}
 
 		switch ($pconfig['remoteid_type']) {
@@ -137,21 +180,27 @@ if ($_POST) {
 			case "address":
 				if (!$pconfig['remoteid_address'] || !is_ipaddr($pconfig['remoteid_address']))
 					$input_errors[] = gettext("A valid remote network IP address must be specified.");
+				elseif (is_ipaddrv4($pconfig['remoteid_address']) && ($pconfig['mode'] != "tunnel"))
+					$input_errors[] = gettext("A valid remote network IPv4 address must be specified or you need to change Mode to IPv6");
+				elseif (is_ipaddrv6($pconfig['remoteid_address']) && ($pconfig['mode'] != "tunnel6"))
+					$input_errors[] = gettext("A valid remote network IPv6 address must be specified or you need to change Mode to IPv4");
 				break;
 		}
 	}
 	/* Validate enabled phase2's are not duplicates */
 	if (isset($pconfig['mobile'])){
+		if (substr($pconfig['mode'], 0, 6) != "tunnel")
+			$input_errors[] = gettext("Mobile IPsec only supports Tunnel mode.");
 		/* User is adding phase 2 for mobile phase1 */
 		foreach($a_phase2 as $key => $name){
 			if (isset($name['mobile'])){
 				/* check duplicate localids only for mobile clents */
-				$localid_data = ipsec_idinfo_to_cidr($name['localid']);
+				$localid_data = ipsec_idinfo_to_cidr($name['localid'], false, $name['mode']);
 				$entered = array();
 				$entered['type'] = $pconfig['localid_type'];
 				if (isset($pconfig['localid_address'])) $entered['address'] = $pconfig['localid_address'];
 				if (isset($pconfig['localid_netbits'])) $entered['netbits'] = $pconfig['localid_netbits'];
-				$entered_localid_data = ipsec_idinfo_to_cidr($entered);
+				$entered_localid_data = ipsec_idinfo_to_cidr($entered, false, $pconfig['mode']);
 				if ($localid_data == $entered_localid_data){
 					if (!isset($pconfig['p2index'])){
 						/* adding new p2 entry */
@@ -171,18 +220,18 @@ if ($_POST) {
 		foreach($a_phase2 as $key => $name){
 			if (!isset($name['mobile']) && $pconfig['ikeid'] == $name['ikeid']){
 				/* check duplicate subnets only for given phase1 */
-				$localid_data = ipsec_idinfo_to_cidr($name['localid']);
-				$remoteid_data = ipsec_idinfo_to_cidr($name['remoteid']);
+				$localid_data = ipsec_idinfo_to_cidr($name['localid'], false, $name['mode']);
+				$remoteid_data = ipsec_idinfo_to_cidr($name['remoteid'], false, $name['mode']);
 				$entered_local = array();
 				$entered_local['type'] = $pconfig['localid_type'];
 				if (isset($pconfig['localid_address'])) $entered_local['address'] = $pconfig['localid_address'];
 				if (isset($pconfig['localid_netbits'])) $entered_local['netbits'] = $pconfig['localid_netbits'];
-				$entered_localid_data = ipsec_idinfo_to_cidr($entered_local);
+				$entered_localid_data = ipsec_idinfo_to_cidr($entered_local, false, $pconfig['mode']);
 				$entered_remote = array();
 				$entered_remote['type'] = $pconfig['remoteid_type'];
 				if (isset($pconfig['remoteid_address'])) $entered_remote['address'] = $pconfig['remoteid_address'];
 				if (isset($pconfig['remoteid_netbits'])) $entered_remote['netbits'] = $pconfig['remoteid_netbits'];
-				$entered_remoteid_data = ipsec_idinfo_to_cidr($entered_remote);
+				$entered_remoteid_data = ipsec_idinfo_to_cidr($entered_remote, false, $pconfig['mode']);
 				if ($localid_data == $entered_localid_data && $remoteid_data == $entered_remoteid_data) { 
 					if (!isset($pconfig['p2index'])){
 						/* adding new p2 entry */
@@ -197,11 +246,14 @@ if ($_POST) {
 			}
 		}
         }
-	
-	$ealgos = pconfig_to_ealgos($pconfig);
 
-	if (!count($ealgos)) {
-		$input_errors[] = gettext("At least one encryption algorithm must be selected.");
+	/* For ESP protocol, handle encryption algorithms */
+	if ( $pconfig['proto'] == "esp") {
+		$ealgos = pconfig_to_ealgos($pconfig);
+
+		if (!count($ealgos)) {
+			$input_errors[] = gettext("At least one encryption algorithm must be selected.");
+		}
 	}
 	if (($_POST['lifetime'] && !is_numeric($_POST['lifetime']))) {
 		$input_errors[] = gettext("The P2 lifetime must be an integer.");
@@ -213,7 +265,9 @@ if ($_POST) {
 		$ph2ent['mode'] = $pconfig['mode'];
 		$ph2ent['disabled'] = $pconfig['disabled'] ? true : false;
 
-		if($ph2ent['mode'] == "tunnel") {
+		if(($ph2ent['mode'] == "tunnel") || ($ph2ent['mode'] == "tunnel6")){
+			if (!empty($pconfig['natlocalid_address']))
+				$ph2ent['natlocalid'] = pconfig_to_idinfo("natlocal",$pconfig);
 			$ph2ent['localid'] = pconfig_to_idinfo("local",$pconfig);
 			$ph2ent['remoteid'] = pconfig_to_idinfo("remote",$pconfig);
 		}
@@ -229,6 +283,14 @@ if ($_POST) {
 		if (isset($pconfig['mobile']))
 			$ph2ent['mobile'] = true;
 
+		ipsec_lookup_phase1($ph2ent, $ph1ent);
+		if (($ph1ent['protocol'] == "inet") && ($ph2ent['mode'] == "tunnel6"))
+			$input_errors[] = gettext("Phase 1 is using IPv4. You cannot use Tunnel IPv6 on Phase 2.");
+		if (($ph1ent['protocol'] == "inet6") && ($ph2ent['mode'] == "tunnel"))
+			$input_errors[] = gettext("Phase 1 is using IPv6. You cannot use Tunnel IPv4 on Phase 2.");
+	}
+
+	if (!$input_errors) {
 		if (isset($p2index) && $a_phase2[$p2index])
 			$a_phase2[$p2index] = $ph2ent;
 		else
@@ -255,8 +317,7 @@ if ($pconfig['mobile'])
     $pgtitle = array(gettext("VPN"),gettext("IPsec"),gettext("Edit Phase 2"), gettext("Mobile Client"));
 else
     $pgtitle = array(gettext("VPN"),gettext("IPsec"),gettext("Edit Phase 2"));
-$statusurl = "diag_ipsec.php";
-$logurl = "diag_logs_ipsec.php";
+$shortcut_section = "ipsec";
 
 
 include("head.inc");
@@ -264,14 +325,15 @@ include("head.inc");
 ?>
 
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
+<script type="text/javascript" src="/javascript/jquery.ipv4v6ify.js"></script>
 <?php include("fbegin.inc"); ?>
-<script language="JavaScript">
+<script type="text/JavaScript">
 <!--
 
 function change_mode() {
 	index = document.iform.mode.selectedIndex;
 	value = document.iform.mode.options[index].value;
-	if (value == 'tunnel') {
+	if ((value == 'tunnel') || (value == 'tunnel6')) {
 		document.getElementById('opt_localid').style.display = '';
 <?php if (!isset($pconfig['mobile'])): ?>
 		document.getElementById('opt_remoteid').style.display = '';
@@ -284,20 +346,71 @@ function change_mode() {
 	}
 }
 
+function typesel_change_natlocal(bits) {
+	var value = document.iform.mode.options[index].value;
+	if (typeof(bits) === "undefined") {
+		if (value === "tunnel") {
+			bits = 24;
+		}
+		else if (value === "tunnel6") {
+			bits = 64;
+		}
+	}
+	var address_is_blank = !/\S/.test(document.iform.natlocalid_address.value);
+	switch (document.iform.natlocalid_type.selectedIndex) {
+		case 0:	/* single */
+			document.iform.natlocalid_address.disabled = 0;
+			if (address_is_blank) {
+				document.iform.natlocalid_netbits.value = 0;
+			}
+			document.iform.natlocalid_netbits.disabled = 1;
+			break;
+		case 1:	/* network */
+			document.iform.natlocalid_address.disabled = 0;
+			if (address_is_blank) {
+				document.iform.natlocalid_netbits.value = bits;
+			}
+			document.iform.natlocalid_netbits.disabled = 0;
+			break;
+		case 3:	/* none */
+			document.iform.natlocalid_address.disabled = 1;
+			document.iform.natlocalid_netbits.disabled = 1;
+			break;
+		default:
+			document.iform.natlocalid_address.value = "";
+			document.iform.natlocalid_address.disabled = 1;
+			if (address_is_blank) {
+				document.iform.natlocalid_netbits.value = 0;
+			}
+			document.iform.natlocalid_netbits.disabled = 1;
+			break;
+	}
+}
+
 function typesel_change_local(bits) {
-
-	if (typeof(bits)=="undefined")
-		bits = 24;
-
+	var value = document.iform.mode.options[index].value;
+	if (typeof(bits) === "undefined") {
+		if (value === "tunnel") {
+			bits = 24;
+		}
+		else if (value === "tunnel6") {
+			bits = 64;
+		}
+	}
+	var address_is_blank = !/\S/.test(document.iform.localid_address.value);
 	switch (document.iform.localid_type.selectedIndex) {
 		case 0:	/* single */
 			document.iform.localid_address.disabled = 0;
-			document.iform.localid_netbits.value = 0;
+			if (address_is_blank) {
+				document.iform.localid_netbits.value = 0;
+			}
 			document.iform.localid_netbits.disabled = 1;
 			break;
 		case 1:	/* network */
 			document.iform.localid_address.disabled = 0;
-			document.iform.localid_netbits.value = bits;
+			if (address_is_blank) {
+				document.iform.localid_netbits.value = bits;
+			}
 			document.iform.localid_netbits.disabled = 0;
 			break;
 		case 3:	/* none */
@@ -307,7 +420,9 @@ function typesel_change_local(bits) {
 		default:
 			document.iform.localid_address.value = "";
 			document.iform.localid_address.disabled = 1;
-			document.iform.localid_netbits.value = 0;
+			if (address_is_blank) {
+				document.iform.localid_netbits.value = 0;
+			}
 			document.iform.localid_netbits.disabled = 1;
 			break;
 	}
@@ -316,25 +431,37 @@ function typesel_change_local(bits) {
 <?php if (!isset($pconfig['mobile'])): ?>
 
 function typesel_change_remote(bits) {
-
-	if (typeof(bits)=="undefined")
-		bits = 24;
-
+	var value = document.iform.mode.options[index].value;
+	if (typeof(bits) === "undefined") {
+		if (value === "tunnel") {
+			bits = 24;
+		}
+		else if (value === "tunnel6") {
+			bits = 64;
+		}
+	}
+	var address_is_blank = !/\S/.test(document.iform.remoteid_address.value);
 	switch (document.iform.remoteid_type.selectedIndex) {
 		case 0:	/* single */
 			document.iform.remoteid_address.disabled = 0;
-			document.iform.remoteid_netbits.value = 0;
+			if (address_is_blank) {
+				document.iform.remoteid_netbits.value = 0;
+			}
 			document.iform.remoteid_netbits.disabled = 1;
 			break;
 		case 1:	/* network */
 			document.iform.remoteid_address.disabled = 0;
-			document.iform.remoteid_netbits.value = bits;
+			if (address_is_blank) {
+				document.iform.remoteid_netbits.value = bits;
+			}
 			document.iform.remoteid_netbits.disabled = 0;
 			break;
 		default:
 			document.iform.remoteid_address.value = "";
 			document.iform.remoteid_address.disabled = 1;
-			document.iform.remoteid_netbits.value = 0;
+			if (address_is_blank) {
+				document.iform.remoteid_netbits.value = 0;
+			}
 			document.iform.remoteid_netbits.disabled = 1;
 			break;
 	}
@@ -368,7 +495,7 @@ function change_protocol() {
 				$tab_array = array();
 				$tab_array[0] = array(gettext("Tunnels"), true, "vpn_ipsec.php");
 				$tab_array[1] = array(gettext("Mobile clients"), false, "vpn_ipsec_mobile.php");
-				$tab_array[2] = array(gettext("Pre-shared keys"), false, "vpn_ipsec_keys.php");
+				$tab_array[2] = array(gettext("Pre-Shared Keys"), false, "vpn_ipsec_keys.php");
 				display_top_tabs($tab_array);
 			?>
 		</td>
@@ -380,9 +507,9 @@ function change_protocol() {
 					<tr>
 						<td width="22%" valign="top" class="vncellreq"><?=gettext("Disabled"); ?></td>
 						<td width="78%" class="vtable">
-							<input name="disabled" type="checkbox" id="disabled" value="yes" <?php if ($pconfig['disabled']) echo "checked"; ?>>
+							<input name="disabled" type="checkbox" id="disabled" value="yes" <?php if ($pconfig['disabled']) echo "checked=\"checked\""; ?>/>
 							<strong><?=gettext("Disable this phase2 entry"); ?></strong>
-							<br>
+							<br />
 							<span class="vexpl"><?=gettext("Set this option to disable this phase2 entry without " .
 							  "removing it from the list"); ?>.
 							</span>
@@ -391,12 +518,12 @@ function change_protocol() {
 					<tr>
 						<td width="22%" valign="top" class="vncellreq"><?=gettext("Mode"); ?></td>
 						<td width="78%" class="vtable">
-							<select name="mode" class="formselect" onChange="change_mode()">
+							<select name="mode" class="formselect" onchange="change_mode()">
 								<?php
 									foreach($p2_modes as $name => $value):
 										$selected = "";
 										if ($name == $pconfig['mode'])
-											$selected = "selected";
+											$selected = "selected=\"selected\"";
 								?>
 								<option value="<?=$name;?>" <?=$selected;?>><?=$value;?></option>
 								<?php endforeach; ?>
@@ -411,16 +538,15 @@ function change_protocol() {
 									<td><?=gettext("Type"); ?>:&nbsp;&nbsp;</td>
 									<td></td>
 									<td>
-										<select name="localid_type" class="formselect" onChange="typesel_change_local()">
-											<option value="address" <?php if ($pconfig['localid_type'] == "address") echo "selected";?>><?=gettext("Address"); ?></option>
-											<option value="network" <?php if ($pconfig['localid_type'] == "network") echo "selected";?>><?=gettext("Network"); ?></option>
+										<select name="localid_type" class="formselect" onchange="typesel_change_local()">
+											<option value="address" <?php if ($pconfig['localid_type'] == "address") echo "selected=\"selected\"";?>><?=gettext("Address"); ?></option>
+											<option value="network" <?php if ($pconfig['localid_type'] == "network") echo "selected=\"selected\"";?>><?=gettext("Network"); ?></option>
 											<?php
 												$iflist = get_configured_interface_with_descr();
 												foreach ($iflist as $ifname => $ifdescr):
 											?>
-											<option value="<?=$ifname; ?>" <?php if ($pconfig['localid_type'] == $ifname ) echo "selected";?>><?=sprintf(gettext("%s subnet"), $ifdescr); ?></option>
+											<option value="<?=$ifname; ?>" <?php if ($pconfig['localid_type'] == $ifname ) echo "selected=\"selected\"";?>><?=sprintf(gettext("%s subnet"), $ifdescr); ?></option>
 											<?php endforeach; ?>
-											<option value="none" <?php if ($pconfig['localid_type'] == "none" ) echo "selected";?>><?=gettext("None"); ?></option>
 										</select>
 									</td>
 								</tr>
@@ -428,11 +554,47 @@ function change_protocol() {
 									<td><?=gettext("Address:");?>&nbsp;&nbsp;</td>
 									<td><?=$mandfldhtmlspc;?></td>
 									<td>
-										<input name="localid_address" type="text" class="formfld unknown" id="localid_address" size="20" value="<?=htmlspecialchars($pconfig['localid_address']);?>">
+										<input name="localid_address" type="text" class="formfld unknown ipv4v6" id="localid_address" size="28" value="<?=htmlspecialchars($pconfig['localid_address']);?>"/>
 										/
-										<select name="localid_netbits" class="formselect" id="localid_netbits">
-										<?php for ($i = 32; $i >= 0; $i--): ?>
-											<option value="<?=$i;?>" <?php if ($i == $pconfig['localid_netbits']) echo "selected"; ?>>
+										<select name="localid_netbits" class="formselect ipv4v6" id="localid_netbits">
+										<?php for ($i = 128; $i >= 0; $i--): ?>
+											<option value="<?=$i;?>" <?php if (isset($pconfig['localid_netbits']) && $i == $pconfig['localid_netbits']) echo "selected=\"selected\""; ?>>
+												<?=$i;?>
+											</option>
+										<?php endfor; ?>
+										</select>
+									</td>
+								</tr>
+								<tr> <td colspan="3">
+								<br/>
+								<?php echo gettext("In case you need NAT/BINAT on this network specify the address to be translated"); ?>
+								</td></tr>
+								<tr>
+									<td><?=gettext("Type"); ?>:&nbsp;&nbsp;</td>
+									<td></td>
+									<td>
+										<select name="natlocalid_type" class="formselect" onchange="typesel_change_natlocal()">
+											<option value="address" <?php if ($pconfig['natlocalid_type'] == "address") echo "selected=\"selected\"";?>><?=gettext("Address"); ?></option>
+											<option value="network" <?php if ($pconfig['natlocalid_type'] == "network") echo "selected=\"selected\"";?>><?=gettext("Network"); ?></option>
+											<?php
+												$iflist = get_configured_interface_with_descr();
+												foreach ($iflist as $ifname => $ifdescr):
+											?>
+											<option value="<?=$ifname; ?>" <?php if ($pconfig['natlocalid_type'] == $ifname ) echo "selected=\"selected\"";?>><?=sprintf(gettext("%s subnet"), $ifdescr); ?></option>
+											<?php endforeach; ?>
+											<option value="none" <?php if (empty($pconfig['natlocalid_type']) || $pconfig['natlocalid_type'] == "none" ) echo "selected=\"selected\"";?>><?=gettext("None"); ?></option>
+										</select>
+									</td>
+								</tr>
+								<tr>
+									<td><?=gettext("Address:");?>&nbsp;&nbsp;</td>
+									<td><?=$mandfldhtmlspc;?></td>
+									<td>
+										<input name="natlocalid_address" type="text" class="formfld unknown ipv4v6" id="natlocalid_address" size="28" value="<?=htmlspecialchars($pconfig['natlocalid_address']);?>"/>
+										/
+										<select name="natlocalid_netbits" class="formselect ipv4v6" id="natlocalid_netbits">
+										<?php for ($i = 128; $i >= 0; $i--): ?>
+											<option value="<?=$i;?>" <?php if (isset($pconfig['natlocalid_netbits']) && $i == $pconfig['natlocalid_netbits']) echo "selected=\"selected\""; ?>>
 												<?=$i;?>
 											</option>
 										<?php endfor; ?>
@@ -453,9 +615,9 @@ function change_protocol() {
 									<td><?=gettext("Type"); ?>:&nbsp;&nbsp;</td>
 									<td></td>
 									<td>
-										<select name="remoteid_type" class="formselect" onChange="typesel_change_remote()">
-											<option value="address" <?php if ($pconfig['remoteid_type'] == "address") echo "selected"; ?>><?=gettext("Address"); ?></option>
-											<option value="network" <?php if ($pconfig['remoteid_type'] == "network") echo "selected"; ?>><?=gettext("Network"); ?></option>
+										<select name="remoteid_type" class="formselect" onchange="typesel_change_remote()">
+											<option value="address" <?php if ($pconfig['remoteid_type'] == "address") echo "selected=\"selected\""; ?>><?=gettext("Address"); ?></option>
+											<option value="network" <?php if ($pconfig['remoteid_type'] == "network") echo "selected=\"selected\""; ?>><?=gettext("Network"); ?></option>
 										</select>
 									</td>
 								</tr>
@@ -463,13 +625,13 @@ function change_protocol() {
 									<td><?=gettext("Address"); ?>:&nbsp;&nbsp;</td>
 									<td><?=$mandfldhtmlspc;?></td>
 									<td>
-										<input name="remoteid_address" type="text" class="formfld unknown" id="remoteid_address" size="20" value="<?=htmlspecialchars($pconfig['remoteid_address']);?>">
+										<input name="remoteid_address" type="text" class="formfld unknown ipv4v6" id="remoteid_address" size="28" value="<?=htmlspecialchars($pconfig['remoteid_address']);?>"/>
 										/
-										<select name="remoteid_netbits" class="formselect" id="remoteid_netbits">
-										<?php for ($i = 32; $i >= 0; $i--) { 
+										<select name="remoteid_netbits" class="formselect ipv4v6" id="remoteid_netbits">
+										<?php for ($i = 128; $i >= 0; $i--) { 
 											
-											echo "<option value=\"{$i}\"";
-											if ($i == $pconfig['remoteid_netbits']) echo " selected";
+											echo "<option value=\"{$i}\" ";
+											if (isset($pconfig['remoteid_netbits']) && $i == $pconfig['remoteid_netbits']) echo "selected=\"selected\"";
 											echo ">{$i}</option>\n";
 											} ?>
 										</select>
@@ -484,8 +646,8 @@ function change_protocol() {
 					<tr>
 						<td width="22%" valign="top" class="vncell"><?=gettext("Description"); ?></td>
 						<td width="78%" class="vtable">
-							<input name="descr" type="text" class="formfld unknown" id="descr" size="40" value="<?=htmlspecialchars($pconfig['descr']);?>">
-							<br>
+							<input name="descr" type="text" class="formfld unknown" id="descr" size="40" value="<?=htmlspecialchars($pconfig['descr']);?>"/>
+							<br />
 							<span class="vexpl">
 								<?=gettext("You may enter a description here " .
 								"for your reference (not parsed)"); ?>.
@@ -503,14 +665,14 @@ function change_protocol() {
 					<tr>
 						<td width="22%" valign="top" class="vncellreq"><?=gettext("Protocol"); ?></td>
 						<td width="78%" class="vtable">
-							<select name="proto" class="formselect" onChange="change_protocol()">
+							<select name="proto" class="formselect" onchange="change_protocol()">
 							<?php foreach ($p2_protos as $proto => $protoname): ?>
-								<option value="<?=$proto;?>" <?php if ($proto == $pconfig['proto']) echo "selected"; ?>>
+								<option value="<?=$proto;?>" <?php if ($proto == $pconfig['proto']) echo "selected=\"selected\""; ?>>
 									<?=htmlspecialchars($protoname);?>
 								</option>
 							<?php endforeach; ?>
 							</select>
-							<br>
+							<br />
 							<span class="vexpl">
 								<?=gettext("ESP is encryption, AH is authentication only"); ?>
 							</span>
@@ -523,12 +685,12 @@ function change_protocol() {
 							<?php
 								foreach ($p2_ealgos as $algo => $algodata):
 									$checked = '';
-									if (in_array($algo,$pconfig['ealgos']))
-										$checked = " checked";
+									if (is_array($pconfig['ealgos']) && in_array($algo,$pconfig['ealgos']))
+										$checked = "checked=\"checked\"";
 								?>
 								<tr>
 									<td>
-										<input type="checkbox" name="ealgos[]" value="<?=$algo;?>"<?=$checked?>>
+										<input type="checkbox" name="ealgos[]" value="<?=$algo;?>" <?=$checked?>/>
 									</td>
 									<td>
 										<?=htmlspecialchars($algodata['name']);?>
@@ -546,9 +708,9 @@ function change_protocol() {
 													$selected = '';
 				//									if ($checked && in_array("keylen_".$algo,$pconfig))
 													if ($keylen == $pconfig["keylen_".$algo])
-														$selected = " selected";
+														$selected = "selected=\"selected\"";
 											?>
-											<option value="<?=$keylen;?>"<?=$selected;?>><?=$keylen;?> <?=gettext("bits"); ?></option>
+											<option value="<?=$keylen;?>" <?=$selected;?>><?=$keylen;?> <?=gettext("bits"); ?></option>
 											<?php endfor; ?>
 										</select>
 										<?php endif; ?>
@@ -558,7 +720,7 @@ function change_protocol() {
 								<?php endforeach; ?>
 								
 							</table>
-							<br>
+							<br />
 							<?=gettext("Hint: use 3DES for best compatibility or if you have a hardware " . 
 							"crypto accelerator card. Blowfish is usually the fastest in " .
 							"software encryption"); ?>.
@@ -568,9 +730,9 @@ function change_protocol() {
 						<td width="22%" valign="top" class="vncellreq"><?=gettext("Hash algorithms"); ?></td>
 						<td width="78%" class="vtable">
 						<?php foreach ($p2_halgos as $algo => $algoname): ?>
-							<input type="checkbox" name="halgos[]" value="<?=$algo;?>" <?php if (in_array($algo, $pconfig['halgos'])) echo "checked"; ?>>
+							<input type="checkbox" name="halgos[]" value="<?=$algo;?>" <?php if (in_array($algo, $pconfig['halgos'])) echo "checked=\"checked\""; ?>/>
 							<?=htmlspecialchars($algoname);?>
-							<br>
+							<br />
 						<?php endforeach; ?>
 						</td>
 					</tr>
@@ -580,25 +742,19 @@ function change_protocol() {
 						<?php if (!isset($pconfig['mobile']) || !isset($a_client['pfs_group'])): ?>
 							<select name="pfsgroup" class="formselect">
 							<?php foreach ($p2_pfskeygroups as $keygroup => $keygroupname): ?>
-								<option value="<?=$keygroup;?>" <?php if ($keygroup == $pconfig['pfsgroup']) echo "selected"; ?>>
+								<option value="<?=$keygroup;?>" <?php if ($keygroup == $pconfig['pfsgroup']) echo "selected=\"selected\""; ?>>
 									<?=htmlspecialchars($keygroupname);?>
 								</option>
 							<?php endforeach; ?>
 							</select>
-							<br>
-							<span class="vexpl">
-								<em>
-									<?=gettext("1 = 768 bit, 2 = 1024 bit, 5 = 1536 bit"); ?>
-								</em>
-							</span>
-							
+							<br />
 							<?php else: ?>
 
 							<select class="formselect" disabled>
-								<option selected><?=$p2_pfskeygroups[$a_client['pfs_group']];?></option>
+								<option selected="selected"><?=$p2_pfskeygroups[$a_client['pfs_group']];?></option>
 							</select>
-							<input name="pfsgroup" type="hidden" value="<?=htmlspecialchars($pconfig['pfsgroup']);?>">
-							<br>
+							<input name="pfsgroup" type="hidden" value="<?=htmlspecialchars($pconfig['pfsgroup']);?>"/>
+							<br />
 							<span class="vexpl"><em><?=gettext("Set globally in mobile client options"); ?></em></span>
 						<?php endif; ?>
 						</td>
@@ -606,7 +762,7 @@ function change_protocol() {
 					<tr>
 						<td width="22%" valign="top" class="vncell"><?=gettext("Lifetime"); ?></td>
 						<td width="78%" class="vtable">
-							<input name="lifetime" type="text" class="formfld unknown" id="lifetime" size="20" value="<?=htmlspecialchars($pconfig['lifetime']);?>">
+							<input name="lifetime" type="text" class="formfld unknown" id="lifetime" size="20" value="<?=htmlspecialchars($pconfig['lifetime']);?>"/>
 							<?=gettext("seconds"); ?>
 						</td>
 					</tr>
@@ -619,7 +775,7 @@ function change_protocol() {
 					<tr>
 						<td width="22%" valign="top" class="vncell"><?=gettext("Automatically ping host"); ?></td>
 						<td width="78%" class="vtable">
-							<input name="pinghost" type="text" class="formfld unknown" id="pinghost" size="20" value="<?=htmlspecialchars($pconfig['pinghost']);?>">
+							<input name="pinghost" type="text" class="formfld unknown" id="pinghost" size="28" value="<?=htmlspecialchars($pconfig['pinghost']);?>"/>
 							<?=gettext("IP address"); ?>
 						</td>
 					</tr>
@@ -627,14 +783,14 @@ function change_protocol() {
 						<td width="22%" valign="top">&nbsp;</td>
 						<td width="78%">
 						<?php if (isset($p2index) && $a_phase2[$p2index]): ?>
-							<input name="p2index" type="hidden" value="<?=$p2index;?>">
+							<input name="p2index" type="hidden" value="<?=htmlspecialchars($p2index);?>"/>
 						<?php endif; ?>
 						<?php if ($pconfig['mobile']): ?>
-							<input name="mobile" type="hidden" value="true">
-							<input name="remoteid_type" type="hidden" value="mobile">
+							<input name="mobile" type="hidden" value="true"/>
+							<input name="remoteid_type" type="hidden" value="mobile"/>
 						<?php endif; ?>
-							<input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save"); ?>">
-							<input name="ikeid" type="hidden" value="<?=htmlspecialchars($pconfig['ikeid']);?>">
+							<input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save"); ?>"/>
+							<input name="ikeid" type="hidden" value="<?=htmlspecialchars($pconfig['ikeid']);?>"/>
 						</td>
 					</tr>
 				</table>
@@ -643,11 +799,12 @@ function change_protocol() {
 	</tr>
 </table>
 </form>
-<script lannguage="JavaScript">
+<script type="text/JavaScript">
 <!--
 change_mode('<?=htmlspecialchars($pconfig['mode'])?>');
 change_protocol('<?=htmlspecialchars($pconfig['proto'])?>');
 typesel_change_local(<?=htmlspecialchars($pconfig['localid_netbits'])?>);
+typesel_change_natlocal(<?=htmlspecialchars($pconfig['natlocalid_netbits'])?>);
 <?php if (!isset($pconfig['mobile'])): ?>
 typesel_change_remote(<?=htmlspecialchars($pconfig['remoteid_netbits'])?>);
 <?php endif; ?>
@@ -666,13 +823,15 @@ function pconfig_to_ealgos(& $pconfig) {
 	global $p2_ealgos;
 
 	$ealgos = array();
-	foreach ($p2_ealgos as $algo_name => $algo_data) {
-		if (in_array($algo_name,$pconfig['ealgos'])) {
-			$ealg = array();
-			$ealg['name'] = $algo_name;
-			if (is_array($algo_data['keysel']))
-				$ealg['keylen'] = $_POST["keylen_".$algo_name];
-			$ealgos[] = $ealg;
+	if (is_array($pconfig['ealgos'])) {
+		foreach ($p2_ealgos as $algo_name => $algo_data) {
+			if (in_array($algo_name,$pconfig['ealgos'])) {
+				$ealg = array();
+				$ealg['name'] = $algo_name;
+				if (is_array($algo_data['keysel']))
+					$ealg['keylen'] = $_POST["keylen_".$algo_name];
+				$ealgos[] = $ealg;
+			}
 		}
 	}
 

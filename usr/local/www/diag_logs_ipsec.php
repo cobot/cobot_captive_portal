@@ -62,7 +62,7 @@ if(is_array($config['ipsec']['phase1']))
 		$replace[] = "$1<strong>[{$ph1ent['descr']}]</strong>: $2$3$4";
 	}
 /* collect all our own ip addresses */
-exec("/sbin/ifconfig | /usr/bin/awk '/inet / {print $2}'", $ip_address_list);
+exec("/sbin/ifconfig | /usr/bin/awk '/inet/ {print $2}'", $ip_address_list);
 foreach($ip_address_list as $address) {
 	$search[] = "/(racoon: )(INFO[:].*?)({$address}\[[0-9].+\])/i";
 	$search[] = "/(racoon: )(\[{$address}\]|{$address})(.*)/i";
@@ -79,7 +79,6 @@ $replace[] = "$1 <strong>[Check Phase 1 settings, lifetime, algorithm]</strong>"
 $replace[] = "$1 <strong>[Check Phase 2 settings, networks]</strong>";
 $replace[] = "$1 <strong>[Check Phase 2 settings, algorithm]</strong>";
 
-
 $nentries = $config['syslog']['nentries'];
 if (!$nentries)
 	$nentries = 50;
@@ -90,6 +89,7 @@ if ($_POST['clear'])
 $ipsec_logarr = return_clog($ipsec_logfile, $nentries);
 
 $pgtitle = array(gettext("Status"),gettext("System logs"),gettext("IPsec VPN"));
+$shortcut_section = "ipsec";
 include("head.inc");
 
 ?>
@@ -109,8 +109,7 @@ include("head.inc");
 	$tab_array[] = array(gettext("VPN"), false, "diag_logs_vpn.php");
 	$tab_array[] = array(gettext("Load Balancer"), false, "diag_logs_relayd.php");
 	$tab_array[] = array(gettext("OpenVPN"), false, "diag_logs_openvpn.php");
-	$tab_array[] = array(gettext("OpenNTPD"), false, "diag_logs_ntpd.php");
-	$tab_array[] = array(gettext("Wireless"), false, "diag_logs_wireless.php");
+	$tab_array[] = array(gettext("NTP"), false, "diag_logs_ntpd.php");
 	$tab_array[] = array(gettext("Settings"), false, "diag_logs_settings.php");
 	display_top_tabs($tab_array);
 ?>
@@ -125,6 +124,7 @@ include("head.inc");
 		  		</tr>
 				<?php
 				foreach($ipsec_logarr as $logent){
+					$logent = htmlspecialchars($logent);
 					foreach($search as $string) {
 						if(preg_match($string, $logent))
 							$match = true;
@@ -139,16 +139,16 @@ include("head.inc");
 					$logent = preg_split("/\s+/", $logent, 6);
 					echo "<tr valign=\"top\">\n";
 					$entry_date_time = htmlspecialchars(join(" ", array_slice($logent, 0, 3)));
-					echo "<td class=\"listlr\" nowrap>" . $entry_date_time  . "</td>\n";
+					echo "<td class=\"listlr\" nowrap=\"nowrap\">" . $entry_date_time  . "</td>\n";
 					echo "<td class=\"listr\">" . $logent[4] . " " . $logent[5] . "</td>\n";
 					echo "</tr>\n";
 				}
 				?>
 				<tr>
 					<td>
-						<br>
+						<br />
 						<form action="diag_logs_ipsec.php" method="post">
-						<input name="clear" type="submit" class="formbtn" value="<?=gettext("Clear log"); ?>">
+						<input name="clear" type="submit" class="formbtn" value="<?=gettext("Clear log"); ?>"/>
 						</form>
 					</td>
 				</tr>

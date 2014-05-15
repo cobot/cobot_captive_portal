@@ -73,12 +73,12 @@ function file_notice($id, $notice, $category = "General", $url = "", $priority =
 	$queue[$queuekey] = $toqueue;
 	$queueout = fopen($notice_path, "w");
 	if(!$queueout) {
-		log_error("Could not open {$notice_path} for writing");
+		log_error(printf(gettext("Could not open %s for writing"), $notice_path));
 		return;
 	}
 	fwrite($queueout, serialize($queue));
 	fclose($queueout);
-	log_error("New alert found: {$notice}");
+	log_error("New alert found: $notice");
 	/* soekris */
 	if(file_exists("/dev/led/error"))
 		exec("/bin/echo 1 > /dev/led/error");
@@ -265,15 +265,12 @@ function are_notices_pending($category = "all") {
  * RESULT
  *   returns true if message was sent
  ******/
-function notify_via_smtp($message) {
+function notify_via_smtp($message, $force = false) {
 	global $config, $g;
 	if($g['booting'])
 		return;
 
-	if(!$config['notifications']['smtp']['ipaddress'])
-		return;
-
-	if(!$config['notifications']['smtp']['notifyemailaddress']) 
+	if(isset($config['notifications']['smtp']['disable']) && !$force)
 		return;
 
 	/* Do NOT send the same message twice */
@@ -283,8 +280,25 @@ function notify_via_smtp($message) {
 			return;
 	}
 
+	/* Store last message sent to avoid spamming */
+	$fd = fopen("/var/db/notices_lastmsg.txt", "w");
+	fwrite($fd, $message);
+	fclose($fd);
+
+	send_smtp_message($message, "{$config['system']['hostname']}.{$config['system']['domain']} - Notification");
+	return;
+}
+
+function send_smtp_message($message, $subject = "(no subject)") {
+	global $config, $g;
 	require_once("sasl.inc");
 	require_once("smtp.inc");
+
+	if(!$config['notifications']['smtp']['ipaddress'])
+		return;
+
+	if(!$config['notifications']['smtp']['notifyemailaddress'])
+		return;
 
 	$smtp = new smtp_class;
 
@@ -296,6 +310,7 @@ function notify_via_smtp($message) {
 
 	$smtp->direct_delivery = 0;
 	$smtp->ssl = ($config['notifications']['smtp']['ssl'] == "checked") ? 1 : 0;
+	$smtp->tls = ($config['notifications']['smtp']['tls'] == "checked") ? 1 : 0;
 	$smtp->debug = 0;
 	$smtp->html_debug = 0;
 	$smtp->localhost=$config['system']['hostname'].".".$config['system']['domain'];
@@ -314,25 +329,18 @@ function notify_via_smtp($message) {
 	$headers = array(
 		"From: {$from}",
 		"To: {$to}",
-		"Subject: {$config['system']['hostname']}.{$config['system']['domain']} - Notification",
-		"Date: ".strftime("%a, %d %b %Y %H:%M:%S %Z")
+		"Subject: {$subject}",
+		"Date: ".date("r")
 	);
 
-	/* Store last message sent to avoid spamming */
-	$fd = fopen("/var/db/notices_lastmsg.txt", "w");
-	fwrite($fd, $message);
-	fclose($fd);
-
-	if($smtp->SendMessage($from, array($to), $headers, $message)) {
-		log_error("Message sent to {$to} OK");
+	if($smtp->SendMessage($from, preg_split('/\s*,\s*/', trim($to)), $headers, $message)) {
+		log_error(sprintf(gettext("Message sent to %s OK"), $to));
 		return;
 	} else {
-		log_error("Could not send the message to {$to} -- Error: {$smtp->error}");
-		return("Could not send the message to {$to} -- Error: {$smtp->error}");
+		log_error(sprintf(gettext('Could not send the message to %1$s -- Error: %2$s'), $to, $smtp->error));
+		return(sprintf(gettext('Could not send the message to %1$s -- Error: %2$s'), $to, $smtp->error));
 	}
-
 }
-
 
 /****f* notices/notify_via_growl
  * NAME
@@ -342,9 +350,12 @@ function notify_via_smtp($message) {
  * RESULT
  *   returns true if message was sent
  ******/
-function notify_via_growl($message) {
+function notify_via_growl($message, $force=false) {
 	require_once("growl.class");
 	global $config,$g;
+
+	if (isset($config['notifications']['growl']['disable']) && !$force)
+		return;
 
 	/* Do NOT send the same message twice */
 	if(file_exists("/var/db/growlnotices_lastmsg.txt")) {
@@ -391,6 +402,12 @@ function register_via_growl() {
 		$growl->addNotification($growl_notification);
 		$growl->register();
 	}
+}
+
+/* Notify via remote methods only - not via GUI. */
+function notify_all_remote($msg) {
+	notify_via_smtp($msg);
+	notify_via_growl($msg);
 }
 
 ?>

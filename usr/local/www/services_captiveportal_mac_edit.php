@@ -43,30 +43,41 @@ function passthrumacscmp($a, $b) {
 }
 
 function passthrumacs_sort() {
-        global $config;
+        global $config, $cpzone;
 
-        usort($config['captiveportal']['passthrumac'],"passthrumacscmp");
+        usort($config['captiveportal'][$cpzone]['passthrumac'],"passthrumacscmp");
 }
-
-$statusurl = "status_captiveportal.php";
-$logurl = "diag_logs_auth.php";
 
 require("guiconfig.inc");
 require("functions.inc");
-require("filter.inc");
+require_once("filter.inc");
 require("shaper.inc");
 require("captiveportal.inc");
 
 $pgtitle = array(gettext("Services"),gettext("Captive portal"),gettext("Edit pass-through MAC address"));
+$shortcut_section = "captiveportal";
 
-if (!is_array($config['captiveportal']['passthrumac']))
-	$config['captiveportal']['passthrumac'] = array();
+$cpzone = $_GET['zone'];
+if (isset($_POST['zone']))
+        $cpzone = $_POST['zone'];
 
-$a_passthrumacs = &$config['captiveportal']['passthrumac'];
+if (empty($cpzone) || empty($config['captiveportal'][$cpzone])) {
+        header("Location: services_captiveportal_zones.php");
+        exit;
+}
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (!is_array($config['captiveportal']))
+        $config['captiveportal'] = array();
+$a_cp =& $config['captiveportal'];
+
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
+
+if (!is_array($a_cp[$cpzone]['passthrumac']))
+	$a_cp[$cpzone]['passthrumac'] = array();
+$a_passthrumacs = &$a_cp[$cpzone]['passthrumac'];
 
 if (isset($id) && $a_passthrumacs[$id]) {
 	$pconfig['mac'] = $a_passthrumacs[$id]['mac'];
@@ -87,7 +98,7 @@ if ($_POST) {
 	
 	do_input_validation($_POST, $reqdfields, $reqdfieldsn, &$input_errors);
 	
-	$_POST['mac'] = str_replace("-", ":", $_POST['mac']);
+	$_POST['mac'] = strtolower(str_replace("-", ":", $_POST['mac']));
 	
 	if (($_POST['mac'] && !is_macaddr($_POST['mac']))) {
 		$input_errors[] = sprintf("%s. [%s]", gettext("A valid MAC address must be specified"), $_POST['mac']);
@@ -130,19 +141,29 @@ if ($_POST) {
 		
 		write_config();
 
-		$ruleno = captiveportal_get_ipfw_passthru_ruleno($oldmac);
-		if ($ruleno) {
-			captiveportal_free_ipfw_ruleno($ruleno);
-			$rules = "delete {$ruleno}\n";
-			$rules .= "delete " . ++$ruleno . "\n";
+		if (isset($config['captiveportal'][$cpzone]['enable'])) {
+			$ruleno = captiveportal_get_ipfw_passthru_ruleno($oldmac);
+			if ($ruleno) {
+				captiveportal_free_ipfw_ruleno($ruleno);
+				$pipeno = captiveportal_get_dn_passthru_ruleno($oldmac);
+				if ($pipeno) {
+					captiveportal_free_dn_ruleno($pipeno);
+					$rules .= "pipe delete {$pipeno}\n";
+					++$pipeno;
+					$rules .= "pipe delete {$pipeno}\n";
+				}
+				$rules = "delete {$ruleno}\n";
+				$rules .= "delete " . ++$ruleno . "\n";
+			}
+			
+			$rules .= captiveportal_passthrumac_configure_entry($mac);
+			$uniqid = uniqid("{$cpzone}_macedit");
+			file_put_contents("{$g['tmp_path']}/{$uniqid}_tmp", $rules);
+			mwexec("/sbin/ipfw -x {$cpzone} -q {$g['tmp_path']}/{$uniqid}_tmp");
+			@unlink("{$g['tmp_path']}/{$uniqid}_tmp");
 		}
-		
-		$rules .= captiveportal_passthrumac_configure_entry($mac);
-		file_put_contents("{$g['tmp_path']}/tmpmacedit{$id}", $rules);
-		mwexec("/sbin/ipfw -q {$g['tmp_path']}/tmpmacedit{$id}");
-		@unlink("{$g['tmp_path']}/tmpmacedit{$id}");
 
-		header("Location: services_captiveportal_mac.php");
+		header("Location: services_captiveportal_mac.php?zone={$cpzone}");
 		exit;
 	}
 }
@@ -156,10 +177,16 @@ include("head.inc");
 		<tr>
                         <td colspan="2" valign="top" class="listtopic"><?=gettext("Edit Pass-through MAC address");?></td>
                 </tr>
-				<tr>
+		<tr>
                   <td width="22%" valign="top" class="vncellreq"><?=gettext("MAC address"); ?></td>
                   <td width="78%" class="vtable"> 
                     <?=$mandfldhtml;?><input name="mac" type="text" class="formfld unknown" id="mac" size="17" value="<?=htmlspecialchars($pconfig['mac']);?>">
+                    <?php
+                        $ip = getenv('REMOTE_ADDR');
+                        $mac = `/usr/sbin/arp -an | grep {$ip} | cut -d" " -f4`;
+                        $mac = str_replace("\n","",$mac);
+                    ?>
+                    <a OnClick="document.forms[0].mac.value='<?=$mac?>';" href="#"><?=gettext("Copy my MAC address");?></a>
                     <br> 
                     <span class="vexpl"><?=gettext("MAC address (6 hex octets separated by colons)"); ?></span></td>
                 </tr>
@@ -186,6 +213,7 @@ include("head.inc");
                   <td width="22%" valign="top">&nbsp;</td>
                   <td width="78%"> 
                     <input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save"); ?>">
+                    <input name="zone" type="hidden" value="<?=htmlspecialchars($cpzone);?>">
                     <?php if (isset($id) && $a_passthrumacs[$id]): ?>
                     <input name="id" type="hidden" value="<?=htmlspecialchars($id);?>">
                     <?php endif; ?>

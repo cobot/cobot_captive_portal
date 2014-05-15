@@ -1,0 +1,34 @@
+Status: Enabled for 49710 days 04:28:41       Debug: Urgent
+
+Interface Stats for em1               IPv4             IPv6
+  Bytes In                            1344                0
+  Bytes Out                              0              556
+  Packets In
+    Passed                               0                0
+    Blocked                              3                0
+  Packets Out
+    Passed                               0                6
+    Blocked                              0                0
+
+State Table                          Total             Rate
+  current entries                       25               
+  searches                             131               
+  inserts                               25               
+  removals                               0               
+Counters
+  match                                 34               
+  bad-offset                             0               
+  fragment                               0               
+  short                                  0               
+  normalize                              0               
+  memory                                 0               
+  bad-timestamp                          0               
+  congestion                             0               
+  ip-option                              0               
+  proto-cksum                            0               
+  state-mismatch                         0               
+  state-insert                           0               
+  state-limit                            0               
+  src-limit                              0               
+  synproxy                               0               
+  divert                                 0               

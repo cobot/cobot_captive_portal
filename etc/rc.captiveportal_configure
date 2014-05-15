@@ -3,7 +3,7 @@
 /* $Id$ */
 /*
     rc.captiveportal_configure
-    part of pfSense (http://www.pfSense.com)
+    part of pfSense (https://www.pfsense.org)
     Copyright (C) 2004 Scott Ullrich
     All rights reserved.
 
@@ -31,7 +31,7 @@
 
 require("config.inc");
 require("functions.inc");
-require("filter.inc");
+require_once("filter.inc");
 require("shaper.inc");
 require("captiveportal.inc");
 

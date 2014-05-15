@@ -2,7 +2,7 @@
 /*
         $Id$
         Copyright 2007 Scott Dale
-        Part of pfSense widgets (www.pfsense.com)
+        Part of pfSense widgets (https://www.pfsense.org)
         originally based on m0n0wall (http://m0n0.ch/wall)
 
         Copyright (C) 2004-2005 T. Lechat <dev@lechat.org>, Manuel Kasper <mk@neon1.net>
@@ -35,7 +35,7 @@ require_once("guiconfig.inc");
 require_once("pfsense-utils.inc");
 require_once("functions.inc");
 ?>
-<link  href="/themes/nervecenter/graphlink.css"  rel="stylesheet"  type="text/css"  />  
+<link  href="/themes/<?=$g['theme'];?>/graphlink.css"  rel="stylesheet"  type="text/css"  />  
 <script src="/widgets/javascript/cpu_graphs.js" type="text/javascript"></script>
 <script type="text/javascript">
     /* initialize the graph */
@@ -61,12 +61,12 @@ require_once("functions.inc");
 <script language="javascript" type="text/javascript">
 
     // Graph 1
-    graph[0]         = GraphInitialize('GraphOutput', 200, 50, 2);
+    graph[0]         = GraphInitialize('GraphOutput', 200, 50, 4);
     graph_dir[0]     = GL_END;
     last_val[0]      = Math.floor(Math.random() * 50);
     last_val_span[0] = document.getElementById('LastValue0');
 
-    //GraphSetVMax(graph[0], 100);
-    //GraphDynamicScale(graph[0]);
+    GraphSetVMax(graph[0], 100);
+    GraphDynamicScale(graph[0]);
 
 </script>

@@ -46,11 +46,13 @@ $ca_methods = array(
 	"intermediate" => gettext("Create an intermediate Certificate Authority"));
 
 $ca_keylens = array( "512", "1024", "2048", "4096");
+$openssl_digest_algs = array("sha1", "sha224", "sha256", "sha384", "sha512");
 
 $pgtitle = array(gettext("System"), gettext("Certificate Authority Manager"));
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (!is_array($config['ca']))
@@ -74,7 +76,7 @@ if ($_POST['act'])
 
 if ($act == "del") {
 
-	if (!$a_ca[$id]) {
+	if (!isset($a_ca[$id])) {
 		pfSenseHeader("system_camanager.php");
 		exit;
 	}
@@ -113,6 +115,7 @@ if ($act == "edit") {
 if ($act == "new") {
 	$pconfig['method'] = $_GET['method'];
 	$pconfig['keylen'] = "2048";
+	$pconfig['digest_alg'] = "sha256";
 	$pconfig['lifetime'] = "3650";
 	$pconfig['dn_commonname'] = "internal-ca";
 }
@@ -156,6 +159,7 @@ if ($act == "expkey") {
 if ($_POST) {
 
 	unset($input_errors);
+	$input_errors = array();
 	$pconfig = $_POST;
 
 	/* input validation */
@@ -202,7 +206,7 @@ if ($_POST) {
 	}
 
 	do_input_validation($_POST, $reqdfields, $reqdfieldsn, &$input_errors);
-	if ($pconfig['method'] != "existing")
+	if ($pconfig['method'] != "existing") {
 		/* Make sure we do not have invalid characters in the fields for the certificate */
 		for ($i = 0; $i < count($reqdfields); $i++) {
 			if ($reqdfields[$i] == 'dn_email'){
@@ -211,9 +215,14 @@ if ($_POST) {
 			}else if ($reqdfields[$i] == 'dn_commonname'){
 				if (preg_match("/[\!\@\#\$\%\^\(\)\~\?\>\<\&\/\\\,\"\']/", $_POST["dn_commonname"]))
 					array_push($input_errors, "The field 'Distinguished name Common Name' contains invalid characters.");
-			}else if (preg_match("/[\!\@\#\$\%\^\(\)\~\?\>\<\&\/\\\,\.\"\']/", $_POST["$reqdfields[$i]"]))
+			}else if (($reqdfields[$i] != "descr") && preg_match("/[\!\@\#\$\%\^\(\)\~\?\>\<\&\/\\\,\.\"\']/", $_POST["$reqdfields[$i]"]))
 				array_push($input_errors, "The field '" . $reqdfieldsn[$i] . "' contains invalid characters.");
 		}
+		if (!in_array($_POST["keylen"], $ca_keylens))
+			array_push($input_errors, gettext("Please select a valid Key Length."));
+		if (!in_array($_POST["digest_alg"], $openssl_digest_algs))
+			array_push($input_errors, gettext("Please select a valid Digest Algorithm."));
+	}
 
 	/* if this is an AJAX caller then handle via JSON */
 	if (isAjax() && is_array($input_errors)) {
@@ -255,7 +264,7 @@ if ($_POST) {
 					'organizationName' => $pconfig['dn_organization'],
 					'emailAddress' => $pconfig['dn_email'],
 					'commonName' => $pconfig['dn_commonname']);
-				if (!ca_create($ca, $pconfig['keylen'], $pconfig['lifetime'], $dn)){
+				if (!ca_create($ca, $pconfig['keylen'], $pconfig['lifetime'], $dn, $pconfig['digest_alg'])){
 					while($ssl_err = openssl_error_string()){
 						$input_errors = array();
 						array_push($input_errors, "openssl library returns: " . $ssl_err);
@@ -270,7 +279,7 @@ if ($_POST) {
 					'organizationName' => $pconfig['dn_organization'],
 					'emailAddress' => $pconfig['dn_email'],
 					'commonName' => $pconfig['dn_commonname']);
-				if (!ca_inter_create($ca, $pconfig['keylen'], $pconfig['lifetime'], $dn, $pconfig['caref'])){
+				if (!ca_inter_create($ca, $pconfig['keylen'], $pconfig['lifetime'], $dn, $pconfig['caref'], $pconfig['digest_alg'])){
 					while($ssl_err = openssl_error_string()){
 						$input_errors = array();
 						array_push($input_errors, "openssl library returns: " . $ssl_err);
@@ -298,7 +307,7 @@ include("head.inc");
 <body link="#000000" vlink="#000000" alink="#000000" onload="<?= $jsevents["body"]["onload"] ?>">
 <?php include("fbegin.inc"); ?>
 <script type="text/javascript">
-<!--
+//<![CDATA[
 
 function method_change() {
 
@@ -323,7 +332,7 @@ function method_change() {
 	}
 }
 
-//-->
+//]]>
 </script>
 <?php
 	if ($input_errors)
@@ -340,7 +349,7 @@ function method_change() {
 				array_push($dn_cc, $matches[1]);
 	}
 ?>
-<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="CA manager">
 	<tr>
 		<td>
 		<?php
@@ -360,11 +369,11 @@ function method_change() {
 
 				<form action="system_camanager.php" method="post" name="iform" id="iform">
 					<?php if ($act == "edit"): ?>
-					<input type="hidden" name="edit" value="edit" id="edit">
-					<input type="hidden" name="id" value="<?php echo $id; ?>" id="id">
-					<input type="hidden" name="refid" value="<?php echo $pconfig['refid']; ?>" id="refid">
+					<input type="hidden" name="edit" value="edit" id="edit" />
+					<input type="hidden" name="id" value="<?php echo htmlspecialchars($id); ?>" id="id" />
+					<input type="hidden" name="refid" value="<?php echo $pconfig['refid']; ?>" id="refid" />
 					<?php endif; ?>
-					<table width="100%" border="0" cellpadding="6" cellspacing="0">
+					<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="main area">
 						<tr>
 							<td width="22%" valign="top" class="vncellreq"><?=gettext("Descriptive name");?></td>
 							<td width="78%" class="vtable">
@@ -380,7 +389,7 @@ function method_change() {
 									foreach($ca_methods as $method => $desc):
 									$selected = "";
 									if ($pconfig['method'] == $method)
-										$selected = "selected";
+										$selected = " selected=\"selected\"";
 								?>
 									<option value="<?=$method;?>"<?=$selected;?>><?=$desc;?></option>
 								<?php endforeach; ?>
@@ -390,7 +399,7 @@ function method_change() {
 						<?php endif; ?>
 					</table>
 
-					<table width="100%" border="0" cellpadding="6" cellspacing="0" id="existing">
+					<table width="100%" border="0" cellpadding="6" cellspacing="0" id="existing" summary="existing">
 						<tr>
 							<td colspan="2" class="list" height="12"></td>
 						</tr>
@@ -402,16 +411,16 @@ function method_change() {
 							<td width="22%" valign="top" class="vncellreq"><?=gettext("Certificate data");?></td>
 							<td width="78%" class="vtable">
 								<textarea name="cert" id="cert" cols="65" rows="7" class="formfld_cert"><?=htmlspecialchars($pconfig['cert']);?></textarea>
-								<br>
-								<?=gettext("Paste a certificate in X.509 PEM format here.");?></td>
+								<br/>
+								<?=gettext("Paste a certificate in X.509 PEM format here.");?>
 							</td>
 						</tr>
 						<tr>
 							<td width="22%" valign="top" class="vncellreq"><?=gettext("Certificate Private Key");?><br/><?=gettext("(optional)");?></td>
 							<td width="78%" class="vtable">
 								<textarea name="key" id="key" cols="65" rows="7" class="formfld_cert"><?=htmlspecialchars($pconfig['key']);?></textarea>
-								<br>
-								<?=gettext("Paste the private key for the above certificate here. This is optional in most cases, but required if you need to generate a Certificate Revocation List (CRL).");?></td>
+								<br/>
+								<?=gettext("Paste the private key for the above certificate here. This is optional in most cases, but required if you need to generate a Certificate Revocation List (CRL).");?>
 							</td>
 						</tr>
 
@@ -426,7 +435,7 @@ function method_change() {
 					<?php endif; ?>
 					</table>
 
-					<table width="100%" border="0" cellpadding="6" cellspacing="0" id="internal">
+					<table width="100%" border="0" cellpadding="6" cellspacing="0" id="internal" summary="internal">
 						<tr>
 							<td colspan="2" class="list" height="12"></td>
 						</tr>
@@ -443,7 +452,7 @@ function method_change() {
                                                                                 continue;
                                                                         $selected = "";
                                                                         if ($pconfig['caref'] == $ca['refid'])
-                                                                                $selected = "selected";
+                                                                                $selected = " selected=\"selected\"";
                                                                 ?>
                                                                         <option value="<?=$ca['refid'];?>"<?=$selected;?>><?=$ca['descr'];?></option>
                                                                 <?php endforeach; ?>
@@ -458,12 +467,28 @@ function method_change() {
 									foreach( $ca_keylens as $len):
 									$selected = "";
 									if ($pconfig['keylen'] == $len)
-										$selected = "selected";
+										$selected = " selected=\"selected\"";
 								?>
 									<option value="<?=$len;?>"<?=$selected;?>><?=$len;?></option>
 								<?php endforeach; ?>
 								</select>
 								<?=gettext("bits");?>
+							</td>
+						</tr>
+						<tr>
+							<td width="22%" valign="top" class="vncellreq"><?=gettext("Digest Algorithm");?></td>
+							<td width="78%" class="vtable">
+								<select name='digest_alg' id='digest_alg' class="formselect">
+								<?php
+									foreach( $openssl_digest_algs as $digest_alg):
+									$selected = "";
+									if ($pconfig['digest_alg'] == $digest_alg)
+										$selected = " selected=\"selected\"";
+								?>
+									<option value="<?=$digest_alg;?>"<?=$selected;?>><?=strtoupper($digest_alg);?></option>
+								<?php endforeach; ?>
+								</select>
+								<br/><?= gettext("NOTE: It is recommended to use an algorithm stronger than SHA1 when possible.") ?>
 							</td>
 						</tr>
 						<tr>
@@ -476,7 +501,7 @@ function method_change() {
 						<tr>
 							<td width="22%" valign="top" class="vncellreq"><?=gettext("Distinguished name");?></td>
 							<td width="78%" class="vtable">
-								<table border="0" cellspacing="0" cellpadding="2">
+								<table border="0" cellspacing="0" cellpadding="2" summary="name">
 									<tr>
 										<td align="right"><?=gettext("Country Code");?> : &nbsp;</td>
 										<td align="left">
@@ -484,8 +509,9 @@ function method_change() {
 											<?php
 											foreach( $dn_cc as $cc){
 												$selected = "";
-												if ($pconfig['dn_country'] == $cc) $selected = "selected";
-												print "<option value=\"$cc\" $selected>$cc</option>";
+												if ($pconfig['dn_country'] == $cc)
+													$selected = " selected=\"selected\"";
+												print "<option value=\"$cc\"$selected>$cc</option>";
 												}
 											?>
 											</select>
@@ -546,13 +572,13 @@ function method_change() {
 						</tr>
 					</table>
 
-					<table width="100%" border="0" cellpadding="6" cellspacing="0">
+					<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="save">
 						<tr>
 							<td width="22%" valign="top">&nbsp;</td>
 							<td width="78%">
 								<input id="submit" name="save" type="submit" class="formbtn" value="<?=gettext("Save"); ?>" />
 								<?php if (isset($id) && $a_ca[$id]): ?>
-								<input name="id" type="hidden" value="<?=$id;?>" />
+								<input name="id" type="hidden" value="<?=htmlspecialchars($id);?>" />
 								<?php endif;?>
 							</td>
 						</tr>
@@ -561,7 +587,7 @@ function method_change() {
 
 				<?php else: ?>
 
-				<table width="100%" border="0" cellpadding="0" cellspacing="0">
+				<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="">
 					<tr>
 						<td width="20%" class="listhdrr"><?=gettext("Name");?></td>
 						<td width="10%" class="listhdrr"><?=gettext("Internal");?></td>
@@ -576,6 +602,7 @@ function method_change() {
 							$name = htmlspecialchars($ca['descr']);
 							$subj = cert_get_subject($ca['crt']);
 							$issuer = cert_get_issuer($ca['crt']);
+							list($startdate, $enddate) = cert_get_dates($ca['crt']);
 							if($subj == $issuer)
 							  $issuer_name = "<em>" . gettext("self-signed") . "</em>";
 							else
@@ -607,9 +634,9 @@ function method_change() {
 					?>
 					<tr>
 						<td class="listlr">
-							<table border="0" cellpadding="0" cellspacing="0">
+							<table border="0" cellpadding="0" cellspacing="0" summary="icon">
 								<tr>
-									<td align="left" valign="center">
+									<td align="left" valign="middle">
 										<img src="<?=$caimg;?>" alt="CA" title="CA" border="0" height="16" width="16" />
 									</td>
 									<td align="left" valign="middle">
@@ -621,20 +648,33 @@ function method_change() {
 						<td class="listr"><?=$internal;?>&nbsp;</td>
 						<td class="listr"><?=$issuer_name;?>&nbsp;</td>
 						<td class="listr"><?=$certcount;?>&nbsp;</td>
-						<td class="listr"><?=$subj;?>&nbsp;</td>
+						<td class="listr"><?=$subj;?><br />
+							<table width="100%" style="font-size: 9px" summary="valid">
+								<tr>
+									<td width="10%">&nbsp;</td>
+									<td width="20%"><?=gettext("Valid From")?>:</td>
+									<td width="70%"><?= $startdate ?></td>
+								</tr>
+								<tr>
+									<td>&nbsp;</td>
+									<td><?=gettext("Valid Until")?>:</td>
+									<td><?= $enddate ?></td>
+								</tr>
+							</table>
+						</td>
 						<td valign="middle" nowrap class="list">
-							<a href="system_camanager.php?act=edit&id=<?=$i;?>")">
+							<a href="system_camanager.php?act=edit&amp;id=<?=$i;?>">
 								<img src="/themes/<?= $g['theme'];?>/images/icons/icon_e.gif" title="<?=gettext("edit CA");?>" alt="<?=gettext("edit CA");?>" width="17" height="17" border="0" />
 							</a>
-							<a href="system_camanager.php?act=exp&id=<?=$i;?>")">
+							<a href="system_camanager.php?act=exp&amp;id=<?=$i;?>">
 								<img src="/themes/<?= $g['theme'];?>/images/icons/icon_down.gif" title="<?=gettext("export CA cert");?>" alt="<?=gettext("export CA cert");?>" width="17" height="17" border="0" />
 							</a>
 							<?php if ($ca['prv']): ?>
-							<a href="system_camanager.php?act=expkey&id=<?=$i;?>")">
+							<a href="system_camanager.php?act=expkey&amp;id=<?=$i;?>">
 								<img src="/themes/<?= $g['theme'];?>/images/icons/icon_down.gif" title="<?=gettext("export CA private key");?>" alt="<?=gettext("export CA private key");?>" width="17" height="17" border="0" />
 							</a>
 							<?php endif; ?>
-							<a href="system_camanager.php?act=del&id=<?=$i;?>" onclick="return confirm('<?=gettext("Do you really want to delete this Certificate Authority and its CRLs, and unreference any associated certificates?");?>')">
+							<a href="system_camanager.php?act=del&amp;id=<?=$i;?>" onclick="return confirm('<?=gettext("Do you really want to delete this Certificate Authority and its CRLs, and unreference any associated certificates?");?>')">
 								<img src="/themes/<?= $g['theme'];?>/images/icons/icon_x.gif" title="<?=gettext("delete ca");?>" alt="<?=gettext("delete ca"); ?>" width="17" height="17" border="0" />
 							</a>
 						</td>
@@ -668,11 +708,12 @@ function method_change() {
 </table>
 <?php include("fend.inc");?>
 <script type="text/javascript">
-<!--
+//<![CDATA[
 
 method_change();
 
-//-->
+//]]>
 </script>
 
 </body>
+</html>

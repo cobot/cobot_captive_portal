@@ -54,8 +54,9 @@ if (is_array($config['laggs']['lagg']) && count($config['laggs']['lagg'])) {
                 $portlist[$lagg['laggif']] = $lagg;
 }
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && $a_vlans[$id]) {
@@ -80,6 +81,15 @@ if ($_POST) {
 		$input_errors[] = gettext("The VLAN tag must be an integer between 1 and 4094.");
 	}
 
+	if (!does_interface_exist($_POST['if']))
+		$input_errors[] = gettext("Interface supplied as parent is invalid");
+
+	if (isset($id)) {
+		if ($_POST['tag'] && $_POST['tag'] != $a_vlans[$id]['tag']) {
+			if (!empty($a_vlans[$id]['vlanif']) && convert_real_interface_to_friendly_interface_name($a_vlans[$id]['vlanif']) != NULL)
+				$input_errors[] = gettext("Interface is assigned and you cannot change the VLAN tag while assigned.");
+		}
+	}
 	foreach ($a_vlans as $vlan) {
 		if (isset($id) && ($a_vlans[$id]) && ($a_vlans[$id] === $vlan))
 			continue;
@@ -118,7 +128,7 @@ if ($_POST) {
 
 		$vlan['vlanif'] = interface_vlan_configure($vlan);
                 if ($vlan['vlanif'] == "" || !stristr($vlan['vlanif'], "vlan"))
-                        $input_errors[] = gettext("Error occured creating interface, please retry.");
+                        $input_errors[] = gettext("Error occurred creating interface, please retry.");
                 else {
                         if (isset($id) && $a_vlans[$id])
                                 $a_vlans[$id] = $vlan;
@@ -137,6 +147,7 @@ if ($_POST) {
 }
 
 $pgtitle = array(gettext("Interfaces"),gettext("VLAN"),gettext("Edit"));
+$shortcut_section = "interfaces";
 include("head.inc");
 
 ?>
@@ -145,7 +156,7 @@ include("head.inc");
 <?php include("fbegin.inc"); ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
             <form action="interfaces_vlan_edit.php" method="post" name="iform" id="iform">
-              <table width="100%" border="0" cellpadding="6" cellspacing="0">
+              <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="interfaces vlan edit">
 				<tr>
 					<td colspan="2" valign="top" class="listtopic"><?=gettext("VLAN configuration");?></td>
 				</tr>
@@ -158,7 +169,7 @@ include("head.inc");
 						if (is_jumbo_capable($ifn)) {
 							echo "<option value=\"{$ifn}\"";
 							if ($ifn == $pconfig['if'])
-								echo "selected";
+								echo " selected=\"selected\"";
 							echo ">";
                       				        echo htmlspecialchars($ifn . " (" . $ifinfo['mac'] . ")");
                       					echo "</option>";
@@ -171,24 +182,24 @@ include("head.inc");
 				<tr>
                   <td valign="top" class="vncellreq"><?=gettext("VLAN tag ");?></td>
                   <td class="vtable">
-                    <input name="tag" type="text" class="formfld unknown" id="tag" size="6" value="<?=htmlspecialchars($pconfig['tag']);?>">
-                    <br>
+                    <input name="tag" type="text" class="formfld unknown" id="tag" size="6" value="<?=htmlspecialchars($pconfig['tag']);?>" />
+                    <br/>
                     <span class="vexpl"><?=gettext("802.1Q VLAN tag (between 1 and 4094) ");?></span></td>
 			    </tr>
 				<tr>
                   <td width="22%" valign="top" class="vncell"><?=gettext("Description");?></td>
                   <td width="78%" class="vtable">
-                    <input name="descr" type="text" class="formfld unknown" id="descr" size="40" value="<?=htmlspecialchars($pconfig['descr']);?>">
-                    <br> <span class="vexpl"><?=gettext("You may enter a description here ".
+                    <input name="descr" type="text" class="formfld unknown" id="descr" size="40" value="<?=htmlspecialchars($pconfig['descr']);?>" />
+                    <br/> <span class="vexpl"><?=gettext("You may enter a description here ".
                     "for your reference (not parsed).");?></span></td>
                 </tr>
                 <tr>
                   <td width="22%" valign="top">&nbsp;</td>
                   <td width="78%">
-		    <input type="hidden" name="vlanif" value="<?=htmlspecialchars($pconfig['vlanif']); ?>">
-                    <input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save");?>"> <input type="button" value="<?=gettext("Cancel");?>" onclick="history.back()">
+		    <input type="hidden" name="vlanif" value="<?=htmlspecialchars($pconfig['vlanif']); ?>" />
+                    <input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save");?>" /> <input type="button" value="<?=gettext("Cancel");?>" onclick="history.back()" />
                     <?php if (isset($id) && $a_vlans[$id]): ?>
-                    <input name="id" type="hidden" value="<?=htmlspecialchars($id);?>">
+                    <input name="id" type="hidden" value="<?=htmlspecialchars($id);?>" />
                     <?php endif; ?>
                   </td>
                 </tr>

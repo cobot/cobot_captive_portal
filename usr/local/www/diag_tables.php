@@ -42,25 +42,26 @@
 ##|-PRIV
 
 $pgtitle = array(gettext("Diagnostics"), gettext("Tables"));
+$shortcut_section = "aliases";
 
 require_once("guiconfig.inc");
 
 // Set default table
 $tablename = "sshlockout";
-	
-if($_REQUEST['type']) 
+
+if($_REQUEST['type'])
 	$tablename = $_REQUEST['type'];
-	
+
 if($_REQUEST['delete']) {
-	if(is_ipaddr($_REQUEST['delete'])) {
+	if(is_ipaddr($_REQUEST['delete']) || is_subnet($_REQUEST['delete'])) {
 		exec("/sbin/pfctl -t " . escapeshellarg($_REQUEST['type']) . " -T delete " . escapeshellarg($_REQUEST['delete']), $delete);
 		echo htmlentities($_REQUEST['delete']);
 	}
-	exit;	
+	exit;
 }
 
 if($_REQUEST['deleteall']) {
-	exec("/sbin/pfctl -t $tablename -T show", $entries);
+	exec("/sbin/pfctl -t " . escapeshellarg($tablename) . " -T show", $entries);
 	if(is_array($entries)) {
 		foreach($entries as $entryA) {
 			$entry = trim($entryA);
@@ -69,7 +70,7 @@ if($_REQUEST['deleteall']) {
 	}
 }
 
-if(($tablename == "bogons") && ($_POST['Download'])) {
+if((($tablename == "bogons") || ($tablename == "bogonsv6")) && ($_POST['Download'])) {
 	mwexec_bg("/etc/rc.update_bogons.sh now");
 	$maxtimetowait = 0;
 	$loading = true;
@@ -86,44 +87,66 @@ if(($tablename == "bogons") && ($_POST['Download'])) {
 		$savemsg = gettext("The bogons database has been updated.");
 }
 
-exec("/sbin/pfctl -t $tablename -T show", $entries);
+exec("/sbin/pfctl -t " . escapeshellarg($tablename) . " -T show", $entries);
 exec("/sbin/pfctl -sT", $tables);
 
 include("head.inc");
+?>
+<body>
+<?php
 include("fbegin.inc");
 
+if ($savemsg) print_info_box($savemsg);
 ?>
 
-<?php if ($savemsg) print_info_box($savemsg); ?>
-<form method='post'>
-<script src="/javascript/scriptaculous/prototype.js" type="text/javascript"></script>
+<form method='post' action='' >
 
-<script language="javascript">
+<script type="text/javascript">
 	function method_change(entrytype) {
 		window.location='diag_tables.php?type=' + entrytype;
 	}
 	function del_entry(entry) {
-		new Ajax.Request("diag_tables.php?type=<?php echo $tablename;?>&delete=" + entry, {
-		onComplete: function(response) {
-			if (200 == response.status) 
-				new Effect.Fade($(response.responseText), { duration: 1.0 } ); 
+		jQuery.ajax("diag_tables.php?type=<?php echo htmlspecialchars($tablename);?>&delete=" + entry, {
+		complete: function(response) {
+			if (200 == response.status) {
+				// Escape all dots to not confuse jQuery selectors
+				name = response.responseText.replace(/\./g,'\\.');
+				name = name.replace(/\//g,'\\/');
+				jQuery('#' + name).fadeOut(1000);
+			}
 		}
 		});
 	}
 </script>
-	
-<?=gettext("Table:");?> 
-<select id='type' onChange='method_change($F("type"));' name='type'>
+
+<?=gettext("Table:");?>
+<select id='type' onchange='method_change(jQuery("#type").val());' name='type'>
 	<?php foreach ($tables as $table) {
-		echo "<option name='{$table}' value='{$table}'";
+		echo "<option id='{$table}' value='{$table}'";
 		if ($tablename == $table)
-			echo " selected ";
+			echo " selected=\"selected\" ";
 		echo ">{$table}</option>\n";
 		}
 	?>
 </select>
 
 <p/>
+
+<?php
+	if( (is_array($entries)) && (count($entries) > 0) )
+		if( ($tablename == "bogons") || ($tablename == "bogonsv6") ) {
+			$last_updated = exec('/usr/bin/grep -i -m 1 -E "^# last updated" /etc/' . escapeshellarg($tablename));
+			echo "<p/>&nbsp;<b>" . count($entries) . "</b> " . gettext("entries in this table.") . "&nbsp;&nbsp;" . "<input name='Download' type='submit' class='formbtn' value='" . gettext("Download") . "' /> " . gettext(" the latest bogon data.") . "<br />" . $last_updated;
+		}
+		else
+			echo "<p/>" . gettext("Delete") . " <a href='diag_tables.php?deleteall=true&amp;type=" . htmlspecialchars($tablename) . "'>" . gettext("all") . "</a> " . "<b>" . count($entries) . "</b> " . gettext("entries in this table.");
+
+	else
+		if( ($tablename == "bogons") || ($tablename == "bogonsv6") )
+			echo "<p/>" . gettext("No entries exist in this table.") . "&nbsp;&nbsp;" . "<input name='Download' type='submit' class='formbtn' value='" . gettext("Download") . "' /> " . gettext(" the latest bogon data.");
+		else
+			echo "<p/>" . gettext("No entries exist in this table.");
+?>
 
 <table class="tabcont" width="100%" border="0" cellspacing="0" cellpadding="0">
 	<tr>
@@ -136,27 +159,17 @@ include("fbegin.inc");
 			<?php echo $entry; ?>
 		</td>
 		<td>
-			<?php if ($tablename != "bogons") { ?>
-			<a onClick='del_entry("<?=$entry?>");'>
-				<img img src="/themes/<?=$g['theme'];?>/images/icons/icon_x.gif">
-			<?php } ?>
+			<?php if ( ($tablename != "bogons") && ($tablename != "bogonsv6") ) { ?>
+			<a onclick='del_entry("<?=htmlspecialchars($entry)?>");'>
+				<img src="/themes/<?=$g['theme'];?>/images/icons/icon_x.gif" alt='' />
 			</a>
+			<?php } ?>
 		</td>
 	</tr>
 <?php $count++; endforeach; ?>
-<?php
-	if($count == 0)
-		echo "<tr><td>" . gettext("No entries exist in this table.") . "</td></tr>";
-?>
-
 </table>
-
-<?php
-	if($count > 0)
-  		if($tablename == "bogons")
-			echo "<input name='Download' type='submit' class='formbtn' value='" . gettext("Download") . "'> " . gettext(" the latest bogon data.");
-		else
-			echo "<p/>" . gettext("Delete") . " <a href='diag_tables.php?deleteall=true&type={$tablename}'>" . gettext("all") . "</a> " . gettext("entries in this table.");
-?>
+</form>
 
 <?php include("fend.inc"); ?>
+</body>
+</html>

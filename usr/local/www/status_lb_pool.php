@@ -2,7 +2,7 @@
 /* $Id$ */
 /*
 	status_lb_pool.php
-	part of pfSense (http://www.pfsense.com/)
+	part of pfSense (https://www.pfsense.org/)
 
 	Copyright (C) 2010 Seth Mos <seth.mos@dds.nl>.
 	All rights reserved.
@@ -60,6 +60,7 @@ $now = time();
 $year = date("Y");
 
 $pgtitle = array(gettext("Status"),gettext("Load Balancer"),gettext("Pool"));
+$shortcut_section = "relayd";
 include("head.inc");
 
 $relay_hosts = get_lb_summary();
@@ -106,11 +107,10 @@ if ($_POST) {
 
 ?>
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
-<script src="/javascript/sorttable.js"></script>
 <?php include("fbegin.inc"); ?>
-<form action="status_lb_pool.php" method="POST">
-<?php if (is_subsystem_dirty('loadbalancer')): ?><p>
-<?php print_info_box_np(sprintf(gettext("The load balancer configuration has been changed%sYou must apply the changes in order for them to take effect."), "<br>"));?><br>
+<form action="status_lb_pool.php" method="post">
+<?php if (is_subsystem_dirty('loadbalancer')): ?><p/>
+<?php print_info_box_np(sprintf(gettext("The load balancer configuration has been changed%sYou must apply the changes in order for them to take effect."), "<br />"));?><br />
 <?php endif; ?>
 <table width="100%" border="0" cellpadding="0" cellspacing="0">
 	<tr><td class="tabnavtbl">
@@ -125,7 +125,7 @@ if ($_POST) {
 	<tr>
 	<td>
 	<div id="mainarea">
-		<table width="100%" border="0" cellpadding="0" cellspacing="0" class="tabcont sortable" name="sortabletable" id="sortabletable">
+		<table width="100%" border="0" cellpadding="0" cellspacing="0" class="tabcont sortable" id="sortabletable">
 		<tr>
 		<td width="10%" class="listhdrr"><?=gettext("Name");?></td>
 		<td width="10%" class="listhdrr"><?=gettext("Mode");?></td>
@@ -174,7 +174,7 @@ if ($_POST) {
 			if($server['ip']['addr']!="") {
 				switch ($server['ip']['state']) {
 					case 'up':
-						$bgcolor = "lightgreen";
+						$bgcolor = "#90EE90";  // lightgreen
 						$checked = "checked";
 						break;
 					case 'disabled':
@@ -182,23 +182,23 @@ if ($_POST) {
 						$checked = "";
 						break;
 					default:
-						$bgcolor = "lightcoral";
+						$bgcolor = "#F08080";  // lightcoral
 						$checked = "checked";
 				}
 				echo "<tr>";
 				switch ($pool['mode']) {
 					case 'loadbalance':
-						echo "<td><input type='checkbox' name='{$pool['name']}|".str_replace('.', '_', $server['ip']['addr'])."' {$checked}></td>\n";
+						echo "<td><input type='checkbox' name='{$pool['name']}|".str_replace('.', '_', $server['ip']['addr'])."' {$checked} /></td>\n";
 						break;
 					case 'failover':
-						echo "<td><input type='radio' name='{$pool['name']}' value='{$server['ip']['addr']}' {$checked}></td>\n";
+						echo "<td><input type='radio' name='{$pool['name']}' value='{$server['ip']['addr']}' {$checked} /></td>\n";
 						break;
 				}
-				echo "<td bgcolor={$bgcolor}> {$server['ip']['addr']}:{$pool['port']} </td><td bgcolor={$bgcolor}>";
-#				echo "<td bgcolor={$bgcolor}> {$server['ip']['addr']}:{$pool['port']} ";
+				echo "<td bgcolor={$bgcolor}>&nbsp;{$server['ip']['addr']}:{$pool['port']}&nbsp;</td><td bgcolor={$bgcolor}>&nbsp;";
+#				echo "<td bgcolor={$bgcolor}>&nbsp;{$server['ip']['addr']}:{$pool['port']} ";
 				if($server['ip']['avail'])
 				  echo " ({$server['ip']['avail']}) ";
-				echo "</td></tr>";
+				echo "&nbsp;</td></tr>";
 			}
 		}
 		?>
@@ -214,12 +214,14 @@ if ($_POST) {
 		<?php endforeach; ?>
 		<tr>
 			<td colspan="5">
-			<input name="Submit" type="submit" class="formbtn" value="<?= gettext("Save"); ?>">
-			<input name="Reset"  type="reset"  class="formbtn" value="<?= gettext("Reset"); ?>">
+			<input name="Submit" type="submit" class="formbtn" value="<?= gettext("Save"); ?>" />
+			<input name="Reset"  type="reset"  class="formbtn" value="<?= gettext("Reset"); ?>" />
 			</td>
 		</tr>
 		</table>
 	</div>
+	</td>
+	</tr>
 	</table>
 </form>
 <?php include("fend.inc"); ?>

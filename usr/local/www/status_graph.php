@@ -72,14 +72,40 @@ foreach (array('server', 'client') as $mode) {
 if ($_GET['if']) {
 	$curif = $_GET['if'];
 	$found = false;
-	foreach($ifdescrs as $descr => $ifdescr) 
-		if($descr == $curif) $found = true;
-	if(!$found) {
+	foreach($ifdescrs as $descr => $ifdescr) {
+		if ($descr == $curif) {
+			$found = true;
+			break;
+		}
+	}
+	if ($found === false) {
 		Header("Location: status_graph.php");
 		exit;
 	}
 } else {
-	$curif = "wan";
+	if (empty($ifdescrs["wan"])) {
+		/* Handle the case when WAN has been disabled. Use the first key in ifdescrs. */
+		reset($ifdescrs);
+		$curif = key($ifdescrs);
+	}
+	else {
+		$curif = "wan";
+	}
+}
+if ($_GET['sort']) {
+	$cursort = $_GET['sort'];
+} else {
+	$cursort = "";
+}
+if ($_GET['filter']) {
+	$curfilter = $_GET['filter'];
+} else {
+	$curfilter = "";
+}
+if ($_GET['hostipformat']) {
+	$curhostipformat = $_GET['hostipformat'];
+} else {
+	$curhostipformat = "";
 }
 
 $pgtitle = array(gettext("Status"),gettext("Traffic Graph"));
@@ -90,34 +116,36 @@ include("head.inc");
 
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
 
-<script src="/javascript/scriptaculous/prototype.js" type="text/javascript"></script>
-<script src="/javascript/scriptaculous/scriptaculous.js" type="text/javascript"></script>
 <script language="javascript" type="text/javascript">
-
+//<![CDATA[
 function updateBandwidth(){
-    var hostinterface = "<?php echo htmlspecialchars($curif); ?>";
-    bandwidthAjax(hostinterface);
+    var hostinterface = jQuery("#if").val();
+	var sorting = jQuery("#sort").val();
+	var filter = jQuery("#filter").val();
+	var hostipformat = jQuery("#hostipformat").val();
+    bandwidthAjax(hostinterface, sorting, filter, hostipformat);
 }
 
-function bandwidthAjax(hostinterface) {
-	uri = "bandwidth_by_ip.php?if=" + hostinterface;
+function bandwidthAjax(hostinterface, sorting, filter, hostipformat) {
+	uri = "bandwidth_by_ip.php?if=" + hostinterface + "&sort=" + sorting + "&filter=" + filter + "&hostipformat=" + hostipformat;
 	var opt = {
 	    // Use GET
-	    method: 'get',
-	    asynchronous: true,
-	    // Handle 404
-	    on404: function(t) {
-	        alert('Error 404: location "' + t.statusText + '" was not found.');
+	    type: 'get',
+	    error: function(req) {
+	        /* XXX: Leave this for debugging purposes: Handle 404
+	        if(req.status == 404)
+	            alert('Error 404: location "' + uri + '" was not found.');
+		*/
+	        /* Handle other errors
+	        else
+	            alert('Error ' + req.status + ' -- ' + req.statusText + ' -- ' + uri);
+		*/
 	    },
-	    // Handle other errors
-	    onFailure: function(t) {
-	        alert('Error ' + t.status + ' -- ' + t.statusText);
-	    },
-		onSuccess: function(t) {
-			updateBandwidthHosts(t.responseText);
+		success: function(data) {
+			updateBandwidthHosts(data);
 	    }
 	}
-	new Ajax.Request(uri, opt);
+	jQuery.ajax(uri, opt);
 }
 
 function updateBandwidthHosts(data){
@@ -125,41 +153,37 @@ function updateBandwidthHosts(data){
     d = document;
     //parse top ten bandwidth abuser hosts
     for (var y=0; y<10; y++){
-        if (hosts_split[y] != "" && hosts_split[y] != "no info"){
-            if (hosts_split[y]) {
-                hostinfo = hosts_split[y].split(";");
+        if ((y < hosts_split.length) && (hosts_split[y] != "") && (hosts_split[y] != "no info")) {
+			hostinfo = hosts_split[y].split(";");
 
-                //update host ip info
-                var HostIpID = "hostip" + y;
-                var hostip = d.getElementById(HostIpID);
-                hostip.innerHTML = hostinfo[0];
+			//update host ip info
+			var HostIpID = "hostip" + y;
+			var hostip = d.getElementById(HostIpID);
+			hostip.innerHTML = hostinfo[0];
 
-                //update bandwidth inbound to host
-                var hostbandwidthInID = "bandwidthin" + y;
-                var hostbandwidthin = d.getElementById(hostbandwidthInID);
-                hostbandwidthin.innerHTML = hostinfo[1] + " Bits/sec";
+			//update bandwidth inbound to host
+			var hostbandwidthInID = "bandwidthin" + y;
+			var hostbandwidthin = d.getElementById(hostbandwidthInID);
+			hostbandwidthin.innerHTML = hostinfo[1] + " Bits/sec";
 
-                //update bandwidth outbound from host
-                var hostbandwidthOutID = "bandwidthout" + y;
-                var hostbandwidthOut = d.getElementById(hostbandwidthOutID);
-                hostbandwidthOut.innerHTML = hostinfo[2] + " Bits/sec";
+			//update bandwidth outbound from host
+			var hostbandwidthOutID = "bandwidthout" + y;
+			var hostbandwidthOut = d.getElementById(hostbandwidthOutID);
+			hostbandwidthOut.innerHTML = hostinfo[2] + " Bits/sec";
 
-                //make the row appear if hidden
-                var rowid = "host" + y;
-                textlink = d.getElementById(rowid);
-                if (textlink.style.display == "none"){
-                     //hide rows that contain no data
-                     Effect.Appear(rowid, {duration:1});
-                }
-            }
+			//make the row appear if hidden
+			var rowid = "#host" + y;
+			if (jQuery(rowid).css('display') == "none"){
+				//hide rows that contain no data
+				jQuery(rowid).show(1000);
+			}
         }
         else
         {
-            var rowid = "host" + y;
-            textlink = d.getElementById(rowid);
-            if (textlink.style.display != "none"){
+            var rowid = "#host" + y;
+            if (jQuery(rowid).css('display') != "none"){
                 //hide rows that contain no data
-                Effect.Fade(rowid, {duration:2});
+                jQuery(rowid).fadeOut(2000);
             }
         }
     }
@@ -167,7 +191,7 @@ function updateBandwidthHosts(data){
     setTimeout('updateBandwidth()', 1000);
 }
 
-
+//]]>
 </script>
 
 <?php include("fbegin.inc"); ?>
@@ -180,30 +204,46 @@ if (isset($config['ipsec']['enable']) || isset($config['ipsec']['client']['enabl
 ?>
 <form name="form1" action="status_graph.php" method="get" style="padding-bottom: 10px; margin-bottom: 14px; border-bottom: 1px solid #999999">
 <?=gettext("Interface"); ?>:
-<select name="if" class="formselect" style="z-index: -10;" onchange="document.form1.submit()">
+<select id="if" name="if" class="formselect" style="z-index: -10;" onchange="document.form1.submit()">
 <?php
 foreach ($ifdescrs as $ifn => $ifd) {
 	echo "<option value=\"$ifn\"";
-	if ($ifn == $curif) echo " selected";
+	if ($ifn == $curif) echo " selected=\"selected\"";
 	echo ">" . htmlspecialchars($ifd) . "</option>\n";
 }
 ?>
 </select>
+, Sort by: 
+<select id="sort" name="sort" class="formselect" style="z-index: -10;" onchange="document.form1.submit()">
+	<option value="">Bw In</option>
+	<option value="out"<?php if ($cursort == "out") echo " selected=\"selected\"";?>>Bw Out</option>
+</select>
+, Filter: 
+<select id="filter" name="filter" class="formselect" style="z-index: -10;" onchange="document.form1.submit()">
+	<option value="local"<?php if ($curfilter == "local") echo " selected=\"selected\"";?>>Local</option>
+	<option value="remote"<?php if ($curfilter == "remote") echo " selected=\"selected\"";?>>Remote</option>
+	<option value="all"<?php if ($curfilter == "all") echo " selected=\"selected\"";?>>All</option>
+</select>
+, Display: 
+<select id="hostipformat" name="hostipformat" class="formselect" style="z-index: -10;" onchange="document.form1.submit()">
+	<option value="">IP Address</option>
+	<option value="hostname"<?php if ($curhostipformat == "hostname") echo " selected=\"selected\"";?>>Host Name</option>
+	<option value="fqdn"<?php if ($curhostipformat == "fqdn") echo " selected=\"selected\"";?>>FQDN</option>
+</select>
 </form>
-<p><form method="post" action="status_graph.php">
-</form>
-<p>
+<p/>
 <div id="niftyOutter">
     <div id="col1" style="float: left; width: 46%; padding: 5px; position: relative;">
-        <object data="graph.php?ifnum=<?=htmlspecialchars($curif);?>&ifname=<?=rawurlencode($ifdescrs[htmlspecialchars($curif)]);?>" type="image/svg+xml" width="<?=$width;?>" height="<?=$height;?>">
-            <param name="src" value="graph.php?ifnum=<?=htmlspecialchars($curif);?>&ifname=<?=rawurlencode($ifdescrs[htmlspecialchars($curif)]);?>" />
-            <?=gettext("Your browser does not support the type SVG! You need to either use Firefox or download the Adobe SVG plugin"); ?>.
-        </object>
+		<object
+			data="graph.php?ifnum=<?=htmlspecialchars($curif);?>&amp;ifname=<?=rawurlencode($ifdescrs[htmlspecialchars($curif)]);?>" 
+			type="image/svg+xml" 
+			width="<?=$width;?>" height="<?=$height;?>" >
+		</object>
     </div>
     <div id="col2" style="float: right; width: 48%; padding: 5px; position: relative;">
         <table width="100%" border="0" cellspacing="0" cellpadding="0">
             <tr>
-                <td class="listtopic" valign="top"><?=gettext("Host IP"); ?></td>
+                <td class="listtopic" valign="top"><?=(($curhostipformat=="") ? gettext("Host IP") : gettext("Host Name or IP")); ?></td>
                 <td class="listtopic" valign="top"><?=gettext("Bandwidth In"); ?></td>
                 <td class="listtopic" valign="top"><?=gettext("Bandwidth Out"); ?></td>
            </tr>
@@ -291,16 +331,12 @@ foreach ($ifdescrs as $ifn => $ifd) {
 	</div>
 	<div style="clear: both;"></div>
 </div>
-<p><span class="red"><strong><?=gettext("Note"); ?>:</strong></span> <?=gettext("the"); ?> <a href="http://www.adobe.com/svg/viewer/install/" target="_blank"><?=gettext("Adobe SVG Viewer"); ?></a>, <?=gettext("Firefox 1.5 or later or other browser supporting SVG is required to view the graph"); ?>.
+<p/><span class="red"><strong><?=gettext("Note"); ?>:</strong></span> <?=gettext("the"); ?> <a href="http://www.adobe.com/svg/viewer/install/" target="_blank"><?=gettext("Adobe SVG Viewer"); ?></a>, <?=gettext("Firefox 1.5 or later or other browser supporting SVG is required to view the graph"); ?>.
 
 <?php include("fend.inc"); ?>
 
 <script type="text/javascript">
-window.onload = function(in_event)
-	{
-        updateBandwidth();
-    }
-
+jQuery(document).ready(updateBandwidth);
 </script>
 </body>
 </html>

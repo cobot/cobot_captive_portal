@@ -95,7 +95,7 @@ if ($_POST || $_GET['mac']) {
 		else {
 			$bcip = gen_subnet_max($ipaddr, get_interface_subnet($if));
 			/* Execute wol command and check return code. */
-			if(!mwexec("/usr/local/bin/wol -i {$bcip} {$mac}"))
+			if(!mwexec("/usr/local/bin/wol -i {$bcip} " . escapeshellarg($mac)))
 				$savemsg .= sprintf(gettext("Sent magic packet to %s."),$mac);
 			else
 				$savemsg .= sprintf(gettext('Please check the %1$ssystem log%2$s, the wol command for %3$s did not complete successfully%4$s'),'<a href="/diag_logs.php">', '</a>', $mac, ".<br>");
@@ -173,13 +173,13 @@ include("head.inc");
 			  <?php $i = 0; foreach ($a_wol as $wolent): ?>
                 <tr>
                   <td class="listlr" ondblclick="document.location='services_wol_edit.php?id=<?=$i;?>';">
-                    <?=convert_friendly_interface_to_friendly_descr($wolent['interface']);?>&nbsp;
+                    <?=convert_friendly_interface_to_friendly_descr($wolent['interface']);?>
                   </td>
                   <td class="listr" ondblclick="document.location='services_wol_edit.php?id=<?=$i;?>';">
-                    <a href="?mac=<?=$wolent['mac'];?>&if=<?=$wolent['interface'];?>"><?=strtolower($wolent['mac']);?></a>&nbsp;
+                    <a href="?mac=<?=$wolent['mac'];?>&if=<?=$wolent['interface'];?>"><?=strtolower($wolent['mac']);?></a>
                   </td>
                   <td class="listbg" ondblclick="document.location='services_wol_edit.php?id=<?=$i;?>';">
-                    <?=htmlspecialchars($wolent['descr']);?>&nbsp;
+                    <?=htmlspecialchars($wolent['descr']);?>
                   </td>
                   <td valign="middle" nowrap class="list">
                     <table border="0" cellspacing="0" cellpadding="1">

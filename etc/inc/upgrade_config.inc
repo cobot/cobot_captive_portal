@@ -34,7 +34,7 @@ OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
 	pfSense_MODULE:	config
 */
 
-if(!function_exists("dump_rrd_to_xml")) 
+if(!function_exists("dump_rrd_to_xml"))
 	require("rrd.inc");
 
 /* Upgrade functions must be named:
@@ -110,8 +110,8 @@ function upgrade_010_to_011() {
 			$fr['interface'] = $ifmap[$fr['interface']];
 		else {
 			/* remove the rule */
-			echo "\nWarning: filter rule removed " .
-				"(interface '{$fr['interface']}' does not exist anymore).";
+			printf(gettext("%sWarning: filter rule removed " .
+				"(interface '%s' does not exist anymore)."), "\n", $fr['interface']);
 			unset($config['filter']['rule'][$i]);
 			continue;
 		}
@@ -122,8 +122,8 @@ function upgrade_010_to_011() {
 				$fr['source']['network'] = $ifmap[$fr['source']['network']];
 			else {
 				/* remove the rule */
-				echo "\nWarning: filter rule removed " .
-					"(source network '{$fr['source']['network']}' does not exist anymore).";
+				printf(gettext("%sWarning: filter rule removed " .
+					"(source network '%s' does not exist anymore)."), "\n", $fr['source']['network']);
 				unset($config['filter']['rule'][$i]);
 				continue;
 			}
@@ -135,8 +135,8 @@ function upgrade_010_to_011() {
 				$fr['destination']['network'] = $ifmap[$fr['destination']['network']];
 			else {
 				/* remove the rule */
-				echo "\nWarning: filter rule removed " .
-					"(destination network '{$fr['destination']['network']}' does not exist anymore).";
+				printf(gettext("%sWarning: filter rule removed " .
+					"(destination network '%s' does not exist anymore)."), "\n", $fr['destination']['network']);
 				unset($config['filter']['rule'][$i]);
 				continue;
 			}
@@ -155,8 +155,8 @@ function upgrade_010_to_011() {
 			$fr['interface'] = $ifmap[$fr['interface']];
 		else {
 			/* remove the rule */
-			echo "\nWarning: traffic shaper rule removed " .
-				"(interface '{$fr['interface']}' does not exist anymore).";
+			printf(gettext("%sWarning: traffic shaper rule removed " .
+				"(interface '%s' does not exist anymore)."), "\n", $fr['interface']);
 			unset($config['pfqueueing']['rule'][$i]);
 			continue;
 		}
@@ -167,8 +167,8 @@ function upgrade_010_to_011() {
 				$fr['source']['network'] = $ifmap[$fr['source']['network']];
 			else {
 				/* remove the rule */
-				echo "\nWarning: traffic shaper rule removed " .
-					"(source network '{$fr['source']['network']}' does not exist anymore).";
+				printf(gettext("%sWarning: traffic shaper rule removed " .
+					"(source network '%s' does not exist anymore)."), "\n", $fr['source']['network']);
 				unset($config['pfqueueing']['rule'][$i]);
 				continue;
 			}
@@ -180,8 +180,8 @@ function upgrade_010_to_011() {
 				$fr['destination']['network'] = $ifmap[$fr['destination']['network']];
 			else {
 				/* remove the rule */
-				echo "\nWarning: traffic shaper rule removed " .
-					"(destination network '{$fr['destination']['network']}' does not exist anymore).";
+				printf(gettext("%sWarning: traffic shaper rule removed " .
+					"(destination network '%s' does not exist anymore)."), "\n", $fr['destination']['network']);
 				unset($config['pfqueueing']['rule'][$i]);
 				continue;
 			}
@@ -330,7 +330,7 @@ function upgrade_017_to_018() {
 			$vip = array();
 			$vip['mode'] = "carp";
 			$vip['interface'] = "AUTO";
-			$vip['descr'] = "CARP vhid {$carpent['vhid']}";
+			$vip['descr'] = sprintf(gettext("CARP vhid %s"), $carpent['vhid']);
 			$vip['type'] = "single";
 			$vip['vhid'] = $carpent['vhid'];
 			$vip['advskew'] = $carpent['advskew'];
@@ -507,7 +507,7 @@ function upgrade_028_to_029() {
 	$rule_item['type'] = "pass";
 	$rule_item['source']['any'] = true;
 	$rule_item['destination']['any'] = true;
-	$rule_item['descr'] = "Permit IPsec traffic.";
+	$rule_item['descr'] = gettext("Permit IPsec traffic.");
 	$rule_item['statetype'] = "keep state";
 	$a_filter[] = $rule_item;
 }
@@ -575,14 +575,14 @@ function upgrade_038_to_039() {
 
 
 function upgrade_039_to_040() {
-	global $config;
+	global $config, $g;
 	$config['system']['webgui']['auth_method'] = "session";
 	$config['system']['webgui']['backing_method'] = "htpasswd";
 
 	if (isset ($config['system']['username'])) {
 		$config['system']['group'] = array();
 		$config['system']['group'][0]['name'] = "admins";
-		$config['system']['group'][0]['description'] = "System Administrators";
+		$config['system']['group'][0]['description'] = gettext("System Administrators");
 		$config['system']['group'][0]['scope'] = "system";
 		$config['system']['group'][0]['priv'] = "page-all";
 		$config['system']['group'][0]['home'] = "index.php";
@@ -601,19 +601,19 @@ function upgrade_039_to_040() {
 		$config['system']['user'][0]['priv'] = array();
 		$config['system']['user'][0]['priv'][0]['id'] = "lockwc";
 		$config['system']['user'][0]['priv'][0]['name'] = "Lock webConfigurator";
-		$config['system']['user'][0]['priv'][0]['descr'] = "Indicates whether this user will lock access to the webConfigurator for other users.";
+		$config['system']['user'][0]['priv'][0]['descr'] = gettext("Indicates whether this user will lock access to the webConfigurator for other users.");
 		$config['system']['user'][0]['priv'][1]['id'] = "lock-ipages";
 		$config['system']['user'][0]['priv'][1]['name'] = "Lock individual pages";
-		$config['system']['user'][0]['priv'][1]['descr'] = "Indicates whether this user will lock individual HTML pages after having accessed a particular page (the lock will be freed if the user leaves or saves the page form).";
+		$config['system']['user'][0]['priv'][1]['descr'] = gettext("Indicates whether this user will lock individual HTML pages after having accessed a particular page (the lock will be freed if the user leaves or saves the page form).");
 		$config['system']['user'][0]['priv'][2]['id'] = "hasshell";
 		$config['system']['user'][0]['priv'][2]['name'] = "Has shell access";
-		$config['system']['user'][0]['priv'][2]['descr'] = "Indicates whether this user is able to login for example via SSH.";
+		$config['system']['user'][0]['priv'][2]['descr'] = gettext("Indicates whether this user is able to login for example via SSH.");
 		$config['system']['user'][0]['priv'][3]['id'] = "copyfiles";
 		$config['system']['user'][0]['priv'][3]['name'] = "Is allowed to copy files";
-		$config['system']['user'][0]['priv'][3]['descr'] = "Indicates whether this user is allowed to copy files onto the {$g['product_name']} appliance via SCP/SFTP. If you are going to use this privilege, you must install scponly on the appliance (Hint: pkg_add -r scponly).";
+		$config['system']['user'][0]['priv'][3]['descr'] = sprintf(gettext("Indicates whether this user is allowed to copy files onto the %s appliance via SCP/SFTP. If you are going to use this privilege, you must install scponly on the appliance (Hint: pkg_add -r scponly)."), $g['product_name']);
 		$config['system']['user'][0]['priv'][4]['id'] = "isroot";
 		$config['system']['user'][0]['priv'][4]['name'] = "Is root user";
-		$config['system']['user'][0]['priv'][4]['descr'] = "This user is associated with the UNIX root user (you should associate this privilege only with one single user).";
+		$config['system']['user'][0]['priv'][4]['descr'] = gettext("This user is associated with the UNIX root user (you should associate this privilege only with one single user).");
 
 		$config['system']['nextuid'] = "111";
 		$config['system']['nextgid'] = "111";
@@ -630,77 +630,77 @@ function upgrade_040_to_041() {
 		$config['sysctl']['item'] = array();
 
 		$config['sysctl']['item'][0]['tunable'] = "net.inet.tcp.blackhole";
-		$config['sysctl']['item'][0]['descr'] =    "Drop packets to closed TCP ports without returning a RST";
+		$config['sysctl']['item'][0]['descr'] =    gettext("Drop packets to closed TCP ports without returning a RST");
 		$config['sysctl']['item'][0]['value'] =   "default";
 
 		$config['sysctl']['item'][1]['tunable'] = "net.inet.udp.blackhole";
-		$config['sysctl']['item'][1]['descr'] =    "Do not send ICMP port unreachable messages for closed UDP ports";
+		$config['sysctl']['item'][1]['descr'] =    gettext("Do not send ICMP port unreachable messages for closed UDP ports");
 		$config['sysctl']['item'][1]['value'] =   "default";
 
 		$config['sysctl']['item'][2]['tunable'] = "net.inet.ip.random_id";
-		$config['sysctl']['item'][2]['descr'] =    "Randomize the ID field in IP packets (default is 0: sequential IP IDs)";
+		$config['sysctl']['item'][2]['descr'] =    gettext("Randomize the ID field in IP packets (default is 0: sequential IP IDs)");
 		$config['sysctl']['item'][2]['value'] =   "default";
 
 		$config['sysctl']['item'][3]['tunable'] = "net.inet.tcp.drop_synfin";
-		$config['sysctl']['item'][3]['descr'] =    "Drop SYN-FIN packets (breaks RFC1379, but nobody uses it anyway)";
+		$config['sysctl']['item'][3]['descr'] =    gettext("Drop SYN-FIN packets (breaks RFC1379, but nobody uses it anyway)");
 		$config['sysctl']['item'][3]['value'] =   "default";
 
 		$config['sysctl']['item'][4]['tunable'] = "net.inet.ip.redirect";
-		$config['sysctl']['item'][4]['descr'] =    "Sending of IPv4 ICMP redirects";
+		$config['sysctl']['item'][4]['descr'] =    gettext("Sending of IPv4 ICMP redirects");
 		$config['sysctl']['item'][4]['value'] =   "default";
 
 		$config['sysctl']['item'][5]['tunable'] = "net.inet6.ip6.redirect";
-		$config['sysctl']['item'][5]['descr'] =    "Sending of IPv6 ICMP redirects";
+		$config['sysctl']['item'][5]['descr'] =    gettext("Sending of IPv6 ICMP redirects");
 		$config['sysctl']['item'][5]['value'] =   "default";
 
 		$config['sysctl']['item'][6]['tunable'] = "net.inet.tcp.syncookies";
-		$config['sysctl']['item'][6]['descr'] =    "Generate SYN cookies for outbound SYN-ACK packets";
+		$config['sysctl']['item'][6]['descr'] =    gettext("Generate SYN cookies for outbound SYN-ACK packets");
 		$config['sysctl']['item'][6]['value'] =   "default";
 
 		$config['sysctl']['item'][7]['tunable'] = "net.inet.tcp.recvspace";
-		$config['sysctl']['item'][7]['descr'] =    "Maximum incoming TCP datagram size";
+		$config['sysctl']['item'][7]['descr'] =    gettext("Maximum incoming TCP datagram size");
 		$config['sysctl']['item'][7]['value'] =   "default";
 
 		$config['sysctl']['item'][8]['tunable'] = "net.inet.tcp.sendspace";
-		$config['sysctl']['item'][8]['descr'] =    "Maximum outgoing TCP datagram size";
+		$config['sysctl']['item'][8]['descr'] =    gettext("Maximum outgoing TCP datagram size");
 		$config['sysctl']['item'][8]['value'] =   "default";
 
 		$config['sysctl']['item'][9]['tunable'] = "net.inet.ip.fastforwarding";
-		$config['sysctl']['item'][9]['descr'] =    "Fastforwarding (see http://lists.freebsd.org/pipermail/freebsd-net/2004-January/002534.html)";
+		$config['sysctl']['item'][9]['descr'] =    gettext("Fastforwarding (see http://lists.freebsd.org/pipermail/freebsd-net/2004-January/002534.html)");
 		$config['sysctl']['item'][9]['value'] =   "default";
 
 		$config['sysctl']['item'][10]['tunable'] = "net.inet.tcp.delayed_ack";
-		$config['sysctl']['item'][10]['descr'] =    "Do not delay ACK to try and piggyback it onto a data packet";
+		$config['sysctl']['item'][10]['descr'] =    gettext("Do not delay ACK to try and piggyback it onto a data packet");
 		$config['sysctl']['item'][10]['value'] =   "default";
 
 		$config['sysctl']['item'][11]['tunable'] = "net.inet.udp.maxdgram";
-		$config['sysctl']['item'][11]['descr'] =    "Maximum outgoing UDP datagram size";
+		$config['sysctl']['item'][11]['descr'] =    gettext("Maximum outgoing UDP datagram size");
 		$config['sysctl']['item'][11]['value'] =   "default";
 
 		$config['sysctl']['item'][12]['tunable'] = "net.link.bridge.pfil_onlyip";
-		$config['sysctl']['item'][12]['descr'] =    "Handling of non-IP packets which are not passed to pfil (see if_bridge(4))";
+		$config['sysctl']['item'][12]['descr'] =    gettext("Handling of non-IP packets which are not passed to pfil (see if_bridge(4))");
 		$config['sysctl']['item'][12]['value'] =   "default";
 
 		$config['sysctl']['item'][13]['tunable'] = "net.link.tap.user_open";
-		$config['sysctl']['item'][13]['descr'] =    "Allow unprivileged access to tap(4) device nodes";
+		$config['sysctl']['item'][13]['descr'] =    gettext("Allow unprivileged access to tap(4) device nodes");
 		$config['sysctl']['item'][13]['value'] =   "default";
 
 		$config['sysctl']['item'][15]['tunable'] = "kern.randompid";
-		$config['sysctl']['item'][15]['descr'] =    "Randomize PID's (see src/sys/kern/kern_fork.c: sysctl_kern_randompid())";
+		$config['sysctl']['item'][15]['descr'] =    gettext("Randomize PID's (see src/sys/kern/kern_fork.c: sysctl_kern_randompid())");
 		$config['sysctl']['item'][15]['value'] =   "default";
 
 		$config['sysctl']['item'][16]['tunable'] = "net.inet.tcp.inflight.enable";
-		$config['sysctl']['item'][16]['descr'] =    "The system will attempt to calculate the bandwidth delay product for each connection and limit the amount of data queued to the network to just the amount required to maintain optimum throughput. ";
+		$config['sysctl']['item'][16]['descr'] =    gettext("The system will attempt to calculate the bandwidth delay product for each connection and limit the amount of data queued to the network to just the amount required to maintain optimum throughput. ");
 		$config['sysctl']['item'][16]['value'] =   "default";
 
 		$config['sysctl']['item'][17]['tunable'] = "net.inet.icmp.icmplim";
-		$config['sysctl']['item'][17]['descr'] =    "Set ICMP Limits";
+		$config['sysctl']['item'][17]['descr'] =    gettext("Set ICMP Limits");
 		$config['sysctl']['item'][17]['value'] =   "default";
 
 		$config['sysctl']['item'][18]['tunable'] = "net.inet.tcp.tso";
-		$config['sysctl']['item'][18]['descr'] =    "TCP Offload engine";
+		$config['sysctl']['item'][18]['descr'] =    gettext("TCP Offload engine");
 		$config['sysctl']['item'][18]['value'] =   "default";
-		
+
 		$config['sysctl']['item'][19]['tunable'] = "net.inet.ip.portrange.first";
 		$config['sysctl']['item'][19]['descr'] =    "Set the ephemeral port range starting port";
 		$config['sysctl']['item'][19]['value'] =   "default";
@@ -739,16 +739,16 @@ function upgrade_042_to_043() {
 		$config['gateways']['gateway_item'][$i] = array();
 		if(is_ipaddr($config['interfaces'][$ifname]['gateway'])) {
 			$config['gateways']['gateway_item'][$i]['gateway'] = $config['interfaces'][$ifname]['gateway'];
-			$config['gateways']['gateway_item'][$i]['descr'] = "Interface $ifname Static Gateway";			
+			$config['gateways']['gateway_item'][$i]['descr'] = sprintf(gettext("Interface %s Static Gateway"), $ifname);
 		} else {
 			$config['gateways']['gateway_item'][$i]['gateway'] = "dynamic";
-			$config['gateways']['gateway_item'][$i]['descr'] = "Interface $ifname Dynamic Gateway";			
+			$config['gateways']['gateway_item'][$i]['descr'] = sprintf(gettext("Interface %s Dynamic Gateway"), $ifname);
 		}
 		$config['gateways']['gateway_item'][$i]['interface'] = $ifname;
 		$config['gateways']['gateway_item'][$i]['name'] = "GW_" . strtoupper($ifname);
 		/* add default gateway bit for wan on upgrade */
 		if($ifname == "wan") {
-			 $config['gateways']['gateway_item'][$i]['defaultgw'] = true;
+			$config['gateways']['gateway_item'][$i]['defaultgw'] = true;
 		}
 		if(is_ipaddr($config['interfaces'][$ifname]['use_rrd_gateway'])) {
 			$config['gateways']['gateway_item'][$i]['monitor'] = $config['interfaces'][$ifname]['use_rrd_gateway'];
@@ -800,14 +800,15 @@ function upgrade_043_to_044() {
 				/* We already added a gateway name for this IP */
 				$config['staticroutes']['route'][$idx]['gateway'] = "{$gwmap[$sroute['gateway']]}";
 				$found = true;
-			}			
+			}
+
 			if ($found == false) {
 				$gateway = array();
 				$gateway['name'] = "SROUTE{$i}";
 				$gwmap[$sroute['gateway']] = $gateway['name'];
 				$gateway['gateway'] = $sroute['gateway'];
 				$gateway['interface'] = $sroute['interface'];
-				$gateway['descr'] = "Upgraded static route for {$sroute['network']}";
+				$gateway['descr'] = sprintf(gettext("Upgraded static route for %s"), $sroute['network']);
 				if (!is_array($config['gateways']['gateway_item']))
 					$config['gateways']['gateway_item'] = array();
 				$config['gateways']['gateway_item'][] = $gateway;
@@ -834,7 +835,7 @@ function upgrade_044_to_045() {
 				}
 			}
 			$config['vlans']['vlan'][$i]['vlanif'] = "{$vlan_name}";
-			$i++;			
+			$i++;
 		}
 	}
 }
@@ -842,7 +843,7 @@ function upgrade_044_to_045() {
 
 function upgrade_045_to_046() {
 	global $config;
-	/* Load up monitors that are in the default config for 2.0 but not in 1.2.3 
+	/* Load up monitors that are in the default config for 2.0 but not in 1.2.3
 		thus wouldn't be in an upgraded config. */
 	$config['load_balancer']['monitor_type'] = array (
 		array ( 'name' => 'ICMP',
@@ -904,7 +905,9 @@ function upgrade_045_to_046() {
 				$pool['type'] = 'server';
 				$pool['behaviour'] = 'balance';
 				$pool['name'] = "{$vs_a[$i]['name']}-sitedown";
-				$pool['descr'] = "Sitedown pool for VS: {$vs_a[$i]['name']}";
+				$pool['descr'] = sprintf(gettext("Sitedown pool for VS: %s"), $vs_a[$i]['name']);
+				if (is_array($vs_a[$i]['pool']))
+					$vs_a[$i]['pool'] = $vs_a[$i]['pool'][0];
 				$pool['port'] = $pools[$vs_a[$i]['pool']]['port'];
 				$pool['servers'] = array();
 				$pool['servers'][] = $vs_a[$i]['sitedown'];
@@ -1057,7 +1060,7 @@ function upgrade_046_to_047() {
 			if (isset($tunnel['disabled']))
 				$ph1ent['disabled'] = $tunnel['disabled'];
 
-			$ph2ent['descr'] = "phase2 for ".$tunnel['descr'];
+			$ph2ent['descr'] = sprintf(gettext("phase2 for %s"), $tunnel['descr']);
 
 			$type = "lan";
 			if ($tunnel['local-subnet']['network'])
@@ -1282,13 +1285,13 @@ function upgrade_047_to_048() {
 			$tempdyn['username'] = $config['dyndns'][0]['username'];
 			$tempdyn['password'] = $config['dyndns'][0]['password'];
 			$tempdyn['host'] = $config['dyndns'][0]['host'];
-			$tempdyn['mx'] = $config['dyndns'][0]['mx'];		
+			$tempdyn['mx'] = $config['dyndns'][0]['mx'];
 			$tempdyn['interface'] = "wan";
-			$tempdyn['descr'] = "Upgraded Dyndns {$tempdyn['type']}";
+			$tempdyn['descr'] = sprintf(gettext("Upgraded Dyndns %s"), $tempdyn['type']);
 			$config['dyndnses']['dyndns'][] = $tempdyn;
 		}
 		unset($config['dyndns']);
-	}		
+	}
 	if (!empty($config['dnsupdate'])) {
 		$pconfig = $config['dnsupdate'][0];
 		if (!$pconfig['ttl'])
@@ -1336,7 +1339,7 @@ function upgrade_048_to_049() {
 	/* setup new all users group */
 	$all = array();
 	$all['name'] = "all";
-	$all['description'] = "All Users";
+	$all['description'] = gettext("All Users");
 	$all['scope'] = "system";
 	$all['gid'] = 1998;
 	$all['member'] = array();
@@ -1468,7 +1471,7 @@ function upgrade_050_to_051() {
 			if (isset($intf['bridge']) && $intf['bridge'] <> "") {
 				$nbridge = array();
 				$nbridge['members'] = "{$ifr},{$intf['bridge']}";
-				$nbridge['descr'] = "Converted bridged {$ifr}";
+				$nbridge['descr'] = sprintf(gettext("Converted bridged %s"), $ifr);
 				$nbridge['bridgeif'] = "bridge{$i}";
 				$config['bridges']['bridged'][] = $nbridge;
 				unset($intf['bridge']);
@@ -1558,10 +1561,10 @@ function upgrade_051_to_052() {
 			$server['dh_length'] = 1024;
 			unset($server['dh_params']);
 			if (!$server['interface'])
-				$server['interface'] = 'wan';
+				$server['interface'] = 'any';
 			$server['tunnel_network'] = $server['addresspool'];
 			unset($server['addresspool']);
-			if (isset($server['use_lzo'])) {
+			if (isset($server['use_lzo']) && ($server['use_lzo'] == "on")) {
 				$server['compression'] = "on";
 				unset($server['use_lzo']);
 			}
@@ -1572,10 +1575,23 @@ function upgrade_051_to_052() {
 			unset($server['nopool']);
 			$server['dns_domain'] = $server['dhcp_domainname'];
 			unset($server['dhcp_domainname']);
-			$server['dns_server1'] = $server['dhcp_dns'];
+
+			$tmparr = explode(";", $server['dhcp_dns'], 4);
+			$d=1;
+			foreach ($tmparr as $tmpa) {
+				$server["dns_server{$d}"] = $tmpa;
+				$d++;
+			}
 			unset($server['dhcp_dns']);
-			$server['ntp_server1'] = $server['dhcp_ntp'];
+
+			$tmparr = explode(";", $server['dhcp_ntp'], 2);
+			$d=1;
+			foreach ($tmparr as $tmpa) {
+				$server["ntp_server{$d}"] = $tmpa;
+				$d++;
+			}
 			unset($server['dhcp_ntp']);
+
 			if ($server['dhcp_nbtdisable'])
 				$server['netbios_enable'] = false;
 			else
@@ -1585,9 +1601,21 @@ function upgrade_051_to_052() {
 			unset($server['dhcp_nbttype']);
 			$server['netbios_scope'] = $server['dhcp_nbtscope'];
 			unset($server['dhcp_nbtscope']);
-			$server['nbdd_server1'] = $server['dhcp_nbdd'];
+
+			$tmparr = explode(";", $server['dhcp_nbdd'], 2);
+			$d=1;
+			foreach ($tmparr as $tmpa) {
+				$server["nbdd_server{$d}"] = $tmpa;
+				$d++;
+			}
 			unset($server['dhcp_nbdd']);
-			$server['wins_server1'] = $server['dhcp_wins'];
+
+			$tmparr = explode(";", $server['dhcp_wins'], 2);
+			$d=1;
+			foreach ($tmparr as $tmpa) {
+				$server["wins_server{$d}"] = $tmpa;
+				$d++;
+			}
 			unset($server['dhcp_wins']);
 
 			if (!empty($server['disable']))
@@ -1601,12 +1629,12 @@ function upgrade_051_to_052() {
 			if (!empty($server['custom_options'])) {
 				$cstmopts = array();
 				$tmpcstmopts = explode(";", $server['custom_options']);
-				$assigned = false;
+				$assigned_if = "";
 				$tmpstr = "";
 				foreach ($tmpcstmopts as $tmpcstmopt) {
 					$tmpstr = str_replace(" ", "", $tmpcstmopt);
 					if (substr($tmpstr,0 ,6) == "devtun") {
-						$assigned = true;
+						$assigned_if = substr($tmpstr, 3);
 						continue;
 					} else if (substr($tmpstr, 0, 5) == "local") {
 						$localip = substr($tmpstr, 5);
@@ -1615,10 +1643,9 @@ function upgrade_051_to_052() {
 						$cstmopts[] = $tmpcstmopt;
 				}
 				$server['custom_options'] = implode(";", $cstmopts);
-				if ($assigned == true) {
-					$realif = substr($tmpstr, 3);
+				if (!empty($assigned_if)) {
 					foreach ($config['interfaces'] as $iface => $cfgif) {
-						if ($cfgif['if'] == $realif) {
+						if ($cfgif['if'] == $assigned_if) {
 							$config['interfaces'][$iface]['if'] = "ovpns{$server['vpnid']}";
 							break;
 						}
@@ -1690,7 +1717,7 @@ function upgrade_051_to_052() {
 			unset($client['serverport']);
 			$client['proxy_addr'] = $client['poxy_hostname'];
 			unset($client['proxy_addr']);
-			if (isset($client['use_lzo'])) {
+			if (isset($client['use_lzo']) && ($client['use_lzo'] == "on")) {
 				$client['compression'] = "on";
 				unset($client['use_lzo']);
 			}
@@ -1703,24 +1730,23 @@ function upgrade_051_to_052() {
 			if (!empty($client['custom_options'])) {
 				$cstmopts = array();
 				$tmpcstmopts = explode(";", $client['custom_options']);
-				$assigned = false;
+				$assigned_if = "";
 				$tmpstr = "";
 				foreach ($tmpcstmopts as $tmpcstmopt) {
 					$tmpstr = str_replace(" ", "", $tmpcstmopt);
 					if (substr($tmpstr,0 ,6) == "devtun") {
-						$assigned = true;
+						$assigned_if = substr($tmpstr, 3);
 						continue;
 					} else if (substr($tmpstr, 0, 5) == "local") {
-                                                $localip = substr($tmpstr, 5);
-                                                $client['ipaddr'] = str_replace("\n", "", $localip);
+						$localip = substr($tmpstr, 5);
+						$client['ipaddr'] = str_replace("\n", "", $localip);
 					} else
 						$cstmopts[] = $tmpcstmopt;
 				}
 				$client['custom_options'] = implode(";", $cstmopts);
-				if ($assigned == true) {
-					$realif = substr($tmpstr, 3);
+				if (!empty($assigned_if)) {
 					foreach ($config['interfaces'] as $iface => $cfgif) {
-						if ($cfgif['if'] == $realif) {
+						if ($cfgif['if'] == $assigned_if) {
 							$config['interfaces'][$iface]['if'] = "ovpnc{$client['vpnid']}";
 							break;
 						}
@@ -1755,10 +1781,23 @@ function upgrade_051_to_052() {
 			unset($csc['ifconfig_push']);
 			$csc['dns_domain'] = $csc['dhcp_domainname'];
 			unset($csc['dhcp_domainname']);
-			$csc['dns_server1'] = $csc['dhcp_dns'];
+
+			$tmparr = explode(";", $csc['dhcp_dns'], 4);
+			$d=1;
+			foreach ($tmparr as $tmpa) {
+				$csc["dns_server{$d}"] = $tmpa;
+				$d++;
+			}
 			unset($csc['dhcp_dns']);
-			$csc['ntp_server1'] = $csc['dhcp_ntp'];
+
+			$tmparr = explode(";", $csc['dhcp_ntp'], 2);
+			$d=1;
+			foreach ($tmparr as $tmpa) {
+				$csc["ntp_server{$d}"] = $tmpa;
+				$d++;
+			}
 			unset($csc['dhcp_ntp']);
+
 			if ($csc['dhcp_nbtdisable'])
 				$csc['netbios_enable'] = false;
 			else
@@ -1768,9 +1807,21 @@ function upgrade_051_to_052() {
 			unset($csc['dhcp_nbttype']);
 			$csc['netbios_scope'] = $csc['dhcp_nbtscope'];
 			unset($csc['dhcp_nbtscope']);
-			$csc['nbdd_server1'] = $csc['dhcp_nbdd'];
+
+			$tmparr = explode(";", $csc['dhcp_nbdd'], 2);
+			$d=1;
+			foreach ($tmparr as $tmpa) {
+				$csc["nbdd_server{$d}"] = $tmpa;
+				$d++;
+			}
 			unset($csc['dhcp_nbdd']);
-			$csc['wins_server1'] = $csc['dhcp_wins'];
+
+			$tmparr = explode(";", $csc['dhcp_wins'], 2);
+			$d=1;
+			foreach ($tmparr as $tmpa) {
+				$csc["wins_server{$d}"] = $tmpa;
+				$d++;
+			}
 			unset($csc['dhcp_wins']);
 
 			if (!empty($csc['disable']))
@@ -1787,14 +1838,14 @@ function upgrade_051_to_052() {
 	if (count($config['openvpn']['openvpn-server']) > 0 ||
 		count($config['openvpn']['openvpn-client']) > 0) {
 		$ovpnrule = array();
-                $ovpnrule['type'] = "pass";
-                $ovpnrule['interface'] = "openvpn";
-                $ovpnrule['statetype'] = "keep state";
-                $ovpnrule['source'] = array();
-                $ovpnrule['destination'] = array();
-                $ovpnrule['source']['any'] = true;
-                $ovpnrule['destination']['any'] = true;
-                $ovpnrule['descr'] = "Auto added OpenVPN rule from config upgrade.";
+		$ovpnrule['type'] = "pass";
+		$ovpnrule['interface'] = "openvpn";
+		$ovpnrule['statetype'] = "keep state";
+		$ovpnrule['source'] = array();
+		$ovpnrule['destination'] = array();
+		$ovpnrule['source']['any'] = true;
+		$ovpnrule['destination']['any'] = true;
+		$ovpnrule['descr'] = gettext("Auto added OpenVPN rule from config upgrade.");
 		$config['filter']['rule'][] = $ovpnrule;
 	}
 
@@ -1859,7 +1910,7 @@ function upgrade_053_to_054() {
 		foreach($lbpool_arr as $lbpool) {
 			if($lbpool['type'] == "gateway") {
 				// Gateway Groups have to have valid names in pf, old lb pools did not. Clean them up.
-				$group_name = ereg_replace("[^A-Za-z0-9]", "", $lbpool['name'] );
+				$group_name = preg_replace("/[^A-Za-z0-9]/", "", $lbpool['name'] );
 				// If we made and changes, check for collisions and note the change.
 				if ($group_name != $lbpool['name']) {
 					// Make sure the name isn't already in use.
@@ -1876,7 +1927,7 @@ function upgrade_053_to_054() {
 				$gateway_group['item'] = array();
 				$i = 0;
 				foreach($lbpool['servers'] as $member) {
-					$split = split("\|", $member);
+					$split = explode("|", $member);
 					$interface = $split[0];
 					$monitor = $split[1];
 					/* on static upgraded configuration we automatically prepend GW_ */
@@ -1936,17 +1987,11 @@ function upgrade_054_to_055() {
 
 	$rrddbpath = "/var/db/rrd/";
 	$rrdtool = "/usr/bin/nice -n20 /usr/local/bin/rrdtool";
-
 	if ($g['platform'] != "pfSense") {
 		/* restore the databases, if we have one */
-		if (file_exists("{$g['cf_conf_path']}/rrd.tgz")) {
-			exec("cd /;LANG=C /usr/bin/tar -xzf {$g['cf_conf_path']}/rrd.tgz 2>&1", $rrdrestore, $rrdreturn);
-                        $rrdrestore = implode(" ", $rrdrestore);
-			if($rrdreturn <> 0) {
-				log_error("RRD restore failed exited with $rrdreturn, the error is: $rrdrestore\n");
-			}
+		if (restore_rrd()) {
 			/* Make sure to move the rrd backup out of the way. We will make a new one after converting. */
-			exec("/bin/mv {$g['cf_conf_path']}/rrd.tgz {$g['cf_conf_path']}/backup");
+			rename("{$g['cf_conf_path']}/rrd.tgz", "{$g['cf_conf_path']}/backup");
 		}
 	}
 
@@ -1977,7 +2022,7 @@ function upgrade_054_to_055() {
 		$xmldumpnew = "{$database}.new.xml";
 
 		if ($g['booting'])
-			echo "Migrate RRD database {$database} to new format \n";
+			echo "Migrate RRD database {$database} to new format for IPv6 \n";
 		mwexec("$rrdtool tune {$rrddbpath}{$database} -r roundtrip:delay 2>&1");
 
 		dump_rrd_to_xml("{$rrddbpath}/{$database}", "{$g['tmp_path']}/{$xmldump}");
@@ -1997,16 +2042,14 @@ function upgrade_054_to_055() {
 
 		file_put_contents("{$g['tmp_path']}/{$xmldumpnew}", dump_xml_config_raw($rrdold, "rrd"));
 		mwexec("$rrdtool restore -f {$g['tmp_path']}/{$xmldumpnew} {$rrddbpath}/{$database} 2>&1");
-		
+
 		unset($rrdold);
-		unset($rrdxmlarray);
 	}
 	/* let apinger recreate required files */
 	setup_gateways_monitor();
 
 	/* build a list of traffic and packets databases */
-	$databases = array();
-	exec("cd $rrddbpath;/usr/bin/find *-traffic.rrd *-packets.rrd", $databases);
+	$databases = return_dir_as_array($rrddbpath, '/-(traffic|packets)\.rrd$/');
 	rsort($databases);
 	foreach($databases as $database) {
 		$databasetmp = "{$database}.tmp";
@@ -2053,25 +2096,20 @@ function upgrade_054_to_055() {
 			$i++;
 		}
 
-		$rrdxmlarray = migrate_rrd_format($rrdold, $rrdnew);
-		file_put_contents("{$g['tmp_path']}/{$xmldumpnew}", dump_xml_config_raw($rrdxmlarray, "rrd"));
+		file_put_contents("{$g['tmp_path']}/{$xmldumpnew}", dump_xml_config_raw(migrate_rrd_format($rrdold, $rrdnew), "rrd"));
 		mwexec("$rrdtool restore -f {$g['tmp_path']}/{$xmldumpnew} {$rrddbpath}/{$database} 2>&1");
-
 		/* we now have the rrd with the new fields, adjust the size now. */
 		/* RRA 2 is 60 minutes, RRA 3 is 720 minutes */
 		mwexec("/bin/sync");
 		mwexec("$rrdtool resize {$rrddbpath}/{$database} 2 GROW 2000;/bin/mv resize.rrd {$rrddbpath}/{$database} 2>&1");
 		mwexec("/bin/sync");
 		mwexec("$rrdtool resize {$rrddbpath}/{$database} 3 GROW 2000;/bin/mv resize.rrd {$rrddbpath}/{$database} 2>&1");
-		unset($rrdold);
-		unset($rrdnew);
 		unset($rrdxmlarray);
-
 	}
 	enable_rrd_graphing();
 	/* Let's save the RRD graphs after we run enable RRD graphing */
 	/* The function will restore the rrd.tgz so we will save it after */
-	exec("cd /;LANG=C /usr/bin/tar -czf {$g['cf_conf_path']}/rrd.tgz -C / var/db/rrd/*.rrd");
+	exec("cd /; LANG=C NO_REMOUNT=1 RRDDBPATH='{$rrddbpath}' CF_CONF_PATH='{$g['cf_conf_path']}' /etc/rc.backup_rrd.sh");
 	if ($g['booting'])
 		echo "Updating configuration...";
 }
@@ -2189,7 +2227,7 @@ function upgrade_059_to_060() {
 					$ca['caref'] = $issuer_crt['refid'];
 			}
 		}
-		
+
 		/* Locate issuer for all certificates */
 		if (is_array($config['cert'])) {
 			foreach ($config['cert'] as & $cert) {
@@ -2273,15 +2311,15 @@ function upgrade_062_to_063() {
 			$config['theme'] = "pfsense_ng";
 			break;
 	}
-	
+
 }
 
 function upgrade_063_to_064() {
 	global $config;
 	$j=0;
 	$ifcfg = &$config['interfaces'];
-	
-	if (is_array($config['ppps']['ppp']) && count($config['ppps']['ppp'])) {	
+
+	if (is_array($config['ppps']['ppp']) && count($config['ppps']['ppp'])) {
 		foreach ($config['ppps']['ppp'] as $pppid => $ppp) {
 			$config['ppps']['ppp'][$pppid]['if'] = "ppp".$j;
 			$config['ppps']['ppp'][$pppid]['ptpid'] = $j;
@@ -2297,7 +2335,7 @@ function upgrade_063_to_064() {
 				unset($config['ppps']['ppp'][$pppid]['defaultgw']);
 		}
 	}
-	
+
 	if (!is_array($config['ppps']['ppp']))
 		$config['ppps']['ppp'] = array();
 	$a_ppps = &$config['ppps']['ppp'];
@@ -2320,7 +2358,7 @@ function upgrade_063_to_064() {
 				$ppp['username'] = $ifinfo['pptp_username'];
 				$ppp['password'] = base64_encode($ifinfo['pptp_password']);
 			}
-			
+
 			if (isset($ifinfo['provider']))
 				$ppp['provider'] = $ifinfo['provider'];
 			if (isset($ifinfo['ondemand']))
@@ -2346,7 +2384,7 @@ function upgrade_063_to_064() {
 
 			$ifcfg[$ifname]['if'] = $ifinfo['ipaddr'].$j;
 			$j++;
-			
+
 			unset($ifcfg[$ifname]['pppoe_username']);
 			unset($ifcfg[$ifname]['pppoe_password']);
 			unset($ifcfg[$ifname]['provider']);
@@ -2360,9 +2398,9 @@ function upgrade_063_to_064() {
 			unset($ifcfg[$ifname]['local']);
 			unset($ifcfg[$ifname]['subnet']);
 			unset($ifcfg[$ifname]['remote']);
-			
+
 			$a_ppps[] = $ppp;
-			
+
 		}
 	}
 }
@@ -2379,20 +2417,20 @@ function upgrade_065_to_066() {
 
 	$dhcrelaycfg =& $config['dhcrelay'];
 
-        if (is_array($dhcrelaycfg)) {
-        	$dhcrelayifs = array();
+	if (is_array($dhcrelaycfg)) {
+		$dhcrelayifs = array();
 		$foundifs = false;
-        	/* DHCPRelay enabled on any interfaces? */
-                foreach ($dhcrelaycfg as $dhcrelayif => $dhcrelayifconf) {
-                        if (isset($dhcrelayifconf['enable'])) {
+		/* DHCPRelay enabled on any interfaces? */
+		foreach ($dhcrelaycfg as $dhcrelayif => $dhcrelayifconf) {
+			if (isset($dhcrelayifconf['enable'])) {
 				$dhcrelayifs[] = $dhcrelayif;
 				unset($dhcrelaycfg['dhcrelayif']);
 				$foundifs = true;
 			}
-                }
+		}
 		if ($foundifs == true)
 			$dhcrelaycfg['interface'] = implode(",", $dhcrelayifs);
-        }
+	}
 }
 
 function upgrade_066_to_067() {
@@ -2414,7 +2452,7 @@ function upgrade_067_to_068() {
 		$config['pppoes']['pppoe'][] = $config['pppoe'][0];
 
 		if (is_array($config['pppoe']['user'])) {
-			$username = array(); 
+			$username = array();
 			foreach ($config['pppoe']['user'] as $user) {
 				$usr = $user['name'] . ":" . base64_encode($user['password']);
 				if ($user['ip'])
@@ -2550,12 +2588,13 @@ function upgrade_075_to_076() {
 function upgrade_076_to_077() {
 	global $config;
 	foreach($config['filter']['rule'] as & $rule) {
-		if (isset($rule['protocol']) && !empty($rule['protocol']))
-			$rule['protocol'] = strtolower($rule['protocol']);
+	if (isset($rule['protocol']) && !empty($rule['protocol']))
+		$rule['protocol'] = strtolower($rule['protocol']);
 	}
 }
 
 function upgrade_077_to_078() {
+	global $config;
 	if (is_array($config['pptpd']) && is_array($config['pptpd']['radius'])
 		&& !is_array($config['pptpd']['radius']['server'])) {
 		$radarr = array();
@@ -2571,8 +2610,10 @@ function upgrade_077_to_078() {
 		$radarr['server'] = $radsvr;
 		$config['pptpd']['radius'] = $radarr;
 	}
+	if (is_array($config['pptpd'])) {
+		$config['pptpd']['n_pptp_units'] = empty($config['pptpd']['n_pptp_units']) ? 16 : $config['pptpd']['n_pptp_units'];
+	}
 }
-
 function upgrade_078_to_079() {
 	global $g;
 	/* Delete old and unused RRD file */
@@ -2590,4 +2631,551 @@ function upgrade_079_to_080() {
 	}
 }
 
+function upgrade_080_to_081() {
+	global $config;
+	global $g;
+	/* Welcome to the 2.1 migration path */
+
+	/* tag all the existing gateways as being IPv4 */
+	$i = 0;
+	if(is_array($config['gateways']['gateway_item'])) {
+		foreach($config['gateways']['gateway_item'] as $gw) {
+			$config['gateways']['gateway_item'][$i]['ipprotocol'] = "inet";
+			$i++;
+		}
+	}
+
+	/* RRD files changed for quality, traffic and packets graphs */
+	/* convert traffic RRD file */
+	global $parsedcfg, $listtags;
+	$listtags = array("ds", "v", "rra", "row");
+
+	$rrddbpath = "/var/db/rrd/";
+	$rrdtool = "/usr/bin/nice -n20 /usr/local/bin/rrdtool";
+
+	if ($g['platform'] != "pfSense") {
+		/* restore the databases, if we have one */
+		if (restore_rrd()) {
+			/* Make sure to move the rrd backup out of the way. We will make a new one after converting. */
+			rename("{$g['cf_conf_path']}/rrd.tgz", "{$g['cf_conf_path']}/backup");
+		}
+	}
+
+	$rrdinterval = 60;
+	$valid = $rrdinterval * 2;
+
+	/* Asume GigE for now */
+	$downstream = 125000000;
+	$upstream = 125000000;
+
+	/* build a list of traffic and packets databases */
+	$databases = return_dir_as_array($rrddbpath, '/-(traffic|packets)\.rrd$/');
+	rsort($databases);
+	foreach($databases as $database) {
+		$xmldump = "{$database}.old.xml";
+		$xmldumpnew = "{$database}.new.xml";
+
+		if ($g['booting'])
+			echo "Migrate RRD database {$database} to new format for IPv6.\n";
+
+		/* dump contents to xml and move database out of the way */
+		dump_rrd_to_xml("{$rrddbpath}/{$database}", "{$g['tmp_path']}/{$xmldump}");
+
+		/* search and replace tags to add data sources */
+		$ds_search = "<!-- Round Robin Archives -->";
+		$ds_arr = array();
+		$ds_arr[] = "	<ds>
+				<name> inpass6 </name>
+				<type> COUNTER </type>
+				<minimal_heartbeat> {$valid} </minimal_heartbeat>
+				<min> 0.0000000000e+00 </min>
+				<max> 1.2500000000e+08 </max>
+
+				<!-- PDP Status -->
+				<last_ds> 0 </last_ds>
+				<value> NaN </value>
+				<unknown_sec> 3 </unknown_sec>
+			</ds>
+			";
+		$ds_arr[] = "	<ds>
+				<name> outpass6 </name>
+				<type> COUNTER </type>
+				<minimal_heartbeat> {$valid} </minimal_heartbeat>
+				<min> 0.0000000000e+00 </min>
+				<max> 1.2500000000e+08 </max>
+
+				<!-- PDP Status -->
+				<last_ds> 0 </last_ds>
+				<value> NaN </value>
+				<unknown_sec> 3 </unknown_sec>
+			</ds>
+			";
+		$ds_arr[] = "	<ds>
+				<name> inblock6 </name>
+				<type> COUNTER </type>
+				<minimal_heartbeat> {$valid} </minimal_heartbeat>
+				<min> 0.0000000000e+00 </min>
+				<max> 1.2500000000e+08 </max>
+
+				<!-- PDP Status -->
+				<last_ds> 0 </last_ds>
+				<value> NaN </value>
+				<unknown_sec> 3 </unknown_sec>
+			</ds>
+			";
+		$ds_arr[] = "	<ds>
+				<name> outblock6 </name>
+				<type> COUNTER </type>
+				<minimal_heartbeat> {$valid} </minimal_heartbeat>
+				<min> 0.0000000000e+00 </min>
+				<max> 1.2500000000e+08 </max>
+
+				<!-- PDP Status -->
+				<last_ds> 0 </last_ds>
+				<value> NaN </value>
+				<unknown_sec> 3 </unknown_sec>
+			</ds>
+			";
+
+		$cdp_search = "<\/cdp_prep>";
+		$cdp_replace = "</cdp_prep>";
+		$cdp_arr = array();
+		$cdp_arr[] = "			<ds>
+					<primary_value> NaN </primary_value>
+					<secondary_value> 0.0000000000e+00 </secondary_value>
+					<value> NaN </value>
+					<unknown_datapoints> 0 </unknown_datapoints>
+					</ds>
+		";
+		$cdp_arr[] = "			<ds>
+					<primary_value> NaN </primary_value>
+					<secondary_value> 0.0000000000e+00 </secondary_value>
+					<value> NaN </value>
+					<unknown_datapoints> 0 </unknown_datapoints>
+					</ds>
+		";
+		$cdp_arr[] = "			<ds>
+					<primary_value> NaN </primary_value>
+					<secondary_value> 0.0000000000e+00 </secondary_value>
+					<value> NaN </value>
+					<unknown_datapoints> 0 </unknown_datapoints>
+					</ds>
+		";
+		$cdp_arr[] = "			<ds>
+					<primary_value> NaN </primary_value>
+					<secondary_value> 0.0000000000e+00 </secondary_value>
+					<value> NaN </value>
+					<unknown_datapoints> 0 </unknown_datapoints>
+					</ds>
+		";
+
+		$value_search = "<\/row>";
+		$value_replace = "</row>";
+		$value = "<v> NaN </v>";
+
+		$xml = file_get_contents("{$g['tmp_path']}/{$xmldump}");
+		foreach($ds_arr as $ds) {
+			$xml = preg_replace("/$ds_search/s", "$ds{$ds_search}", $xml);
+		}
+		foreach($cdp_arr as $cdp) {
+			$xml = preg_replace("/$cdp_search/s", "$cdp{$cdp_replace}", $xml);
+		}
+		foreach($ds_arr as $ds) {
+			$xml = preg_replace("/$value_search/s", "$value{$value_replace}", $xml);
+		}
+		
+		file_put_contents("{$g['tmp_path']}/{$xmldumpnew}", $xml);
+		mwexec("$rrdtool restore -f {$g['tmp_path']}/{$xmldumpnew} {$rrddbpath}/{$database} 2>&1");
+		unset($xml);
+		# Default /tmp tmpfs is ~40mb, do not leave temp files around
+		unlink_if_exists("{$g['tmp_path']}/{$xmldump}");
+		unlink_if_exists("{$g['tmp_path']}/{$xmldumpnew}");
+	}
+	enable_rrd_graphing();
+	/* Let's save the RRD graphs after we run enable RRD graphing */
+	/* The function will restore the rrd.tgz so we will save it after */
+	exec("cd /; LANG=C NO_REMOUNT=1 RRDDBPATH='{$rrddbpath}' CF_CONF_PATH='{$g['cf_conf_path']}' /etc/rc.backup_rrd.sh");
+	if ($g['booting'])
+		echo "Updating configuration...";
+	foreach($config['filter']['rule'] as & $rule) {
+		if (isset($rule['protocol']) && !empty($rule['protocol']))
+			$rule['protocol'] = strtolower($rule['protocol']);
+	}
+	unset($rule);
+}
+
+function upgrade_081_to_082() {
+	/* don't enable the allow IPv6 toggle */
+}
+
+function upgrade_082_to_083() {
+	global $config;
+
+	/* Upgrade captiveportal config */
+	if (!empty($config['captiveportal'])) {
+		$tmpcp = $config['captiveportal'];
+		$config['captiveportal'] = array();
+		$config['captiveportal']['cpzone'] = array();
+		$config['captiveportal']['cpzone'] = $tmpcp;
+		$config['captiveportal']['cpzone']['zoneid'] = 8000;
+		$config['captiveportal']['cpzone']['zone'] = "cpzone";
+		if ($config['captiveportal']['cpzone']['auth_method'] == "radius")
+			$config['captiveportal']['cpzone']['radius_protocol'] = "PAP";
+	}
+	if (!empty($config['voucher'])) {
+		$tmpcp = $config['voucher'];
+		$config['voucher'] = array();
+		$config['voucher']['cpzone'] = array();
+		$config['voucher']['cpzone'] = $tmpcp;
+	}
+}
+
+function upgrade_083_to_084() {
+	global $config;
+	if (!isset($config['hasync'])) {
+		if (!empty($config['installedpackages']) &&
+		    !empty($config['installedpackages']['carpsettings']) &&
+		    !empty($config['installedpackages']['carpsettings']['config'])) {
+			$config['hasync'] = $config['installedpackages']['carpsettings']['config'][0];
+			unset($config['installedpackages']['carpsettings']);
+		}
+		if (empty($config['installedpackages']['carpsettings'])) {
+			unset($config['installedpackages']['carpsettings']);
+		}
+		if (empty($config['installedpackages'])) {
+			unset($config['installedpackages']);
+		}
+	}
+}
+
+function upgrade_084_to_085() {
+	global $config;
+
+	$gateway_group_arr = array();
+	$gateways = return_gateways_array();
+	$oldnames = array();
+	/* setup translation array */
+	foreach($gateways as $name => $gw) {
+		if(isset($gw['dynamic'])){
+			$oldname = strtoupper($config['interfaces'][$gw['friendlyiface']]['descr']);
+			$oldnames[$oldname] = $name;
+		} else {
+			$oldnames[$name] = $name;
+		}
+	}
+
+	/* process the old array */
+	if(is_array($config['gateways']['gateway_group'])) {
+		$group_array_new = array();
+		foreach($config['gateways']['gateway_group'] as $name => $group) {
+			if(is_array($group['item'])) {
+				$newlist = array();
+				foreach($group['item'] as $entry) {
+					$elements = explode("|", $entry);
+					if($oldnames[$elements[0]] <> "") {
+						$newlist[] = "{$oldnames[$elements[0]]}|{$elements[1]}";
+					} else {
+						$newlist[] = "{$elements[0]}|{$elements[1]}";
+					}
+				}
+				$group['item'] = $newlist;
+				$group_array_new[$name] = $group;
+			}
+		}
+		$config['gateways']['gateway_group'] = $group_array_new;
+	}
+	/* rename old Quality RRD files in the process */
+	$rrddbpath = "/var/db/rrd";
+	foreach($oldnames as $old => $new) {
+		if(is_readable("{$rrddbpath}/{$old}-quality.rrd")) {
+			@rename("{$rrddbpath}/{$old}-quality.rrd", "{$rrddbpath}/{$new}-quality.rrd");
+		}
+	}
+	unset($gateways, $oldnames, $gateway_group_arr);
+}
+
+function upgrade_085_to_086() {
+	global $config, $g;
+
+	/* XXX: Gross hacks in sight */
+	if (is_array($config['virtualip']['vip'])) {
+		$vipchg = array();
+		foreach ($config['virtualip']['vip'] as $vip) {
+			if ($vip['mode'] != "carp")
+				continue;
+			$config = array_replace_values_recursive(
+				$config,
+				'^vip' . $vip['vhid'] . '$',
+				"{$vip['interface']}_vip{$vip['vhid']}"
+			);
+		}
+	}
+}
+
+function upgrade_086_to_087() {
+	global $config, $dummynet_pipe_list;
+
+	if (!is_array($config['filter']) || !is_array($config['filter']['rule']))
+		return;
+	if (!is_array($config['dnshaper']) || !is_array($config['dnshaper']['queue']))
+		return;
+
+	$dnqueue_number = 1;
+	$dnpipe_number = 1;
+
+	foreach ($config['dnshaper']['queue'] as $idx => $dnpipe) {
+		$config['dnshaper']['queue'][$idx]['number'] = $dnpipe_number;
+		$dnpipe_number++;
+		if (is_array($dnpipe['queue'])) {
+			foreach ($dnpipe['queue'] as $qidx => $dnqueue) {
+				$config['dnshaper']['queue'][$idx]['queue'][$qidx]['number'] = $dnqueue_number;
+				$dnqueue_number++;
+			}
+		}
+	}
+
+	unset($dnqueue_number, $dnpipe_number, $qidx, $idx, $dnpipe, $dnqueue);
+
+	require_once("shaper.inc");
+	read_dummynet_config();
+
+	$dn_list = array();
+	if (is_array($dummynet_pipe_list)) {
+		foreach ($dummynet_pipe_list as $dn) {
+			$tmplist =& $dn->get_queue_list();
+			foreach ($tmplist as $qname => $link) {
+				$dn_list[$link] = $qname;
+			}
+		}
+		unset($dummynet_pipe_list);
+	}
+
+	foreach ($config['filter']['rule'] as $idx => $rule) {
+		if (!empty($rule['dnpipe'])) {
+			if (!empty($dn_list[$rule['dnpipe']]))
+				$config['filter']['rule'][$idx]['dnpipe'] = $dn_list[$rule['dnpipe']];
+		}
+		if (!empty($rule['pdnpipe'])) {
+			if (!empty($dn_list[$rule['pdnpipe']]))
+				$config['filter']['rule'][$idx]['pdnpipe'] = $dn_list[$rule['pdnpipe']];
+		}
+	}
+}
+function upgrade_087_to_088() {
+	global $config;
+	if (isset($config['system']['glxsb_enable'])) {
+		unset($config['system']['glxsb_enable']);
+		$config['system']['crypto_hardware'] = "glxsb";
+	}
+}
+
+function upgrade_088_to_089() {
+	global $config;
+	if (!is_array($config['ca']))
+		$config['ca'] = array();
+	if (!is_array($config['cert']))
+		$config['cert'] = array();
+
+	/* migrate captive portal ssl to certifcate mngr */
+	if (is_array($config['captiveportal'])) {
+		foreach ($config['captiveportal'] as $id => &$setting) {
+			if (isset($setting['httpslogin'])) {
+				/* create cert entry */
+				$cert = array();
+				$cert['refid'] = uniqid();
+				$cert['descr'] = "Captive Portal Cert - {$setting['zone']}";
+				$cert['crt'] = $setting['certificate'];
+				$cert['prv'] = $setting['private-key'];
+
+				if (!empty($setting['cacertificate'])) {
+					/* create ca entry */
+					$ca = array();
+					$ca['refid'] = uniqid();
+					$ca['descr'] = "Captive Portal CA - {$setting['zone']}";
+					$ca['crt'] = $setting['cacertificate'];
+					$config['ca'][] = $ca;
+
+					/* add ca reference to certificate */
+					$cert['caref'] = $ca['refid'];
+				}
+
+				$config['cert'][] = $cert;
+
+				/* create cert reference */
+				$setting['certref'] = $cert['refid'];
+
+				unset($setting['certificate']);
+				unset($setting['private-key']);
+				unset($setting['cacertificate']);
+
+			}
+		}
+	}
+}
+
+function upgrade_089_to_090() {
+	global $config;
+	if (is_array($config['load_balancer']['virtual_server']) && count($config['load_balancer']['virtual_server'])) {
+		$vs_a = &$config['load_balancer']['virtual_server'];
+		for ($i = 0; isset($vs_a[$i]); $i++) {
+			if (is_array($vs_a[$i]['pool'])) {
+				$vs_a[$i]['poolname'] = $vs_a[$i]['pool'][0];
+				unset($vs_a[$i]['pool']);
+			} elseif (!empty($vs_a[$i]['pool'])) {
+				$vs_a[$i]['poolname'] = $vs_a[$i]['pool'];
+				unset($vs_a[$i]['pool']);
+			}
+		}
+	}
+}
+
+function upgrade_090_to_091() {
+	global $config;
+
+	if (is_array($config['dnshaper']) && is_array($config['dnshaper']['queue'])) {
+		foreach ($config['dnshaper']['queue'] as $idx => $dnqueue) {
+			if (!empty($dnqueue['bandwidth'])) {
+				$bw = array();
+				$bw['bw'] = $dnqueue['bandwidth'];
+				$bw['bwscale'] = $dnqueue['bandwidthtype'];
+				$bw['bwsched'] = "none";
+				$config['dnshaper']['queue'][$idx]['bandwidth'] = array();
+				$config['dnshaper']['queue'][$idx]['bandwidth']['item'] = array();
+				$config['dnshaper']['queue'][$idx]['bandwidth']['item'][] = $bw;
+			}
+		}
+	}
+}
+
+function upgrade_091_to_092() {
+	global $config;
+
+	if (is_array($config['nat']['advancedoutbound']) && is_array($config['nat']['advancedoutbound']['rule'])) {
+		$nat_rules = &$config['nat']['advancedoutbound']['rule'];
+		for ($i = 0; isset($nat_rules[$i]); $i++) {
+			if (empty($nat_rules[$i]['interface'])) {
+				$nat_rules[$i]['interface'] = 'wan';
+			}
+		}
+	}
+}
+
+function upgrade_092_to_093() {
+	global $g;
+
+	$suffixes = array("concurrent", "loggedin");
+
+	foreach ($suffixes as $suffix)
+		if (file_exists("{$g['vardb_path']}/rrd/captiveportal-{$suffix}.rrd"))
+			rename("{$g['vardb_path']}/rrd/captiveportal-{$suffix}.rrd",
+				"{$g['vardb_path']}/rrd/captiveportal-cpZone-{$suffix}.rrd");
+
+	enable_rrd_graphing();
+}
+
+function upgrade_093_to_094() {
+	global $config;
+
+	if (isset($config['system']['powerd_mode'])) {
+		$config['system']['powerd_ac_mode'] = $config['system']['powerd_mode'];
+		$config['system']['powerd_battery_mode'] = $config['system']['powerd_mode'];
+		unset($config['system']['powerd_mode']);
+	}
+}
+
+function upgrade_094_to_095() {
+	global $config;
+
+	if (!isset($config['interfaces']) || !is_array($config['interfaces']))
+		return;
+
+	foreach ($config['interfaces'] as $iface => $cfg)
+		if (isset($cfg['ipaddrv6']) && ($cfg['ipaddrv6'] == "track6"))
+			if (!isset($cfg['track6-prefix-id']) || ($cfg['track6-prefix-id'] == ""))
+				$config['interfaces'][$iface]['track6-prefix-id'] = 0;
+}
+
+function upgrade_095_to_096() {
+	global $config, $g;
+
+	$names = array("inpass", "outpass", "inblock", "outblock",
+		"inpass6", "outpass6", "inblock6", "outblock6");
+	$rrddbpath = "/var/db/rrd";
+	$rrdtool = "/usr/local/bin/rrdtool";
+
+	if ($g['platform'] != "pfSense") {
+		/* restore the databases, if we have one */
+		if (restore_rrd()) {
+			/* Make sure to move the rrd backup out of the way. We will make a new one after converting. */
+			rename("{$g['cf_conf_path']}/rrd.tgz", "{$g['cf_conf_path']}/backup");
+		}
+	}
+
+	/* Assume 2*10GigE for now */
+	$stream = 2500000000;
+
+	/* build a list of traffic and packets databases */
+	$databases = return_dir_as_array($rrddbpath, '/-(traffic|packets)\.rrd$/');
+	rsort($databases);
+	foreach($databases as $database) {
+		if ($g['booting'])
+			echo "Update RRD database {$database}.\n";
+
+		$cmd = "{$rrdtool} tune {$rrddbpath}/{$database}";
+		foreach ($names as $name)
+			$cmd .= " -a {$name}:{$stream}";
+		mwexec("{$cmd} 2>&1");
+
+	}
+	enable_rrd_graphing();
+	/* Let's save the RRD graphs after we run enable RRD graphing */
+	/* The function will restore the rrd.tgz so we will save it after */
+	exec("cd /; LANG=C NO_REMOUNT=1 RRDDBPATH='{$rrddbpath}' CF_CONF_PATH='{$g['cf_conf_path']}' /etc/rc.backup_rrd.sh");
+}
+
+function upgrade_096_to_097() {
+	global $config, $g;
+	/* If the user had disabled default block rule logging before, then bogon/private network logging was already off, so respect their choice. */
+	if (isset($config['syslog']['nologdefaultblock'])) {
+		$config['syslog']['nologbogons'] = true;
+		$config['syslog']['nologprivatenets'] = true;
+	}
+}
+
+function upgrade_097_to_098() {
+	global $config, $g;
+	/* Disable kill_states by default */
+	$config['system']['kill_states'] = true;
+}
+
+function upgrade_098_to_099() {
+	global $config;
+	foreach ($config['dhcpd'] as & $dhcpifconf) {
+		if (isset($dhcpifconf['next-server'])) {
+			$dhcpifconf['nextserver'] = $dhcpifconf['next-server'];
+			unset($dhcpifconf['next-server']);
+		}
+	}
+}
+
+function upgrade_099_to_100() {
+	require_once("/etc/inc/services.inc");
+	install_cron_job("/usr/bin/nice -n20 newsyslog", false);
+}
+
+function upgrade_100_to_101() {
+	global $config, $g;
+
+	if (!is_array($config['voucher']))
+		return;
+
+	foreach ($config['voucher'] as $cpzone => $cp) {
+		if (!is_array($cp['roll']))
+			continue;
+		foreach ($cp['roll'] as $ridx => $rcfg) {
+			if (!empty($rcfg['comment']))
+				$config['voucher'][$cpzone]['roll'][$ridx]['descr'] = $rcfg['comment'];
+		}
+	}
+}
 ?>

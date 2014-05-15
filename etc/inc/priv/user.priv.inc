@@ -2,6 +2,16 @@
 
 global $priv_list;
 
+$priv_list['user-services-captiveportal-login'] = array();
+$priv_list['user-services-captiveportal-login']['name']  = gettext("User - Services - Captive portal login");
+$priv_list['user-services-captiveportal-login']['descr'] = gettext("Indicates whether the user is able to login on the captive portal.");
+
+$priv_list['page-help-all'] = array();
+$priv_list['page-help-all']['name'] = "WebCfg - Help pages";
+$priv_list['page-help-all']['descr'] = "Show all items on help menu";
+$priv_list['page-help-all']['match'] = array();
+$priv_list['page-help-all']['match'][] = "*www.pfsense.org*";
+
 $priv_list['page-dashboard-all'] = array();
 $priv_list['page-dashboard-all']['name'] = "WebCfg - Dashboard (all)";
 $priv_list['page-dashboard-all']['descr'] = "Allow access to all pages required for the dashboard.";
@@ -19,6 +29,10 @@ $priv_list['page-dashboard-widgets']['name'] = "WebCfg - Dashboard widgets (dire
 $priv_list['page-dashboard-widgets']['descr'] = "Allow direct access to all Dashboard widget pages, required for some widgets using AJAX.";
 $priv_list['page-dashboard-widgets']['match'] = array();
 $priv_list['page-dashboard-widgets']['match'][] = "*.widget.php*";
+
+$priv_list['user-config-readonly'] = array();
+$priv_list['user-config-readonly']['name']  = "User - Config - Deny Config Write";
+$priv_list['user-config-readonly']['descr'] = "If present, ignores requests from this user to write config.xml.";
 
 $priv_list['user-shell-access'] = array();
 $priv_list['user-shell-access']['name']  = "User - System - Shell account access";

@@ -1,6 +1,6 @@
 <?php
 /*
-	Copyright (C) 2010 Ermal Luçi
+	Copyright (C) 2010 Ermal LuÃ§i
 	All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without
@@ -29,7 +29,7 @@
 require_once("openvpn.inc");
 
 function has_special_chars($text) {
-	return ereg('[^A-Za-z0-9 _-]', $text);
+	return preg_match('/[^A-Za-z0-9 _-]/', $text);
 }
 
 function step1_submitphpaction() {
@@ -360,13 +360,13 @@ function step10_submitphpaction() {
 	if ($result = openvpn_validate_port($_POST['localport'], 'Local port'))
 		$input_errors[] = $result;
 
-	if ($result = openvpn_validate_cidr($_POST['tunnelnet'], 'Tunnel network'))
+	if ($result = openvpn_validate_cidr($_POST['tunnelnet'], 'Tunnel Network', false, "ipv4"))
 		$input_errors[] = $result;
 
-	if ($result = openvpn_validate_cidr($_POST['localnet'], 'Local network'))
+	if ($result = openvpn_validate_cidr($_POST['localnet'], 'Local Network', true, "ipv4"))
 		$input_errors[] = $result;
 
-	$portused = openvpn_port_used($_POST['protocol'], $_POST['localport']);
+	$portused = openvpn_port_used($_POST['protocol'], $_POST['interface'], $_POST['localport']);
 	if ($portused != 0)
 		$input_errors[] = "The specified 'Local port' is in use. Please select another value";
 
@@ -475,7 +475,7 @@ function step12_submitphpaction() {
 			'emailAddress' => $pconfig['step6']['email'],
 			'commonName' => $pconfig['step6']['certca']);
 
-		ca_create($ca, $pconfig['step6']['keylength'], $pconfig['step6']['lifetime'], $dn);
+		ca_create($ca, $pconfig['step6']['keylength'], $pconfig['step6']['lifetime'], $dn, "sha256");
 		if (!is_array($config['ca']))
 			$config['ca'] = array();
 
@@ -502,7 +502,7 @@ function step12_submitphpaction() {
 			'emailAddress' => $pconfig['step9']['email'],
 			'commonName' => $pconfig['step9']['certname']);
 
-		cert_create($cert, $ca['refid'], $pconfig['step9']['keylength'], $pconfig['step9']['lifetime'], $dn, 'server');
+		cert_create($cert, $ca['refid'], $pconfig['step9']['keylength'], $pconfig['step9']['lifetime'], $dn, 'server', "sha256");
 		if (!is_array($config['cert']))
 			$config['cert'] = array();
 
@@ -599,7 +599,7 @@ function step12_submitphpaction() {
 
 	if (isset($pconfig['step11']['ovpnrule'])) {
 		$rule = array();
-		$rule['descr'] = gettext("OpenVPN {$server['description']} wizard");
+		$rule['descr'] = sprintf(gettext("OpenVPN %s wizard"),$server['description']);
 		/* Ensure the rule descr is not too long for pf to handle */
 		if (strlen($rule['descr']) > 52)
 			$rule['descr'] = substr($rule['descr'], 0, 52);
@@ -611,11 +611,12 @@ function step12_submitphpaction() {
 		$rule['protocol'] = strtolower($server['protocol']);
 		$rule['type'] = "pass";
 		$rule['enabled'] = "on";
+		$rule['created'] = make_config_revision_entry(null, gettext("OpenVPN Wizard"));
 		$config['filter']['rule'][] = $rule;
 	}
 	if (isset($pconfig['step11']['ovpnallow'])) {
 		$rule = array();
-		$rule['descr'] = gettext("OpenVPN {$server['description']} wizard");
+		$rule['descr'] = sprintf(gettext("OpenVPN %s wizard"),$server['description']);
 		/* Ensure the rule descr is not too long for pf to handle */
 		if (strlen($rule['descr']) > 52)
 			$rule['descr'] = substr($rule['descr'], 0, 52);
@@ -625,6 +626,7 @@ function step12_submitphpaction() {
 		//$rule['protocol'] = $server['protocol'];
 		$rule['type'] = "pass";
 		$rule['enabled'] = "on";
+		$rule['created'] = make_config_revision_entry(null, gettext("OpenVPN Wizard"));
 		$config['filter']['rule'][] = $rule;
 	}
 

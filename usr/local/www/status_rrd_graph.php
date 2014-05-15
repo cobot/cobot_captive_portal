@@ -43,6 +43,8 @@ require_once("filter.inc");
 require("shaper.inc");
 require_once("rrd.inc");
 
+unset($input_errors);
+
 /* if the rrd graphs are not enabled redirect to settings page */
 if(! isset($config['rrd']['enable'])) {
 	header("Location: status_rrd_graph_settings.php");
@@ -62,6 +64,11 @@ if ($_GET['cat']) {
 		$curcat = "system";
 	}
 }
+
+if ($_GET['zone'])
+	$curzone = $_GET['zone'];
+else
+	$curzone = '';
 
 if ($_GET['period']) {
 	$curperiod = $_GET['period'];
@@ -134,17 +141,29 @@ if ($_GET['option']) {
 $now = time();
 if($curcat == "custom") {
 	if (is_numeric($_GET['start'])) {
-			if($start < ($now - (3600 * 24 * 365 * 5))) {
-					$start = $now - (8 * 3600);
-			}
-			$start = $_GET['start'];
-	} else {
+		if($start < ($now - (3600 * 24 * 365 * 5))) {
 			$start = $now - (8 * 3600);
+		}
+		$start = $_GET['start'];
+	} else if ($_GET['start']) {
+		$start = strtotime($_GET['start']);
+		if ($start === FALSE || $start === -1) {
+			$input_errors[] = gettext("Invalid start date/time:") . " '{$_GET['start']}'";
+			$start = $now - (8 * 3600);
+		}
+	} else {
+		$start = $now - (8 * 3600);
 	}
 }
 
 if (is_numeric($_GET['end'])) {
         $end = $_GET['end'];
+} else if ($_GET['end']) {
+	$end = strtotime($_GET['end']);
+	if ($end === FALSE || $end === -1) {
+		$input_errors[] = gettext("Invalid end date/time:") . " '{$_GET['end']}'";
+		$end = $now;
+	}
 } else {
         $end = $now;
 }
@@ -184,7 +203,6 @@ $dbheader = array("allgraphs-traffic.rrd",
 		"allgraphs-wireless.rrd",
 		"allgraphs-cellular.rrd",
 		"allgraphs-vpnusers.rrd",
-		"captiveportal-allgraphs.rrd",
 		"allgraphs-packets.rrd",
 		"system-allgraphs.rrd",
 		"system-throughput.rrd",
@@ -208,7 +226,7 @@ foreach($databases as $database) {
 	if(stristr($database, "-vpnusers")) {
 		$vpnusers = true;
 	}
-	if(stristr($database, "captiveportal-") && isset($config['captiveportal']['enable'])) {
+	if(stristr($database, "captiveportal-") && is_array($config['captiveportal'])) {
 		$captiveportal = true;
 	}
 }
@@ -216,19 +234,69 @@ foreach($databases as $database) {
 $ui_databases = array_merge($dbheader, $databases);
 $custom_databases = array_merge($dbheader_custom, $databases);
 
-$graphs = array("8hour", "day", "week", "month", "quarter", "year", "4year");
+$graphs = array("eight_hour", "day", "week", "month", "quarter", "year", "four_year");
 $periods = array("absolute" => gettext("Absolute Timespans"), "current" => gettext("Current Period"), "previous" => gettext("Previous Period"));
 $graph_length = array(
-	"8hour" => 28800,
+	"eight_hour" => 28800,
 	"day" => 86400,
 	"week" => 604800,
-	"month" => 2764800,
-	"quarter" => 8035200,
+	"month" => 2678400,
+	"quarter" => 7948800,
 	"year" => 31622400,
-	"4year" => 126489600);
+	"four_year" => 126230400);
 
 $pgtitle = array(gettext("Status"),gettext("RRD Graphs"));
+
+$closehead = false;
+
+/* Load all CP zones */
+if ($captiveportal && is_array($config['captiveportal'])) {
+	$cp_zones_tab_array = array();
+	foreach($config['captiveportal'] as $cpkey => $cp) {
+		if (!isset($cp['enable']))
+			continue;
+
+		if ($curzone == '') {
+			$tabactive = true;
+			$curzone = $cpkey;
+		} elseif ($curzone == $cpkey) {
+			$tabactive = true;
+		} else {
+			$tabactive = false;
+		}
+
+		$cp_zones_tab_array[] = array($cp['zone'], $tabactive, "status_rrd_graph.php?cat=captiveportal&zone=$cpkey");
+	}
+}
+
 include("head.inc");
+?>
+
+<?php if ($curcat === "custom") { ?>
+	<link rel="stylesheet" type="text/css" href="/javascript/jquery-ui-timepicker-addon/css/jquery-ui-timepicker-addon.css" />
+	<?php if (file_exists("{$g['www_path']}/themes/{$g['theme']}/jquery-ui.custom.css")) { ?>
+		<link rel="stylesheet" type="text/css" href="/themes/<?= $g['theme'] ?>/jquery-ui.custom.css" />
+	<?php } else { ?>
+		<link rel="stylesheet" type="text/css" href="/javascript/jquery/jquery-ui.custom.css" />
+	<?php } ?>
+	<script type="text/javascript" src="/javascript/jquery-ui-timepicker-addon/js/jquery-ui-timepicker-addon.js"></script>
+	<script type="text/javascript">
+		jQuery(function ($) {
+			var options = {
+				dateFormat: 'mm/dd/yy',
+				timeFormat: 'hh:mm:ss',
+				showSecond: true
+			};
+			$("#startDateTime").datetimepicker(options);
+			$("#endDateTime").datetimepicker(options);
+		});
+	</script>
+<?php }
+if (isset($closehead))
+	echo "</head>";
+?>
+
+<?php
 
 function get_dates($curperiod, $graph) {
 	global $graph_length;
@@ -253,7 +321,7 @@ function get_dates($curperiod, $graph) {
 				$offset = 0;
 		}
 		switch($graph) {
-			case "8hour":
+			case "eight_hour":
 				if($curhour < 24)
 					$starthour = 16;
 				if($curhour < 16)
@@ -307,7 +375,7 @@ function get_dates($curperiod, $graph) {
 				if($offset != 0)
 					$end = mktime(0, 0, 0, 1, 0, (($curyear + $offset) +1));
 				break;
-			case "4year":
+			case "four_year":
 				$start = mktime(0, 0, 0, 1, 0, (($curyear - 3) + $offset));
 				if($offset != 0)
 					$end = mktime(0, 0, 0, 1, 0, (($curyear + $offset) +1));
@@ -324,11 +392,12 @@ function get_dates($curperiod, $graph) {
 ?>
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
 <?php include("fbegin.inc"); ?>
-<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<?php if ($input_errors && count($input_errors)) { print_input_errors($input_errors); } ?>
+<form name="form1" action="status_rrd_graph.php" method="get">
+	<table width="100%" border="0" cellpadding="0" cellspacing="0">
         <tr>
-                <td>
-			<form name="form1" action="status_rrd_graph.php" method="get">
-			<input type="hidden" name="cat" value="<?php echo "$curcat"; ?>">
+			<td>
+				<input type="hidden" name="cat" value="<?php echo "$curcat"; ?>"/>
 			<?php
 			        $tab_array = array();
 				if($curcat == "system") { $tabactive = True; } else { $tabactive = False; }
@@ -369,6 +438,13 @@ function get_dates($curperiod, $graph) {
 			?>
                 </td>
         </tr>
+	<?php if ($curcat == "captiveportal") : ?>
+	<tr>
+		<td class="tabnavtbl">
+			<?php display_top_tabs($cp_zones_tab_array); ?>
+		</td>
+	</tr>
+	<?php endif; ?>
         <tr>
                 <td>
                         <div id="mainarea">
@@ -379,33 +455,39 @@ function get_dates($curperiod, $graph) {
 				<tr>
                                         <td colspan="2" class="list">
 					<?=gettext("Graphs:");?>
+					<?php if (!empty($curzone)): ?>
+					<input type="hidden" name="zone" value="<?= htmlspecialchars($curzone) ?>"/>
+					<?php endif; ?>
 					<select name="option" class="formselect" style="z-index: -10;" onchange="document.form1.submit()">
 					<?php
 
 					if($curcat == "custom") {
 						foreach ($custom_databases as $db => $database) {
-							$optionc = split("-", $database);
+							$optionc = explode("-", $database);
 							$search = array("-", ".rrd", $optionc);
 							$replace = array(" :: ", "", $friendly);
 							echo "<option value=\"{$database}\"";
 							$prettyprint = ucwords(str_replace($search, $replace, $database));
 							if($curoption == $database) {
-								echo " selected";
+								echo " selected=\"selected\"";
 							}
 							echo ">" . htmlspecialchars($prettyprint) . "</option>\n";
 						}
 					}
 					foreach ($ui_databases as $db => $database) {
-						if(! preg_match("/($curcat)/i", $database)) {
+						if(! preg_match("/($curcat)/i", $database))
 							continue;
-						}
-						$optionc = split("-", $database);
+
+						if (($curcat == "captiveportal") && !empty($curzone) && !preg_match("/captiveportal-{$curzone}/i", $database))
+							continue;
+
+						$optionc = explode("-", $database);
 						$search = array("-", ".rrd", $optionc);
 						$replace = array(" :: ", "", $friendly);
 
 						switch($curcat) {
 							case "captiveportal":
-								$optionc = str_replace($search, $replace, $optionc[1]);
+								$optionc = str_replace($search, $replace, $optionc[2]);
 								echo "<option value=\"$optionc\"";
 								$prettyprint = ucwords(str_replace($search, $replace, $optionc));
 								break;
@@ -427,7 +509,7 @@ function get_dates($curperiod, $graph) {
 								$prettyprint = ucwords(str_replace($search, $replace, $friendly));
 						}
 						if($curoption == $optionc) {
-							echo " selected";
+							echo " selected=\"selected\"";
 						}
 						echo ">" . htmlspecialchars($prettyprint) . "</option>\n";
 					}
@@ -440,7 +522,7 @@ function get_dates($curperiod, $graph) {
 					<?php
 					foreach ($styles as $style => $styled) {
 						echo "<option value=\"$style\"";
-						if ($style == $curstyle) echo " selected";
+						if ($style == $curstyle) echo " selected=\"selected\"";
 						echo ">" . htmlspecialchars($styled) . "</option>\n";
 					}
 					?>
@@ -454,40 +536,52 @@ function get_dates($curperiod, $graph) {
 						<?php
 						foreach ($periods as $period => $value) {
 							echo "<option value=\"$period\"";
-							if ($period == $curperiod) echo " selected";
+							if ($period == $curperiod) echo " selected=\"selected\"";
 							echo ">" . htmlspecialchars($value) . "</option>\n";
 						}
+						?>
+						</select>
+					<?php
 					}
 					?>
-					</select>
-					<?php
 
+					<?php
 					if($curcat == "custom") {
+						$tz = date_default_timezone_get();
+						$tz_msg = gettext("Enter date and/or time. Current timezone:") . " $tz";
+						$start_fmt = strftime("%m/%d/%Y %H:%M:%S", $start);
+						$end_fmt   = strftime("%m/%d/%Y %H:%M:%S", $end);
 						?>
 						<?=gettext("Start:");?>
-						<input type="text" name="start" class="formfldunknown" length="32" value="<?php echo $start;?>">
+						<input id="startDateTime" title="<?= htmlentities($tz_msg); ?>." type="text" name="start" class="formfldunknown" size="24" maxlength="32" value="<?= htmlentities($start_fmt); ?>"/>
 						<?=gettext("End:");?>
-						<input type="text" name="end" class="formfldunknown" length="32" value="<?php echo $end;?>">
-						<input type="submit" name="Submit" value="<?=gettext("Go"); ?>">
+						<input id="endDateTime" title="<?= htmlentities($tz_msg); ?>." type="text" name="end" class="formfldunknown" size="24" maxlength="32" value="<?= htmlentities($end_fmt); ?>"/>
+						<input type="submit" name="Submit" value="<?=gettext("Go"); ?>"/>
 						<?php
 						$curdatabase = $curoption;
 						$graph = "custom-$curdatabase";
 						if(in_array($curdatabase, $custom_databases)) {
-							echo "<tr><td colspan=2 class=\"list\">\n";
-							echo "<IMG BORDER='0' name='{$graph}-{$curoption}-{$curdatabase}' ";
-							echo "id='{$graph}-{$curoption}-{$curdatabase}' ALT=\"$prettydb Graph\" ";
-							echo "SRC=\"status_rrd_graph_img.php?start={$start}&amp;end={$end}&amp;database={$curdatabase}&amp;style={$curstyle}&amp;graph={$graph}\" />\n";
-							echo "<br /><hr><br />\n";								
-							echo "</td></tr>\n";
+							$id = "{$graph}-{$curoption}-{$curdatabase}";
+							$id = preg_replace('/\./', '_', $id);
+
+							echo "<table><tr><td colspan=\"2\" class=\"list\">\n";
+							echo "<img border='0' name='{$id}' ";
+							echo "id='{$id}' alt=\"$prettydb Graph\" ";
+							echo "src=\"status_rrd_graph_img.php?start={$start}&amp;end={$end}&amp;database={$curdatabase}&amp;style={$curstyle}&amp;graph={$graph}\" />\n";
+							echo "<br /><hr /><br />\n";								
+							echo "</td></tr></table>\n";
 						}
 					} else {
 						foreach($graphs as $graph) {
 							/* check which databases are valid for our category */
 							foreach($ui_databases as $curdatabase) {
-								if(! preg_match("/($curcat)/i", $curdatabase)) {
+								if(! preg_match("/($curcat)/i", $curdatabase))
 									continue;
-								}
-								$optionc = split("-", $curdatabase);
+
+								if (($curcat == "captiveportal") && !empty($curzone) && !preg_match("/captiveportal-{$curzone}/i", $curdatabase))
+									continue;
+
+								$optionc = explode("-", $curdatabase);
 								$search = array("-", ".rrd", $optionc);
 								$replace = array(" :: ", "", $friendly);
 								switch($curoption) {
@@ -533,15 +627,18 @@ function get_dates($curperiod, $graph) {
 										}
 								}
 								if(in_array($curdatabase, $ui_databases)) {
+									$id = "{$graph}-{$curoption}-{$curdatabase}";
+									$id = preg_replace('/\./', '_', $id);
+
 									$dates = get_dates($curperiod, $graph);
 									$start = $dates['start'];
 									$end = $dates['end'];
-									echo "<tr><td colspan=2 class=\"list\">\n";
-									echo "<IMG BORDER='0' name='{$graph}-{$curoption}-{$curdatabase}' ";
-									echo "id='{$graph}-{$curoption}-{$curdatabase}' ALT=\"$prettydb Graph\" ";
-									echo "SRC=\"status_rrd_graph_img.php?start={$start}&amp;end={$end}&amp;database={$curdatabase}&amp;style={$curstyle}&amp;graph={$graph}\" />\n";
-									echo "<br /><hr><br />\n";								
-									echo "</td></tr>\n";
+									echo "<table><tr><td colspan=\"2\" class=\"list\">\n";
+									echo "<img border='0' name='{$id}' ";
+									echo "id='{$id}' alt=\"$prettydb Graph\" ";
+									echo "src=\"status_rrd_graph_img.php?start={$start}&amp;end={$end}&amp;database={$curdatabase}&amp;style={$curstyle}&amp;graph={$graph}\" />\n";
+									echo "<br /><hr /><br />\n";								
+									echo "</td></tr></table>\n";
 								}
 							}
 						}
@@ -550,8 +647,9 @@ function get_dates($curperiod, $graph) {
 					</td>
 				</tr>
 				<tr>
-					<td colspan=2 class="list">
-					<script language="javascript">
+					<td colspan="2" class="list">
+					<script type="text/javascript">
+//					<![CDATA[
 						function update_graph_images() {
 							//alert('updating');
 							var randomid = Math.floor(Math.random()*11);
@@ -562,7 +660,7 @@ function get_dates($curperiod, $graph) {
 									if(! stristr($curdatabase, $curcat)) {
 										continue;
 									}
-									$optionc = split("-", $curdatabase);
+									$optionc = explode("-", $curdatabase);
 									$search = array("-", ".rrd", $optionc);
 									$replace = array(" :: ", "", $friendly);
 									switch($curoption) {
@@ -611,17 +709,20 @@ function get_dates($curperiod, $graph) {
 									if($curperiod == "current") {
 										$end = $dates['end'];
 									}
-									/* generate update events utilizing prototype $('') feature */
+									/* generate update events utilizing jQuery('') feature */
+									$id = "{$graph}-{$curoption}-{$curdatabase}";
+									$id = preg_replace('/\./', '_', $id);
+
 									echo "\n";
-									echo "\t\t\$('{$graph}-{$curoption}-{$curdatabase}').src='status_rrd_graph_img.php?start={$start}&graph={$graph}&database={$curdatabase}&style={$curstyle}&tmp=' + randomid;\n";
+									echo "\t\tjQuery('#{$id}').attr('src','status_rrd_graph_img.php?start={$start}&graph={$graph}&database={$curdatabase}&style={$curstyle}&tmp=' + randomid);\n";
 									}
 								}
 							?>
 							window.setTimeout('update_graph_images()', 355000);
 						}
 						window.setTimeout('update_graph_images()', 355000);
+//					]]>
 					</script>
-					</form>
 					</td>
 				</tr>
 			</table>
@@ -629,6 +730,7 @@ function get_dates($curperiod, $graph) {
 		</td>
 	</tr>
 </table>
+</form>
 
 <?php include("fend.inc"); ?>
 </body>

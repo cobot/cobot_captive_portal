@@ -36,17 +36,15 @@
 ##|*IDENT=page-diag-system-activity
 ##|*NAME=Diagnostics: System Activity
 ##|*DESCR=Allows access to the 'Diagnostics: System Activity' page
-##|*MATCH=diag_system_activity*
+##|*MATCH=diag_system_activity.php*
 ##|-PRIV
 
 require("guiconfig.inc");
 
-$pfSversion = str_replace("\n", "", file_get_contents("/etc/version"));
-
 $pgtitle = gettext("Diagnostics: System Activity");
 
 if($_REQUEST['getactivity']) {
-	$text = `/usr/bin/top -HS`;
+	$text = `/usr/bin/top -aHS | /usr/bin/cut -c1-105`;
 	echo $text;
 	exit;
 }
@@ -61,16 +59,16 @@ include("head.inc");
 		scroll(0,0);
 		var url = "/diag_system_activity.php";
 		var pars = 'getactivity=yes';
-		var myAjax = new Ajax.Request(
+		jQuery.ajax(
 			url,
 			{
-				method: 'post',
-				parameters: pars,
-				onComplete: activitycallback
+				type: 'post',
+				data: pars,
+				complete: activitycallback
 			});
 	}
 	function activitycallback(transport) {
-		$('cpuactivitydiv').innerHTML = '<font face="Courier"><font size="2"><b><pre style="text-align:left;">' + transport.responseText  + '</pre></font>';
+		jQuery('#cpuactivitydiv').html('<font face="Courier"><font size="2"><b><pre style="text-align:left;">' + transport.responseText  + '</pre></font>');
 		setTimeout('getcpuactivity()', 2500);		
 	}
 	setTimeout('getcpuactivity()', 1000);	
@@ -78,8 +76,6 @@ include("head.inc");
 <div id='maincontent'>
 <?php
 	include("fbegin.inc"); 
-	if(strstr($pfSversion, "1.2")) 
-		echo "<p class=\"pgtitle\">{$pgtitle}</p>";
 	if($savemsg) {
 		echo "<div id='savemsg'>";
 		print_info_box($savemsg);

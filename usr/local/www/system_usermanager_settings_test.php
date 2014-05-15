@@ -1,7 +1,7 @@
 <?php
 /* $Id$ */
 /*
-    part of pfSense (http://www.pfsense.org/)
+    part of pfSense (https://www.pfsense.org/)
 
 	Copyright (C) 2007 Scott Ullrich <sullrich@gmail.com>
 	All rights reserved.
@@ -73,9 +73,9 @@ $authcfg = auth_get_authserver($authserver);
 <?php
 
 if (!$authcfg) {
-	printf(gettext("Could not find settings for %s%s"), $authserver, "<p/>");
+	printf(gettext("Could not find settings for %s%s"), htmlspecialchars($authserver), "<p/>");
 } else {
-	echo gettext("Testing pfSense LDAP settings... One moment please...") . "<p/>";
+	echo sprintf(gettext("Testing %s LDAP settings... One moment please..."), $g['product_name']) . "<p/>";
 
 	echo "<table width='100%'>";
 

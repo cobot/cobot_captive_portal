@@ -25,7 +25,7 @@
 	POSSIBILITY OF SUCH DAMAGE.
 */
 /*
-	pfSense_BUILDER_BINARIES:	/usr/local/bin/voucher
+	pfSense_BUILDER_BINARIES:	/usr/local/bin/voucher	/usr/local/bin/openssl
 	pfSense_MODULE:	captiveportal
 */
 
@@ -36,128 +36,161 @@
 ##|*MATCH=services_captiveportal_vouchers.php*
 ##|-PRIV
 
-$statusurl = "status_captiveportal_vouchers.php";
-$logurl = "diag_logs_auth.php";
-
 if ($_POST['postafterlogin'])
 	$nocsrf= true;
+
 require("guiconfig.inc");
 require("functions.inc");
-require("filter.inc");
+require_once("filter.inc");
 require("shaper.inc");
 require("captiveportal.inc");
 require_once("voucher.inc");
 
+$cpzone = $_GET['zone'];
+if (isset($_POST['zone']))
+        $cpzone = $_POST['zone'];
+
+if (empty($cpzone)) {
+        header("Location: services_captiveportal_zones.php");
+        exit;
+}
+
 if($_REQUEST['generatekey']) {
-	exec("openssl genrsa 64 > /tmp/key64.private");
-	exec("openssl rsa -pubout < /tmp/key64.private > /tmp/key64.public");
+	exec("/usr/local/bin/openssl genrsa 64 > /tmp/key64.private");
+	exec("/usr/local/bin/openssl rsa -pubout < /tmp/key64.private > /tmp/key64.public");
 	$privatekey = str_replace("\n", "\\n", file_get_contents("/tmp/key64.private"));
 	$publickey = str_replace("\n", "\\n", file_get_contents("/tmp/key64.public"));
 	exec("rm /tmp/key64.private /tmp/key64.public");
 	$alertmessage = gettext("You will need to recreate any existing Voucher Rolls due to the public and private key changes. Click cancel if you do not wish to recreate the vouchers.");
 	echo <<<EOF
-		\$('publickey').value = '{$publickey}';
-		\$('privatekey').value = '{$privatekey}';
+		jQuery('#publickey').val('{$publickey}');
+		jQuery('#privatekey').val('{$privatekey}');
 		alert('{$alertmessage}');
-		new Effect.Highlight('publickey');
-		new Effect.Highlight('privatekey');
+		jQuery('#publickey').effect('highlight');
+		jQuery('#privatekey').effect('highlight');
 EOF;
 	exit;
 }
 
-$pgtitle = array(gettext("Services"), gettext("Captive portal"), gettext("Vouchers"));
+if (!is_array($config['captiveportal']))
+        $config['captiveportal'] = array();
+$a_cp =& $config['captiveportal'];
 
 if (!is_array($config['voucher'])) 
 	$config['voucher'] = array();
 
-if (!is_array($config['voucher']['roll'])) 
-	$config['voucher']['roll'] = array();
-if (!isset($config['voucher']['charset'])) 
-	$config['voucher']['charset'] = '2345678abcdefhijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
-if (!isset($config['voucher']['rollbits'])) 
-	$config['voucher']['rollbits'] = 16;
-if (!isset($config['voucher']['ticketbits'])) 
-	$config['voucher']['ticketbits'] = 10;
-if (!isset($config['voucher']['checksumbits'])) 
-	$config['voucher']['checksumbits'] = 5;
-if (!isset($config['voucher']['magic'])) 
-	$config['voucher']['magic'] = rand();   // anything slightly random will do
+if (empty($a_cp[$cpzone])) {
+	log_error("Submission on captiveportal page with unknown zone parameter: " . htmlspecialchars($cpzone));
+	header("Location: services_captiveportal_zones.php");
+	exit;
+}
 
-if (!isset($config['voucher']['publickey'])) {
+
+$pgtitle = array(gettext("Services"), gettext("Captive portal"), gettext("Vouchers"), $a_cp[$cpzone]['zone']);
+$shortcut_section = "captiveportal-vouchers";
+
+if (!is_array($config['voucher'][$cpzone]['roll'])) 
+	$config['voucher'][$cpzone]['roll'] = array();
+if (!isset($config['voucher'][$cpzone]['charset'])) 
+	$config['voucher'][$cpzone]['charset'] = '2345678abcdefhijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
+if (!isset($config['voucher'][$cpzone]['rollbits'])) 
+	$config['voucher'][$cpzone]['rollbits'] = 16;
+if (!isset($config['voucher'][$cpzone]['ticketbits'])) 
+	$config['voucher'][$cpzone]['ticketbits'] = 10;
+if (!isset($config['voucher'][$cpzone]['checksumbits'])) 
+	$config['voucher'][$cpzone]['checksumbits'] = 5;
+if (!isset($config['voucher'][$cpzone]['magic'])) 
+	$config['voucher'][$cpzone]['magic'] = rand();   // anything slightly random will do
+if (!isset($config['voucher'][$cpzone]['exponent'])) {
+	while (true) {
+		while (($exponent = rand()) % 30000 < 5000)
+			continue;
+		$exponent = ($exponent * 2) + 1; // Make it odd number
+		if ($exponent <= 65537)
+			break;
+	}
+	$config['voucher'][$cpzone]['exponent'] = $exponent;
+	unset($exponent);
+}
+
+if (!isset($config['voucher'][$cpzone]['publickey'])) {
 	/* generate a random 64 bit RSA key pair using the voucher binary */
-	$fd = popen("/usr/local/bin/voucher -g 64", "r");
+	$fd = popen("/usr/local/bin/voucher -g 64 -e " . $config['voucher'][$cpzone]['exponent'], "r");
 	if ($fd !== false) {
 		$output = fread($fd, 16384);
 		pclose($fd);
 		list($privkey, $pubkey) = explode("\0", $output);
-		$config['voucher']['publickey'] = base64_encode($pubkey);
-		$config['voucher']['privatekey'] = base64_encode($privkey);
+		$config['voucher'][$cpzone]['publickey'] = base64_encode($pubkey);
+		$config['voucher'][$cpzone]['privatekey'] = base64_encode($privkey);
 	}
 }
 
 // Check for invalid or expired vouchers
-if (!isset($config['voucher']['msgnoaccess'])) 
-	$config['voucher']['msgnoaccess'] = gettext("Voucher invalid");
-if (!isset($config['voucher']['msgexpired'])) 
-	$config['voucher']['msgexpired'] = gettext("Voucher expired");
+if (!isset($config['voucher'][$cpzone]['descrmsgnoaccess'])) 
+	$config['voucher'][$cpzone]['descrmsgnoaccess'] = gettext("Voucher invalid");
+if (!isset($config['voucher'][$cpzone]['descrmsgexpired'])) 
+	$config['voucher'][$cpzone]['descrmsgexpired'] = gettext("Voucher expired");
 
-$a_roll = &$config['voucher']['roll'];
+$a_roll = &$config['voucher'][$cpzone]['roll'];
 
 if ($_GET['act'] == "del") {
     $id = $_GET['id'];
     if ($a_roll[$id]) {
 		$roll = $a_roll[$id]['number']; 
-		$voucherlck = lock('voucher');
+		$voucherlck = lock("voucher{$cpzone}");
 		unset($a_roll[$id]);
 		voucher_unlink_db($roll);
 		unlock($voucherlck);
 		write_config();
-		header("Location: services_captiveportal_vouchers.php");
-		exit;
     }
+	header("Location: services_captiveportal_vouchers.php?zone={$cpzone}");
+	exit;
 }
 /* print all vouchers of the selected roll */
 else if ($_GET['act'] == "csv") {
-	$privkey = base64_decode($config['voucher']['privatekey']);
+	$privkey = base64_decode($config['voucher'][$cpzone]['privatekey']);
 	if (strstr($privkey,"BEGIN RSA PRIVATE KEY")) {
-		$fd = fopen("{$g['varetc_path']}/voucher.private","w");
+		$fd = fopen("{$g['varetc_path']}/voucher_{$cpzone}.private","w");
 		if (!$fd) {
 			$input_errors[] = gettext("Cannot write private key file") . ".\n";
 		} else {
-			chmod("{$g['varetc_path']}/voucher.private", 0600);
+			chmod("{$g['varetc_path']}/voucher_{$cpzone}.private", 0600);
 			fwrite($fd, $privkey);
 			fclose($fd);
-			$a_voucher = &$config['voucher']['roll'];
+			$a_voucher = &$config['voucher'][$cpzone]['roll'];
 			$id = $_GET['id'];
 			if (isset($id) && $a_voucher[$id]) {
 				$number = $a_voucher[$id]['number'];
 				$count = $a_voucher[$id]['count'];
 				header("Content-Type: application/octet-stream");
-				header("Content-Disposition: attachment; filename=vouchers_roll$number.csv");
-				system("/usr/local/bin/voucher -c {$g['varetc_path']}/voucher.cfg -p {$g['varetc_path']}/voucher.private $number $count");
-				unlink("{$g['varetc_path']}/voucher.private");
-				exit;
-			}
+				header("Content-Disposition: attachment; filename=vouchers_{$cpzone}_roll{$number}.csv");
+				if (file_exists("{$g['varetc_path']}/voucher_{$cpzone}.cfg"))
+					system("/usr/local/bin/voucher -c {$g['varetc_path']}/voucher_{$cpzone}.cfg -p {$g['varetc_path']}/voucher_{$cpzone}.private $number $count");
+				@unlink("{$g['varetc_path']}/voucher_{$cpzone}.private");
+			} else
+				header("Location: services_captiveportal_vouchers.php?zone={$cpzone}");
+			exit;
 		}
 	} else {
 		$input_errors[] = gettext("Need private RSA key to print vouchers") . "\n";
 	}
 }
 
-$pconfig['enable'] = isset($config['voucher']['enable']);
-$pconfig['charset'] = $config['voucher']['charset'];
-$pconfig['rollbits'] = $config['voucher']['rollbits'];
-$pconfig['ticketbits'] = $config['voucher']['ticketbits'];
-$pconfig['checksumbits'] = $config['voucher']['checksumbits'];
-$pconfig['magic'] = $config['voucher']['magic'];
-$pconfig['publickey'] = base64_decode($config['voucher']['publickey']);
-$pconfig['privatekey'] = base64_decode($config['voucher']['privatekey']);
-$pconfig['msgnoaccess'] = $config['voucher']['msgnoaccess'];
-$pconfig['msgexpired'] = $config['voucher']['msgexpired'];
-$pconfig['vouchersyncdbip'] = $config['voucher']['vouchersyncdbip'];
-$pconfig['vouchersyncport'] = $config['voucher']['vouchersyncport'];
-$pconfig['vouchersyncpass'] = $config['voucher']['vouchersyncpass'];
-$pconfig['vouchersyncusername'] = $config['voucher']['vouchersyncusername'];
+$pconfig['enable'] = isset($config['voucher'][$cpzone]['enable']);
+$pconfig['charset'] = $config['voucher'][$cpzone]['charset'];
+$pconfig['rollbits'] = $config['voucher'][$cpzone]['rollbits'];
+$pconfig['ticketbits'] = $config['voucher'][$cpzone]['ticketbits'];
+$pconfig['checksumbits'] = $config['voucher'][$cpzone]['checksumbits'];
+$pconfig['magic'] = $config['voucher'][$cpzone]['magic'];
+$pconfig['exponent'] = $config['voucher'][$cpzone]['exponent'];
+$pconfig['publickey'] = base64_decode($config['voucher'][$cpzone]['publickey']);
+$pconfig['privatekey'] = base64_decode($config['voucher'][$cpzone]['privatekey']);
+$pconfig['msgnoaccess'] = $config['voucher'][$cpzone]['descrmsgnoaccess'];
+$pconfig['msgexpired'] = $config['voucher'][$cpzone]['descrmsgexpired'];
+$pconfig['vouchersyncdbip'] = $config['voucher'][$cpzone]['vouchersyncdbip'];
+$pconfig['vouchersyncport'] = $config['voucher'][$cpzone]['vouchersyncport'];
+$pconfig['vouchersyncpass'] = $config['voucher'][$cpzone]['vouchersyncpass'];
+$pconfig['vouchersyncusername'] = $config['voucher'][$cpzone]['vouchersyncusername'];
 
 if ($_POST) {
 
@@ -206,52 +239,68 @@ if ($_POST) {
 	}
 
 	if (!$input_errors) {
+		if (empty($config['voucher'][$cpzone]))
+                        $newvoucher = array();
+                else
+                        $newvoucher = $config['voucher'][$cpzone];
 		if ($_POST['enable'] == "yes")
-			$config['voucher']['enable'] = true;
+			$newvoucher['enable'] = true;
 		else
-			unset($config['voucher']['enable']);
+			unset($newvoucher['enable']);
 		if (empty($_POST['vouchersyncusername'])) {
-			$config['voucher']['charset'] = $_POST['charset'];
-			$config['voucher']['rollbits'] = $_POST['rollbits'];
-			$config['voucher']['ticketbits'] = $_POST['ticketbits'];
-			$config['voucher']['checksumbits'] = $_POST['checksumbits'];
-			$config['voucher']['magic'] = $_POST['magic'];
-			$config['voucher']['publickey'] = base64_encode($_POST['publickey']);
-			$config['voucher']['privatekey'] = base64_encode($_POST['privatekey']);
-			$config['voucher']['msgnoaccess'] = $_POST['msgnoaccess'];
-			$config['voucher']['msgexpired'] = $_POST['msgexpired'];
+			unset($newvoucher['vouchersyncdbip']);
+			unset($newvoucher['vouchersyncport']);
+			unset($newvoucher['vouchersyncusername']);
+			unset($newvoucher['vouchersyncpass']);
+			$newvoucher['charset'] = $_POST['charset'];
+			$newvoucher['rollbits'] = $_POST['rollbits'];
+			$newvoucher['ticketbits'] = $_POST['ticketbits'];
+			$newvoucher['checksumbits'] = $_POST['checksumbits'];
+			$newvoucher['magic'] = $_POST['magic'];
+			$newvoucher['exponent'] = $_POST['exponent'];
+			$newvoucher['publickey'] = base64_encode($_POST['publickey']);
+			$newvoucher['privatekey'] = base64_encode($_POST['privatekey']);
+			$newvoucher['descrmsgnoaccess'] = $_POST['msgnoaccess'];
+			$newvoucher['descrmsgexpired'] = $_POST['msgexpired'];
+			$config['voucher'][$cpzone] = $newvoucher;
 			write_config();
-			voucher_configure();
+			voucher_configure_zone();
 		} else {
-			$config['voucher']['vouchersyncdbip'] = $_POST['vouchersyncdbip'];
-			$config['voucher']['vouchersyncport'] = $_POST['vouchersyncport'];
-			$config['voucher']['vouchersyncusername'] = $_POST['vouchersyncusername'];
-			$config['voucher']['vouchersyncpass'] = $_POST['vouchersyncpass'];
-			if($config['voucher']['vouchersyncpass'] && $config['voucher']['vouchersyncusername'] && 
-			   $config['voucher']['vouchersyncport'] && $config['voucher']['vouchersyncdbip']) {
+			$newvoucher['vouchersyncdbip'] = $_POST['vouchersyncdbip'];
+			$newvoucher['vouchersyncport'] = $_POST['vouchersyncport'];
+			$newvoucher['vouchersyncusername'] = $_POST['vouchersyncusername'];
+			$newvoucher['vouchersyncpass'] = $_POST['vouchersyncpass'];
+			if($newvoucher['vouchersyncpass'] && $newvoucher['vouchersyncusername'] && 
+			   $newvoucher['vouchersyncport'] && $newvoucher['vouchersyncdbip']) {
 				// Synchronize the voucher DB from the master node
 				require_once("xmlrpc.inc");
-				if($config['voucher']['vouchersyncport'] == "443") 
-					$url = "https://{$config['voucher']['vouchersyncdbip']}";
+
+				$protocol = "http";
+				if (is_array($config['system']) && is_array($config['system']['webgui']) && !empty($config['system']['webgui']['protocol']) &&
+				    $config['system']['webgui']['protocol'] == "https")
+					$protocol = "https";
+				if ($protocol == "https" || $newvoucher['vouchersyncport'] == "443")
+					$url = "https://{$newvoucher['vouchersyncdbip']}";
 				else 
-					$url = "http://{$config['voucher']['vouchersyncdbip']}";
+					$url = "http://{$newvoucher['vouchersyncdbip']}";
 
 				$execcmd  = <<<EOF
-				\$toreturn['voucher'] = \$config['voucher'];
+				\$toreturn = array();
+				\$toreturn['voucher'] = \$config['voucher']['$cpzone'];
 				unset(\$toreturn['vouchersyncport'], \$toreturn['vouchersyncpass'], \$toreturn['vouchersyncusername'], \$toreturn['vouchersyncdbip']);
 
 EOF;
 
 				/* assemble xmlrpc payload */
 				$params = array(
-					XML_RPC_encode($config['voucher']['vouchersyncpass']),
+					XML_RPC_encode($newvoucher['vouchersyncpass']),
 					XML_RPC_encode($execcmd)
 				);
-				$port = $config['voucher']['vouchersyncport'];
+				$port = $newvoucher['vouchersyncport'];
 				log_error("voucher XMLRPC sync data {$url}:{$port}.");
 				$msg = new XML_RPC_Message('pfsense.exec_php', $params);
 				$cli = new XML_RPC_Client('/xmlrpc.php', $url, $port);
-				$cli->setCredentials($config['voucher']['vouchersyncusername'], $config['voucher']['vouchersyncpass']);
+				$cli->setCredentials($newvoucher['vouchersyncusername'], $newvoucher['vouchersyncpass']);
 				$resp = $cli->send($msg, "250");
 				if(!is_object($resp)) {
 					$error = "A communications error occurred while attempting CaptivePortalVoucherSync XMLRPC sync with {$url}:{$port} (pfsense.exec_php).";
@@ -276,37 +325,38 @@ EOF;
 					} else {				
 						// If we received back the voucher roll and other information then store it.
 						if($toreturn['voucher']['roll'])
-							$config['voucher']['roll'] = $toreturn['voucher']['roll'];
+							$newvoucher['roll'] = $toreturn['voucher']['roll'];
 						if($toreturn['voucher']['rollbits'])
-							$config['voucher']['rollbits'] = $toreturn['voucher']['rollbits'];
+							$newvoucher['rollbits'] = $toreturn['voucher']['rollbits'];
 						if($toreturn['voucher']['ticketbits'])
-							$config['voucher']['ticketbits'] = $toreturn['voucher']['ticketbits'];
+							$newvoucher['ticketbits'] = $toreturn['voucher']['ticketbits'];
 						if($toreturn['voucher']['checksumbits'])
-							$config['voucher']['checksumbits'] = $toreturn['voucher']['checksumbits'];
+							$newvoucher['checksumbits'] = $toreturn['voucher']['checksumbits'];
 						if($toreturn['voucher']['magic'])
-							$config['voucher']['magic'] = $toreturn['voucher']['magic'];
+							$newvoucher['magic'] = $toreturn['voucher']['magic'];
+						if($toreturn['voucher']['exponent'])
+							$newvoucher['exponent'] = $toreturn['voucher']['exponent'];
 						if($toreturn['voucher']['publickey'])
-							$config['voucher']['publickey'] = $toreturn['voucher']['publickey'];
+							$newvoucher['publickey'] = $toreturn['voucher']['publickey'];
 						if($toreturn['voucher']['privatekey'])
-							$config['voucher']['privatekey'] = $toreturn['voucher']['privatekey'];
-						if($toreturn['voucher']['msgnoaccess'])
-							$config['voucher']['msgnoaccess'] = $toreturn['voucher']['msgnoaccess'];
-						if($toreturn['voucher']['msgexpired'])
-							$config['voucher']['msgexpired'] = $toreturn['voucher']['msgexpired'];
-						if($toreturn['voucher']['msgnoaccess'])
-							$config['voucher']['msgnoaccess'] = $toreturn['voucher']['msgnoaccess'];
+							$newvoucher['privatekey'] = $toreturn['voucher']['privatekey'];
+						if($toreturn['voucher']['descrmsgnoaccess'])
+							$newvoucher['descrmsgnoaccess'] = $toreturn['voucher']['descrmsgnoaccess'];
+						if($toreturn['voucher']['descrmsgexpired'])
+							$newvoucher['descrmsgexpired'] = $toreturn['voucher']['descrmsgexpired'];
 						$savemsg = gettext("Voucher database has been synchronized from {$url}:{$port}");
 
+						$config['voucher'][$cpzone] = $newvoucher;
 						write_config();
-						voucher_configure(true);
+						voucher_configure_zone(true);
 					}
 				}
 			}
 		}
-		if($savemsg && isset($config['voucher']['enable']) && !isset($config['captiveportal']['enable'])) 
-			$savemsg .= "<br/>";
-		if (isset($config['voucher']['enable']) && !isset($config['captiveportal']['enable'])) 
-			$savemsg .= gettext("Don't forget to configure and enable Captive Portal.");
+		if (!$input_errors) {
+			header("Location: services_captiveportal_vouchers.php?zone={$cpzone}");
+			exit;
+		}
 	}
 }
 include("head.inc");
@@ -315,12 +365,12 @@ include("head.inc");
 <script type="text/javascript">
 <!--
 function generatenewkey() {
-	$('publickey').value = 'One moment please...';
-	$('privatekey').value = 'One moment please...';
-	new Ajax.Request("services_captiveportal_vouchers.php?generatekey=true", {
-		method: 'get',
-		onSuccess: function(transport) {	
-			eval(transport.responseText);
+	jQuery('#publickey').val('One moment please...');
+	jQuery('#privatekey').val('One moment please...');
+	jQuery.ajax("services_captiveportal_vouchers.php?zone=<?php echo($cpzone); ?>&generatekey=true", {
+		type: 'get',
+		success: function(data) {	
+			eval(data);
 		}
 	});		
 }
@@ -335,8 +385,8 @@ function before_save() {
 	document.iform.msgnoaccess.disabled = false;
 	document.iform.msgexpired.disabled = false;
 	for(var x=0; x < <?php echo count($a_roll); ?>; x++)
-		$('addeditdelete' + x).show();
-	$('addnewroll').show();
+		jQuery('#addeditdelete' + x).show();
+	jQuery('#addnewroll').show();
 }
 function enable_change(enable_change) {
 	var endis;
@@ -365,12 +415,12 @@ function enable_change(enable_change) {
 		document.iform.msgnoaccess.disabled = true;
 		document.iform.msgexpired.disabled = true;
 		for(var x=0; x < <?php echo count($a_roll); ?>; x++)
-			$('addeditdelete' + x).hide();
-		$('addnewroll').hide();
+			jQuery('#addeditdelete' + x).hide();
+		jQuery('#addnewroll').hide();
 	} else {
 		for(var x=0; x < <?php echo count($a_roll); ?>; x++)
-			$('addeditdelete' + x).show();
-		$('addnewroll').show();
+			jQuery('#addeditdelete' + x).show();
+		jQuery('#addnewroll').show();
 	}
 }
 //-->
@@ -384,12 +434,12 @@ function enable_change(enable_change) {
 			<ul id="tabnav">
 <?php 
 	$tab_array = array();
-	$tab_array[] = array(gettext("Captive portal"), false, "services_captiveportal.php");
-	$tab_array[] = array(gettext("Pass-through MAC"), false, "services_captiveportal_mac.php");
-	$tab_array[] = array(gettext("Allowed IP addresses"), false, "services_captiveportal_ip.php");
-	$tab_array[] = array(gettext("Allowed Hostnames"), false, "services_captiveportal_hostname.php");
-	$tab_array[] = array(gettext("Vouchers"), true, "services_captiveportal_vouchers.php");
-	$tab_array[] = array(gettext("File Manager"), false, "services_captiveportal_filemanager.php");
+	$tab_array[] = array(gettext("Captive portal"), false, "services_captiveportal.php?zone={$cpzone}");
+	$tab_array[] = array(gettext("Pass-through MAC"), false, "services_captiveportal_mac.php?zone={$cpzone}");
+	$tab_array[] = array(gettext("Allowed IP addresses"), false, "services_captiveportal_ip.php?zone={$cpzone}");
+	$tab_array[] = array(gettext("Allowed Hostnames"), false, "services_captiveportal_hostname.php?zone={$cpzone}");
+	$tab_array[] = array(gettext("Vouchers"), true, "services_captiveportal_vouchers.php?zone={$cpzone}");
+	$tab_array[] = array(gettext("File Manager"), false, "services_captiveportal_filemanager.php?zone={$cpzone}");
 	display_top_tabs($tab_array, true);
 ?> 
 			</ul>
@@ -434,14 +484,14 @@ function enable_change(enable_change) {
 									<?=htmlspecialchars($rollent['count']);?>&nbsp;
 								</td>
 								<td class="listr">
-									<?=htmlspecialchars($rollent['comment']); ?>&nbsp;
+									<?=htmlspecialchars($rollent['descr']); ?>&nbsp;
 								</td>
 								<td valign="middle" nowrap class="list"> 
 									<div id='addeditdelete<?=$i?>'>
 										<?php if ($pconfig['enable']): ?> 
-											<a href="services_captiveportal_vouchers_edit.php?id=<?=$i; ?>"><img src="/themes/<?=$g['theme']; ?>/images/icons/icon_e.gif" title="<?=gettext("edit voucher"); ?>" width="17" height="17" border="0" alt="<?=gettext("edit voucher"); ?>"></a>
-											<a href="services_captiveportal_vouchers.php?act=del&amp;id=<?=$i; ?>" onclick="return confirm('<?=gettext("Do you really want to delete this voucher? This makes all vouchers from this roll invalid"); ?>')"><img src="/themes/<?=$g['theme']; ?>/images/icons/icon_x.gif" title="<?=gettext("delete vouchers"); ?>" width="17" height="17" border="0" alt="<?=gettext("delete vouchers"); ?>"></a>
-											<a href="services_captiveportal_vouchers.php?act=csv&amp;id=<?=$i; ?>"><img src="/themes/<?=$g['theme']; ?>/images/icons/icon_log_s.gif" title="<?=gettext("generate vouchers for this roll to CSV file"); ?>" width="11" height="15" border="0" alt="<?=gettext("generate vouchers for this roll to CSV file"); ?>"></a>
+											<a href="services_captiveportal_vouchers_edit.php?zone=<?=$cpzone;?>&id=<?=$i; ?>"><img src="/themes/<?=$g['theme']; ?>/images/icons/icon_e.gif" title="<?=gettext("edit voucher"); ?>" width="17" height="17" border="0" alt="<?=gettext("edit voucher"); ?>"></a>
+											<a href="services_captiveportal_vouchers.php?zone=<?=$cpzone;?>&act=del&amp;id=<?=$i; ?>" onclick="return confirm('<?=gettext("Do you really want to delete this voucher? This makes all vouchers from this roll invalid"); ?>')"><img src="/themes/<?=$g['theme']; ?>/images/icons/icon_x.gif" title="<?=gettext("delete vouchers"); ?>" width="17" height="17" border="0" alt="<?=gettext("delete vouchers"); ?>"></a>
+											<a href="services_captiveportal_vouchers.php?zone=<?=$cpzone;?>&act=csv&amp;id=<?=$i; ?>"><img src="/themes/<?=$g['theme']; ?>/images/icons/icon_log_s.gif" title="<?=gettext("generate vouchers for this roll to CSV file"); ?>" width="11" height="15" border="0" alt="<?=gettext("generate vouchers for this roll to CSV file"); ?>"></a>
                     					<?php endif;?>
 									</div>
 								</td>
@@ -451,7 +501,7 @@ function enable_change(enable_change) {
 								<td class="list" colspan="4"></td>
 								<?php
 								if ($pconfig['enable']) 
-									echo "<td class=\"list\"><div id='addnewroll'> <a href=\"services_captiveportal_vouchers_edit.php\"><img src=\"/themes/{$g['theme']}/images/icons/icon_plus.gif\" title=\"" . gettext("add voucher") . "\" width=\"17\" height=\"17\" border=\"0\" alt=\"" . gettext("add voucher") . "\"></a></div></td>";
+									echo "<td class=\"list\"><div id='addnewroll'> <a href=\"services_captiveportal_vouchers_edit.php?zone={$cpzone}\"><img src=\"/themes/{$g['theme']}/images/icons/icon_plus.gif\" title=\"" . gettext("add voucher") . "\" width=\"17\" height=\"17\" border=\"0\" alt=\"" . gettext("add voucher") . "\"></a></div></td>";
 								?>
 							</tr>
 						</table>     
@@ -563,20 +613,22 @@ function enable_change(enable_change) {
 						<tr> 
 							<td width="22%" valign="top" class="vncellreq"><?=gettext("Voucher sync username"); ?></td>
 							<td width="78%" class="vtable">
-								<input name="vouchersyncusername" type="text" class="formfld" id="vouchersyncusername" size="25" value="<?=htmlspecialchars($pconfig['vouchersyncusername']);?>">
+								<input name="vouchersyncusername" type="text" class="formfld" id="vouchersyncusername" size="25" value="<?=htmlspecialchars($pconfig['vouchersyncusername']);?>" autocomplete="off">
 								<br><?=gettext("This is the username of the master voucher nodes webConfigurator."); ?>
 							</td>
 						</tr>
 						<tr> 
 							<td width="22%" valign="top" class="vncellreq"><?=gettext("Voucher sync password"); ?></td>
 							<td width="78%" class="vtable">
-								<input name="vouchersyncpass" type="password" class="formfld" id="vouchersyncpass" size="25" value="<?=htmlspecialchars($pconfig['vouchersyncpass']);?>">
+								<input name="vouchersyncpass" type="password" class="formfld" id="vouchersyncpass" size="25" value="<?=htmlspecialchars($pconfig['vouchersyncpass']);?>"  autocomplete="off">
 								<br><?=gettext("This is the password of the master voucher nodes webConfigurator."); ?>
 							</td>
 						</tr>
 						<tr>
 							<td width="22%" valign="top">&nbsp;</td>
 							<td width="78%">
+								<input type="hidden" name="zone" id="zone" value="<?=htmlspecialchars($cpzone);?>" />
+								<input type="hidden" name="exponent" id="exponent" value="<?=$pconfig['exponent'];?>" />
 								<input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save"); ?>" onClick="enable_change(true); before_save();"> 
 								<input type="button" class="formbtn" value="<?=gettext("Cancel"); ?>" onclick="history.back()">
 							</td>

@@ -1,7 +1,7 @@
 /*   cvs_sync
  *   Written by Scott Ullrich
  *   (C)2005-2007 Scott Ullrich
- *   (C)2010 Erik Fonnesbeck
+ *   (C)2010-2012 Erik Fonnesbeck
  *   Part of the pfSense project pfSsh.php subsystem
  */
 
@@ -11,31 +11,97 @@ require_once("shaper.inc");
 require_once("rrd.inc");
 require_once("pfsense-utils.inc");
 	
-conf_mount_rw();
-
-$GIT_REPO="git://github.com/bsdperimeter/pfsense.git";
+$GIT_PKG = "git"; // Either "git" or the full package URL
+$GIT_REPO = "git://github.com/pfsense/pfsense.git";
+$DEFAULT_BRANCH = "master";
 $CODIR =  "/root/pfsense/";
+$GITSYNC_MERGE = "/root/.gitsync_merge";
+
+/* NOTE: Set branches here */
+$branches = array(
+	"master" => "2.2 development branch",
+	"RELENG_2_1" => "2.1.* release branch",
+	"RELENG_2_0" => "2.0.* release branch",
+	"RELENG_1_2" => "1.2.* release branch",
+	"build_commit" => "The commit originally used to build the image"
+);
 
 global $g;
 global $argv;
 global $command_split;
 
-// If this parameter is set, all interactive functions are disabled
-// and neither PHP nor the web gui will be killed or restarted.
-$upgrading = in_array("--upgrading", $argv);
+if(is_array($command_split))
+	$temp_args = array_slice($command_split, 2);
+else
+	$temp_args = array_slice($argv, 3);
+
+$valid_args = array(
+	"--minimal" => "\tPerform a minimal copy of only the updated files.\n" .
+	               "\tNot recommended if the system has files modified by any method other\n" .
+	               "\tthan gitsync.\n",
+	"--help" => "\tDisplay this help list.\n"
+	);
+$args = array();
+$arg_count = 0;
+while(!empty($temp_args)) {
+	$arg = array_shift($temp_args);
+	if($arg[0] == '-') {
+		switch($arg) {
+			case "--help":
+				echo "Usage: playback gitsync [options] [[repository] <branch>]\nOptions:\n";
+				foreach($valid_args as $arg_name => $arg_desc)
+					echo $arg_name . "\n" . $arg_desc;
+				exit;
+			case "--upgrading":
+				// Disables all interactive functions and neither PHP
+				// nor the web GUI will be killed or restarted.
+				$upgrading = true;
+			case (isset($valid_args[$arg])):
+				$args[$arg] = true;
+				break;
+			default:
+				echo "Invalid option: {$arg}\nUse --help for usage information.\n";
+				exit;
+		}
+	} else {
+		$args[$arg_count++] = $arg;
+	}
+}
 
 unlink_if_exists("/tmp/config.cache");
+conf_mount_rw();
 
 if(!file_exists("/usr/local/bin/git")) {
-	echo "Cannot find git, fetching...";
-	if (($g['platform'] == "nanobsd") || ($g['platform'] == "embedded")) {
-		$pkgtmpdir = "/usr/bin/env PKG_TMPDIR=/root/ ";
-		$pkgstagingdir = "/root/tmp";
-		if (!is_dir($pkgstagingdir))
-			mkdir($pkgstagingdir);
-		$pkgstaging = "-t {$pkgstagingdir}/instmp.XXXXXX";
+	echo "Cannot find git, fetching...\n";
+	require_once("config.inc");
+	require_once("util.inc");
+	require_once("pkg-utils.inc");
+
+	echo "Trying to fetch package info...";
+	$pkg_info = get_pkg_info();
+	if ($pkg_info) {
+		echo " Done.\n";
+	} else {
+		$xmlrpc_base_url = isset($config['system']['altpkgrepo']['enable']) ? $config['system']['altpkgrepo']['xmlrpcbaseurl'] : $g['xmlrpcbaseurl'];
+		echo "\n" . sprintf(gettext(' >>> Unable to communicate with %1$s. Please verify DNS and interface configuration, and that %2$s has functional Internet connectivity.'), $xmlrpc_base_url, $g['product_name']) . "\n";
+		return;
 	}
-	system("{$pkgtmpdir}/usr/sbin/pkg_add {$pkgstaging} -r http://ftp-archive.freebsd.org/pub/FreeBSD-Archive/ports/`uname -m`/packages-8.1-release/All/git-1.7.1.1.tbz");
+	if (empty($pkg_info["git"])) {
+		echo "Can't locate git package in pfSense repo. Using FreeBSD pkg repo..";
+
+		if (($g['platform'] == "nanobsd") || ($g['platform'] == "embedded")) {
+			$pkgtmpdir = "/usr/bin/env PKG_TMPDIR=/root/ ";
+			$pkgstagingdir = "/root/tmp";
+			if (!is_dir($pkgstagingdir))
+				mkdir($pkgstagingdir);
+			$pkgstaging = "-t {$pkgstagingdir}/instmp.XXXXXX";
+		}
+		system("{$pkgtmpdir}/usr/sbin/pkg_add {$pkgstaging} -r {$GIT_PKG}");
+
+	} else {
+		install_package("git", $pkg_info["git"], true);
+		echo "Done.\n";
+	}
 }
 
 # Remove mainline if exists (older)
@@ -50,14 +116,6 @@ if(is_dir("/root/pfsense/RELENG_1_2"))
 if(is_dir("/root/pfsense/HEAD")) 
 	exec("rm -rf /root/pfsense/HEAD");
 
-/* NOTE: Set branches here */
-$branches = array(
-	"master" => "2.x development branch",
-	"RELENG_2_0" => "2.0 RC branch",
-	"RELENG_1_2" => "1.2* release branch",
-	"build_commit" => "The commit originally used to build the image"
-);
-
 if(file_exists("/root/cvssync_backup.tgz")) {
 	$backup_date = `ls -lah /root/cvssync_backup.tgz | awk '{ print $6,$7,$8 }'`;
 	$tmp = array("RESTORE" => "Restores prior CVSSync backup data performed at {$backup_date}");
@@ -71,24 +129,20 @@ if(is_dir("$CODIR/pfSenseGITREPO/pfSenseGITREPO")) {
 	unset($output_str);
 }
 
-if($command_split[2]) {
-	$branch = $command_split[2];
-} else {
-	if(!$argv[3] && !$upgrading) {
-		echo "\nCurrent repository is $GIT_REPO\n";
-		echo "\nPlease select which branch you would like to sync against:\n\n";
-		foreach($branches as $branchname => $branchdesc) {
-			echo "{$branchname} \t {$branchdesc}\n";
-		}
-		echo "\nOr alternatively you may enter a custom RCS branch URL (HTTP).\n\n";
-		$branch = readline("> ");
-		echo "\n";
-	} else {
-		$branch = $argv[3];
+if(!$args[0] && !$upgrading) {
+	echo "\nCurrent repository is $GIT_REPO\n";
+	echo "\nPlease select which branch you would like to sync against:\n\n";
+	foreach($branches as $branchname => $branchdesc) {
+		echo "{$branchname} \t {$branchdesc}\n";
 	}
+	echo "\nOr alternatively you may enter a custom RCS branch URL (Git or HTTP).\n\n";
+	$branch = readline("> ");
+	echo "\n";
+} else {
+	$branch = $args[0];
 }
 
-if($argv[4] == "NOBACKUP") 
+if($args[1] == "NOBACKUP") 
 	$nobackup = true;
 else 
 	$nobackup = false;
@@ -112,17 +166,24 @@ foreach($branches as $branchname => $branchdesc) {
 }
 if(!$found) {
 	if(isURL($branch) && !$upgrading) {
-		echo "\n";
-		echo "NOTE: $branch was not found.\n\n";
-		$command = readline("Is this a custom GIT URL? [y]? ");
-		if(strtolower($command) == "y" or $command == "") {
+		if($args[1]) {
 			$GIT_REPO = $branch;
-			$command = readline("Checkout which branch [RELENG_2_0]? ");
-			if($command == "")
-				$branch = "RELENG_2_0";
-			if($command) 
-				$branch = $command;
+			$branch = $args[1];
 			$found = true;
+		}
+		else {
+			echo "\n";
+			echo "NOTE: $branch was not found.\n\n";
+			$command = readline("Is this a custom GIT URL? [y]? ");
+			if(strtolower($command) == "y" or $command == "") {
+				$GIT_REPO = $branch;
+				$command = readline("Checkout which branch [${DEFAULT_BRANCH}]? ");
+				if($command == "")
+					$branch = $DEFAULT_BRANCH;
+				if($command) 
+					$branch = $command;
+				$found = true;
+			}
 		}
 	}
 	if(!$found) {
@@ -133,10 +194,10 @@ if(!$found) {
 }
 
 $merge_repos = array();
-if(file_exists("/root/.gitsync_merge")) {
-	$gitsync_merges = file("/root/.gitsync_merge", FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+if(file_exists($GITSYNC_MERGE)) {
+	$gitsync_merges = file($GITSYNC_MERGE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 	if(!empty($gitsync_merges) && is_array($gitsync_merges)) {
-		echo "\n===> Automatic merge list read from /root/.gitsync_merge\n";
+		echo "\n===> Automatic merge list read from ${GITSYNC_MERGE}\n";
 		foreach($gitsync_merges as $merge_line_num => $merge_line) {
 			$merge_comments = explode("#", trim($merge_line));
 			if(empty($merge_comments[0]))
@@ -155,14 +216,14 @@ if(file_exists("/root/.gitsync_merge")) {
 		}
 	}
 }
-if(!$command_split[2] && !$argv[3] && !$upgrading) {
+if(!$args[0] && !$upgrading) {
 	do {
-		echo "\nAdd a custom RCS branch URL (HTTP) to merge in or press enter if done.\n\n";
+		echo "\nAdd a custom RCS branch URL (Git or HTTP) to merge in or press enter if done.\n\n";
 		$merge_repo = readline("> ");
 		if(!empty($merge_repo)) {
-			$merge_branch = readline("Merge which branch [RELENG_2_0]? ");
+			$merge_branch = readline("Merge which branch [${DEFAULT_BRANCH}]? ");
 			if($merge_branch == "")
-				$merge_repos[] = array('repo' => $merge_repo, 'branch' => 'RELENG_2_0');
+				$merge_repos[] = array('repo' => $merge_repo, 'branch' => $DEFAULT_BRANCH);
 			else if($merge_branch)
 				$merge_repos[] = array('repo' => $merge_repo, 'branch' => $merge_branch);
 		}
@@ -200,7 +261,7 @@ if($branch == "build_commit") {
 	$git_cmd = array(
 		"cd $CODIR/pfSenseGITREPO/pfSenseGITREPO && git branch " . escapeshellarg($branch) . " 2>/dev/null",
 		"cd $CODIR/pfSenseGITREPO/pfSenseGITREPO && git checkout -f " . escapeshellarg($branch) . " 2>/dev/null",
-		"cd $CODIR/pfSenseGITREPO/pfSenseGITREPO && git reset --hard `cat /etc/version.lastcommit`"
+		"cd $CODIR/pfSenseGITREPO/pfSenseGITREPO && git reset --hard " . escapeshellarg(trim(file_get_contents("/etc/version.lastcommit")))
 	);
 } else {
 	$git_cmd = array(
@@ -240,6 +301,18 @@ foreach($merge_repos as $merge_repo) {
 	}
 }
 
+if(isset($args["--minimal"])) {
+	if(file_exists("/etc/version.gitsync"))
+		$old_revision = trim(file_get_contents("/etc/version.gitsync"));
+	else if(file_exists("/etc/version.lastcommit"))
+		$old_revision = trim(file_get_contents("/etc/version.lastcommit"));
+	$files_to_copy = strtr(shell_exec("cd $CODIR/pfSenseGITREPO/pfSenseGITREPO && git diff --name-only " . escapeshellarg($old_revision)), "\n", " ");
+} else
+	$files_to_copy = '--exclude .git .';
+
+// Save new commit ID for later minimal file copies
+exec("cd $CODIR/pfSenseGITREPO/pfSenseGITREPO && git rev-parse -q --verify HEAD > /etc/version.gitsync");
+
 exec("mkdir -p /tmp/lighttpd/cache/compress/");
 
 // Nuke CVS and pfSense tarballs
@@ -267,19 +340,25 @@ exec("rm -f ${CODIR}/pfSenseGITREPO/pfSenseGITREPO/etc/syslog.conf 2>/dev/null")
 
 echo "===> Installing new files...\n";
 
-// Don't include the .git directory in the copy
-exec("mv $CODIR/pfSenseGITREPO/pfSenseGITREPO/.git $CODIR/pfSenseGITREPO/gitsync_temp.git");
-
 if($g['platform'] == "pfSense") 
-	$command = "cd $CODIR/pfSenseGITREPO/pfSenseGITREPO ; tar -cpf - . | (cd / ; tar -Uxpf -)";
+	$command = "cd $CODIR/pfSenseGITREPO/pfSenseGITREPO ; tar -cpf - {$files_to_copy} | (cd / ; tar -Uxpf -)";
 else 
-	$command = "cd $CODIR/pfSenseGITREPO/pfSenseGITREPO ; tar -cpf - . | (cd / ; tar -xpf -) 2>/dev/null";
-exec($command);
-
-exec("mv $CODIR/pfSenseGITREPO/gitsync_temp.git $CODIR/pfSenseGITREPO/pfSenseGITREPO/.git");
+	$command = "cd $CODIR/pfSenseGITREPO/pfSenseGITREPO ; tar -cpf - {$files_to_copy} | (cd / ; tar -xpf -) 2>/dev/null";
+if(!empty($files_to_copy))
+	exec($command);
+else {
+	echo "Already up-to-date.\n";
+	$upgrading = true;
+}
 
 // Reset the repository to restore the deleted files
 exec("cd $CODIR/pfSenseGITREPO/pfSenseGITREPO && git reset --hard >/dev/null 2>/dev/null");
+
+// Remove obsolete files
+$files_to_remove = file("/etc/pfSense.obsoletedfiles");
+foreach($files_to_remove as $file_to_remove) 
+	if(file_exists($file_to_remove)) 
+		exec("/bin/rm -f $file_to_remove");
 
 if(!$upgrading)
 	post_cvssync_commands();
@@ -334,7 +413,7 @@ function isUrl($url = "") {
 	if($url) 
 		if(strstr($url, "rcs.pfsense.org") or 
 			strstr($url, "mainline") or 
-				strstr($url, ".git"))
+				strstr($url, ".git") or strstr($url, "git://"))
 					return true;
 	return false;
 }

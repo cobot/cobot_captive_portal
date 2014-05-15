@@ -2,7 +2,7 @@
 /* $Id$ */
 /*
 	firewall_virtual_ip.php
-	part of pfSense (http://www.pfsense.com/)
+	part of pfSense (https://www.pfsense.org/)
 
 	Copyright (C) 2005 Bill Marquette <bill.marquette@gmail.com>.
 	All rights reserved.
@@ -78,9 +78,6 @@ if ($_POST) {
                 			case "carp":
                         			interface_carp_configure($a_vip[$vid]);
 						break;
-                			case "carpdev-dhcp":
-                        			interface_carpdev_configure($a_vip[$vid]);
-                        			break;
                 			default:
                         			break;
 					}
@@ -110,23 +107,75 @@ if ($_GET['act'] == "del") {
 			}
 		}
 
-		if ($a_vip[$_GET['id']]['mode'] == "ipalias") {
-			$vipiface = $a_vip[$_GET['id']]['interface'];
-			foreach ($a_vip as $vip) {
-				if ($vip['interface'] == $vipiface && $vip['mode'] == "carp")
-					if (ip_in_subnet($vip['subnet'], gen_subnet($a_vip[$_GET['id']]['subnet'], $a_vip[$_GET['id']]['subnet_bits']) . "/" . $a_vip[$_GET['id']]['subnet_bits']))
-						$input_errors[] = gettext("This entry cannot be deleted because it is still referenced by CARP") . " {$vip['descr']}.";
+		if (is_ipaddrv6($a_vip[$_GET['id']]['subnet'])) {
+			$is_ipv6 = true;
+			$subnet = gen_subnetv6($a_vip[$_GET['id']]['subnet'], $a_vip[$_GET['id']]['subnet_bits']);
+			$if_subnet_bits = get_interface_subnetv6($a_vip[$_GET['id']]['interface']);
+			$if_subnet = gen_subnetv6(get_interface_ipv6($a_vip[$_GET['id']]['interface']), $if_subnet_bits);
+		} else {
+			$is_ipv6 = false;
+			$subnet = gen_subnet($a_vip[$_GET['id']]['subnet'], $a_vip[$_GET['id']]['subnet_bits']);
+			$if_subnet_bits = get_interface_subnet($a_vip[$_GET['id']]['interface']);
+			$if_subnet = gen_subnet(get_interface_ip($a_vip[$_GET['id']]['interface']), $if_subnet_bits);
+		}
+
+		$subnet .= "/" . $a_vip[$_GET['id']]['subnet_bits'];
+		$if_subnet .= "/" . $if_subnet_bits;
+
+		if (is_array($config['gateways']['gateway_item']))
+			foreach($config['gateways']['gateway_item'] as $gateway) {
+				if ($a_vip[$_GET['id']]['interface'] != $gateway['interface'])
+					continue;
+				if ($is_ipv6 && $gateway['ipprotocol'] == 'inet')
+					continue;
+				if (!$is_ipv6 && $gateway['ipprotocol'] == 'inet6')
+					continue;
+				if (ip_in_subnet($gateway['gateway'], $if_subnet))
+					continue;
+
+				if (ip_in_subnet($gateway['gateway'], $subnet)) {
+					$input_errors[] = gettext("This entry cannot be deleted because it is still referenced by at least one Gateway.");
+					break;
+				}
 			}
+
+		if ($a_vip[$_GET['id']]['mode'] == "ipalias") {
+			$found_carp = false;
+			$found_other_alias = false;
+
+			$vipiface = $a_vip[$_GET['id']]['interface'];
+			foreach ($a_vip as $vip_id => $vip) {
+				if ($vip_id == $_GET['id'])
+					continue;
+
+				if ($vip['interface'] == $vipiface && ip_in_subnet($vip['subnet'], gen_subnet($a_vip[$_GET['id']]['subnet'], $a_vip[$_GET['id']]['subnet_bits']) . "/" . $a_vip[$_GET['id']]['subnet_bits']))
+					if ($vip['mode'] == "carp")
+						$found_carp = true;
+					else if ($vip['mode'] == "ipalias")
+						$found_other_alias = true;
+			}
+
+			if ($found_carp === true && $found_other_alias === false)
+				$input_errors[] = gettext("This entry cannot be deleted because it is still referenced by a CARP IP with the description") . " {$vip['descr']}.";
 		} else if ($a_vip[$_GET['id']]['mode'] == "carp") {
-			$vipiface = "vip{$a_vip[$_GET['id']]['vhid']}";
+			$vipiface = "{$a_vip[$_GET['id']]['interface']}_vip{$a_vip[$_GET['id']]['vhid']}";
 			foreach ($a_vip as $vip) {
 				if ($vipiface == $vip['interface'] && $vip['mode'] == "ipalias")
-					$input_errors[] = gettext("This entry cannot be deleted because it is still referenced by ip alias entry") . " {$vip['descr']}.";
+					$input_errors[] = gettext("This entry cannot be deleted because it is still referenced by an IP alias entry with the description") . " {$vip['descr']}.";
 			}
 		}
 
 		
 		if (!$input_errors) {
+			if (!session_id())
+				session_start();
+			$user = getUserEntry($_SESSION['Username']);
+			if (is_array($user) && userHasPrivilege($user, "user-config-readonly")) {
+				header("Location: firewall_virtual_ip.php");
+				exit;
+			}
+			session_commit();
+
 			// Special case since every proxyarp vip is handled by the same daemon.
 			if ($a_vip[$_GET['id']]['mode'] == "proxyarp") {
 				$viface = $a_vip[$_GET['id']]['interface'];
@@ -143,7 +192,7 @@ if ($_GET['act'] == "del") {
 			exit;
 		}
 	}
-} else if ($_GET['changes'] == "mods")
+} else if ($_GET['changes'] == "mods" && is_numericint($_GET['id']))
 	$id = $_GET['id'];
 
 $pgtitle = array(gettext("Firewall"),gettext("Virtual IP Addresses"));
@@ -161,42 +210,50 @@ include("head.inc");
 		print_info_box($savemsg); 
 	else
 	if (is_subsystem_dirty('vip'))
-		print_info_box_np(gettext("The VIP configuration has been changed.")."<br>".gettext("You must apply the changes in order for them to take effect."));
+		print_info_box_np(gettext("The VIP configuration has been changed.")."<br/>".gettext("You must apply the changes in order for them to take effect."));
 ?>
-<br>
-<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<br/>
+<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="virtual ip">
   <tr><td class="tabnavtbl">
   <?php
         /* active tabs */
         $tab_array = array();
         $tab_array[] = array(gettext("Virtual IPs"), true, "firewall_virtual_ip.php");
-        $tab_array[] = array(gettext("CARP Settings"), false, "pkg_edit.php?xml=carp_settings.xml&id=0");
+        $tab_array[] = array(gettext("CARP Settings"), false, "system_hasync.php");
         display_top_tabs($tab_array);
   ?>
   </td></tr>
   <tr>
-	<td><input type="hidden" id="id" name="id" value="<? echo $id; ?>"></td>
+	<td><input type="hidden" id="id" name="id" value="<?php echo htmlspecialchars($id); ?>" /></td>
   </tr>
   <tr>
     <td>
 	<div id="mainarea">
-              <table class="tabcont" width="100%" border="0" cellpadding="0" cellspacing="0">
+              <table class="tabcont" width="100%" border="0" cellpadding="0" cellspacing="0" summary="main area">
                 <tr>
                   <td width="30%" class="listhdrr"><?=gettext("Virtual IP address");?></td>
+                  <td width="10%" class="listhdrr"><?=gettext("Interface");?></td>
                   <td width="10%" class="listhdrr"><?=gettext("Type");?></td>
                   <td width="40%" class="listhdr"><?=gettext("Description");?></td>
                   <td width="10%" class="list">
-                    <table border="0" cellspacing="0" cellpadding="1">
+                    <table border="0" cellspacing="0" cellpadding="1" summary="edit">
                       <tr>
 			<td width="17"></td>
-                        <td valign="middle"><a href="firewall_virtual_ip_edit.php"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_plus.gif" width="17" height="17" border="0"></a></td>
+                        <td valign="middle"><a href="firewall_virtual_ip_edit.php"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_plus.gif" width="17" height="17" border="0" alt="edit" /></a></td>
                       </tr>
                     </table>
 		  </td>
 		</tr>
+		<?php
+			$interfaces = get_configured_interface_with_descr(false, true);
+			$carplist = get_configured_carp_interface_list();
+			foreach ($carplist as $cif => $carpip)
+				$interfaces[$cif] = $carpip." (".get_vip_descr($carpip).")";
+			$interfaces['lo0'] = "Localhost";
+		?>
 			  <?php $i = 0; foreach ($a_vip as $vipent): ?>
 			  <?php if($vipent['subnet'] <> "" or $vipent['range'] <> "" or
-			        $vipent['subnet_bits'] <> "" or (isset($vipent['range']['from']) && $vipent['range']['from'] <> "") or $vipent['mode'] == "carpdev-dhcp"): ?>
+			        $vipent['subnet_bits'] <> "" or (isset($vipent['range']['from']) && $vipent['range']['from'] <> "")): ?>
                 <tr>
                   <td class="listlr" ondblclick="document.location='firewall_virtual_ip_edit.php?id=<?=$i;?>';">
 					<?php	if (($vipent['type'] == "single") || ($vipent['type'] == "network"))
@@ -205,20 +262,22 @@ include("head.inc");
 							if ($vipent['type'] == "range")
 								echo "{$vipent['range']['from']}-{$vipent['range']['to']}";
 					?>
-					<?php if($vipent['mode'] == "carpdev-dhcp") echo "DHCP"; ?>
-					<?php if($vipent['mode'] == "carp" or $vipent['mode'] == "carpdev-dhcp") echo " (vhid {$vipent['vhid']})"; ?>
+					<?php if($vipent['mode'] == "carp") echo " (vhid {$vipent['vhid']})"; ?>
+                  </td>
+                  <td class="listr" ondblclick="document.location='firewall_virtual_ip_edit.php?id=<?=$i;?>';">
+                    <?=htmlspecialchars($interfaces[$vipent['interface']]);?>&nbsp;
                   </td>
                   <td class="listr" align="center" ondblclick="document.location='firewall_virtual_ip_edit.php?id=<?=$i;?>';">
-                    <? if($vipent['mode'] == "proxyarp") echo "<img src='./themes/".$g['theme']."/images/icons/icon_parp.gif' title='Proxy ARP'>"; elseif($vipent['mode'] == "carp" or $vipent['mode'] == "carpdev-dhcp") echo "<img src='./themes/".$g['theme']."/images/icons/icon_carp.gif' title='CARP'>"; elseif($vipent['mode'] == "other") echo "<img src='./themes/".$g['theme']."/images/icons/icon_other.gif' title='Other'>"; elseif($vipent['mode'] == "ipalias") echo "<img src='./themes/".$g['theme']."/images/icons/icon_ifalias.gif' title='IP Alias'>";?>
+                    <?php if($vipent['mode'] == "proxyarp") echo "<img src='./themes/".$g['theme']."/images/icons/icon_parp.gif' title='Proxy ARP' alt='proxy arp' />"; elseif($vipent['mode'] == "carp") echo "<img src='./themes/".$g['theme']."/images/icons/icon_carp.gif' title='CARP' alt='carp' />"; elseif($vipent['mode'] == "other") echo "<img src='./themes/".$g['theme']."/images/icons/icon_other.gif' title='Other' alt='other' />"; elseif($vipent['mode'] == "ipalias") echo "<img src='./themes/".$g['theme']."/images/icons/icon_ifalias.gif' title='IP Alias' alt='ip alias' />";?>
                   </td>
                   <td class="listbg" ondblclick="document.location='firewall_virtual_ip_edit.php?id=<?=$i;?>';">
                     <?=htmlspecialchars($vipent['descr']);?>&nbsp;
                   </td>
-                  <td class="list" nowrap>
-                    <table border="0" cellspacing="0" cellpadding="1">
+                  <td class="list nowrap">
+                    <table border="0" cellspacing="0" cellpadding="1" summary="icons">
                       <tr>
-                        <td valign="middle"><a href="firewall_virtual_ip_edit.php?id=<?=$i;?>"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_e.gif" width="17" height="17" border="0"></a></td>
-                        <td valign="middle"><a href="firewall_virtual_ip.php?act=del&id=<?=$i;?>" onclick="return confirm('<?=gettext('Do you really want to delete this entry?');?>')"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_x.gif" width="17" height="17" border="0"></a></td>
+                        <td valign="middle"><a href="firewall_virtual_ip_edit.php?id=<?=$i;?>"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_e.gif" width="17" height="17" border="0" alt="edit" /></a></td>
+                        <td valign="middle"><a href="firewall_virtual_ip.php?act=del&amp;id=<?=$i;?>" onclick="return confirm('<?=gettext('Do you really want to delete this entry?');?>')"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_x.gif" width="17" height="17" border="0" alt="delete" /></a></td>
                       </tr>
                     </table>
                   </td>
@@ -226,25 +285,26 @@ include("head.inc");
 		<?php endif; ?>
                 <?php $i++; endforeach; ?>
                 <tr>
-                  <td class="list" colspan="3"></td>
+                  <td class="list" colspan="4"></td>
                   <td class="list">
-                    <table border="0" cellspacing="0" cellpadding="1">
+                    <table border="0" cellspacing="0" cellpadding="1" summary="edit">
                       <tr>
 			<td width="17"></td>
-                        <td valign="middle"><a href="firewall_virtual_ip_edit.php"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_plus.gif" width="17" height="17" border="0"></a></td>
+                        <td valign="middle"><a href="firewall_virtual_ip_edit.php"><img src="./themes/<?= $g['theme']; ?>/images/icons/icon_plus.gif" width="17" height="17" border="0" alt="edit" /></a></td>
                       </tr>
                     </table>
                   </td>
                 </tr>
 		<tr>
-		  <td colspan="4">
-		      <p><span class="vexpl"><span class="red"><strong><?=gettext("Note:");?><br>
-                      </strong></span><?=gettext("The virtual IP addresses defined on this page may be used in");?><a href="firewall_nat.php"> <?=gettext("NAT"); ?> </a><?=gettext("mappings.");?><br>
+		  <td colspan="5">
+		      <p><span class="vexpl"><span class="red"><strong><?=gettext("Note:");?><br/>
+                      </strong></span><?=gettext("The virtual IP addresses defined on this page may be used in");?><a href="firewall_nat.php"> <?=gettext("NAT"); ?> </a><?=gettext("mappings.");?><br/>
                       <?=gettext("You can check the status of your CARP Virtual IPs and interfaces ");?><a href="carp_status.php"><?=gettext("here");?></a>.</span></p>
 		  </td>
 		</tr>
               </table>
-	   </div>
+	   </div><!-- div:mainarea -->
+	   </td></tr>
 	</table>
             </form>
 <?php include("fend.inc"); ?>

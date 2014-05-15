@@ -30,14 +30,14 @@
 	POSSIBILITY OF SUCH DAMAGE.
 */
 /*
-	pfSense_BUILDER_BINARIES:	/usr/sbin/fifolog_reader	/usr/bin/tail	/usr/sbin/clog
+	pfSense_BUILDER_BINARIES:	/usr/sbin/fifolog_reader	/usr/bin/tail	/usr/local/sbin/clog
 	pfSense_MODULE:	filter
 */
 
 require 'config.inc';
 
 /* format filter logs */
-function conv_log_filter($logfile, $nentries, $tail = 50, $filtertext = "") {
+function conv_log_filter($logfile, $nentries, $tail = 50, $filtertext = "", $filterinterface = null) {
 	global $config, $g;
 
 	/* Make sure this is a number before using it in a system call */
@@ -55,23 +55,27 @@ function conv_log_filter($logfile, $nentries, $tail = 50, $filtertext = "") {
 	$logarr = "";
 
 	if(isset($config['system']['usefifolog']))
-		exec("/usr/sbin/fifolog_reader {$logfile} | /usr/bin/tail -r -n {$tail}", $logarr);
+		exec("/usr/sbin/fifolog_reader " . escapeshellarg($logfile) . " | /usr/bin/tail -r -n {$tail}", $logarr);
 	else
-		exec("/usr/sbin/clog {$logfile} | grep -v \"CLOG\" | grep -v \"\033\" | /usr/bin/tail -r -n {$tail}", $logarr);
+		exec("/usr/local/sbin/clog " . escapeshellarg($logfile) . " | grep -v \"CLOG\" | grep -v \"\033\" | /usr/bin/tail -r -n {$tail}", $logarr);
 
 	$filterlog = array();
 	$counter = 0;
 
 	$logarr = array_reverse(collapse_filter_lines(array_reverse($logarr)));
-
+	$filterinterface = strtoupper($filterinterface);
 	foreach ($logarr as $logent) {
 		if($counter >= $nentries)
 			break;
 
 		$flent = parse_filter_line($logent);
-		if (($flent != "") && (match_filter_line($flent, $filtertext))) {
-			$counter++;
-			$filterlog[] = $flent;
+		if (!$filterinterface || ($filterinterface == $flent['interface']))
+		{
+			if ( ( ($flent != "") && (!is_array($filtertext)) && (match_filter_line ($flent, $filtertext))) || 
+			     ( ($flent != "") && ( is_array($filtertext)) && (match_filter_field($flent, $filtertext)) ) ) {
+				$counter++;
+				$filterlog[] = $flent;
+			}
 		}
 	}
 	/* Since the lines are in reverse order, flip them around if needed based on the user's preference */
@@ -83,6 +87,29 @@ function match_filter_line($flent, $filtertext = "") {
 		return true;
 	$filtertext = str_replace(' ', '\s+', $filtertext);
 	return preg_match("/{$filtertext}/i", implode(" ", array_values($flent)));
+}
+
+function match_filter_field($flent, $fields) {
+	foreach ($fields as $field) {
+		if ($fields[$field] == "All") continue;
+		if ((strpos($fields[$field], '!') === 0)) {
+			$fields[$field] = substr($fields[$field], 1);
+			if (preg_match("/act/i", $field)) {
+				if ( (in_arrayi($flent[$field], explode(",", str_replace(" ", ",", $fields[$field]))) ) ) return false;
+			} else if ( (preg_match("/{$fields[$field]}/i", $flent[$field])) ) return false;
+		}
+		else {
+			if (preg_match("/act/i", $field)) {
+				if ( !(in_arrayi($flent[$field], explode(",", str_replace(" ", ",", $fields[$field]))) ) ) return false;
+			} else if ( !(preg_match("/{$fields[$field]}/i", $flent[$field])) ) return false;
+		}
+	}	
+	return true;
+}
+
+// Case Insensitive in_array function
+function in_arrayi($needle, $haystack) {
+    return in_array(strtolower($needle), array_map('strtolower', $haystack));
 }
 
 function collapse_filter_lines($logarr) {
@@ -109,9 +136,9 @@ function collapse_filter_lines($logarr) {
 function parse_filter_line($line) {
 	global $config, $g;
 	$log_split = "";
-	preg_match("/(.*)\s(.*)\spf:\s.*\srule\s(.*)\(match\)\:\s(.*)\s\w+\son\s(\w+)\:\s\((.*)\)\s(.*)\s>\s(.*)\:\s(.*)/", $line, $log_split);
+	preg_match("/(.*)\s(.*)\spf:\s.*\srule\s(.*)\(match\)\:\s(.*)\s(\w+)\son\s(\w+)\:\s\((.*)\)\s(.*)\s>\s(.*)\:\s(.*)/", $line, $log_split);
 
-	list($all, $flent['time'], $host, $rule, $flent['act'], $flent['realint'], $details, $src, $dst, $leftovers) = $log_split;
+	list($all, $flent['time'], $host, $rule, $flent['act'], $flent['direction'], $flent['realint'], $details, $src, $dst, $leftovers) = $log_split;
 
 	list($flent['srcip'], $flent['srcport']) = parse_ipport($src);
 	list($flent['dstip'], $flent['dstport']) = parse_ipport($dst);
@@ -126,7 +153,7 @@ function parse_filter_line($line) {
 
 	$flent['interface']  = convert_real_interface_to_friendly_descr($flent['realint']);
 
-	$tmp = split("/", $rule);
+	$tmp = explode("/", $rule);
 	$flent['rulenum'] = $tmp[0];
 
 	$proto = array(" ", "(?)");
@@ -135,6 +162,8 @@ function parse_filter_line($line) {
 	 * boolean FALSE because it could return a valid answer of 0 upon success. */
 	if (!(strpos($details, 'proto ') === FALSE)) {
 		preg_match("/.*\sproto\s(.*)\s\(/", $details, $proto);
+	} elseif (!(strpos($details, 'next-header ') === FALSE)) {
+		preg_match("/.*\snext-header\s(.*)\s\(/", $details, $proto);
 	} elseif (!(strpos($details, 'proto: ') === FALSE)) {
 		preg_match("/.*\sproto\:(.*)\s\(/", $details, $proto);
 	} elseif (!(strpos($leftovers, 'sum ok] ') === FALSE)) {
@@ -142,16 +171,28 @@ function parse_filter_line($line) {
 	} elseif (!(strpos($line, 'sum ok] ') === FALSE)) {
 		preg_match("/.*\ssum ok]\s(.*)\,\s.*/", $line, $proto);
 	}
-	$proto = split(" ", trim($proto[1]));
+	$proto = explode(" ", trim($proto[1]));
 	$flent['proto'] = rtrim($proto[0], ",");
 
 	/* If we're dealing with TCP, try to determine the flags/control bits */
 	$flent['tcpflags'] = "";
 	if ($flent['proto'] == "TCP") {
-		$flags = split('[\, ]', $leftovers);
+		$flags = preg_split('/[, ]/', $leftovers);
 		$flent['tcpflags'] = str_replace(".", "A", substr($flags[1], 1, -1));
 	} elseif ($flent['proto'] == "Options") {
-		$flent['proto'] = "none";
+		/* Then there must be some info we missed */
+		if (!(strpos($leftovers, 'sum ok] ') === FALSE)) {
+			preg_match("/.*\ssum ok]\s(.*)\,\s.*/", $leftovers, $proto);
+		} elseif (!(strpos($line, 'sum ok] ') === FALSE)) {
+			preg_match("/.*\ssum ok]\s(.*)\,\s.*/", $line, $proto);
+		}
+		$proto = explode(" ", trim($proto[1]));
+		$flent['proto'] = rtrim($proto[0], ",");
+		/* If it's still 'Options', then just ignore it. */
+		if ($flent['proto'] == "Options")
+			$flent['proto'] = "none";
+	} elseif (($flent['proto'] == "unknown") && (!(strpos($line, ':  pfsync') === FALSE))) {
+		$flent['proto'] = "PFSYNC";
 	}
 
 	/* If there is a src, a dst, and a time, then the line should be usable/good */
@@ -159,32 +200,34 @@ function parse_filter_line($line) {
 		return $flent;
 	} else {
 		if($g['debug']) {
-			log_error("There was a error parsing rule: $errline.   Please report to mailing list or forum.");
+			log_error(sprintf(gettext("There was a error parsing rule: %s.   Please report to mailing list or forum."), $errline));
 		}
 		return "";
 	}
 }
 
 function parse_ipport($addr) {
-	$addr = rtrim($addr, ":");
+	$addr = trim(rtrim($addr, ":"));
+	if (substr($addr, 0, 4) == "kip ")
+		$addr = substr($addr, 4);
 	$port = '';
 	if (substr_count($addr, '.') > 1) {
 		/* IPv4 */
-		$addr_split = split("\.", $addr);
+		$addr_split = explode(".", $addr);
 		$ip = "{$addr_split[0]}.{$addr_split[1]}.{$addr_split[2]}.{$addr_split[3]}";
 
 		if ($ip == "...")
 			return array($addr, '');
 
 		if($addr_split[4] != "") {
-			$port_split = split("\:", $addr_split[4]);
+			$port_split = explode(":", $addr_split[4]);
 			$port = $port_split[0];
 		}
 	} else {
 		/* IPv6 */
-		$addr = split(" ", $addr);
+		$addr = explode(" ", $addr);
 		$addr = rtrim($addr[0], ":");
-		$addr_split = split("\.", $addr);
+		$addr_split = explode(".", $addr);
 		if (count($addr_split) > 1) {
 			$ip   = $addr_split[0];
 			$port = $addr_split[1];
@@ -203,7 +246,7 @@ function get_port_with_service($port, $proto) {
 	$service = getservbyport($port, $proto);
 	$portstr = "";
 	if ($service) {
-		$portstr = "<span title=\"Service {$port}/{$proto}: {$service}\">" . htmlspecialchars($port) . "</span>";
+		$portstr = sprintf('<span title="' . gettext('Service %1$s/%2$s: %3$s') . '">' . htmlspecialchars($port) . '</span>', $port, $proto, $service);
 	} else {
 		$portstr = htmlspecialchars($port);
 	}
@@ -220,6 +263,40 @@ function find_rule_by_number($rulenum, $type="rules") {
 		return `pfctl -vvsn -a "miniupnpd" | grep '^@{$rulenum} '`;
 	else
 		return `pfctl -vvsr | grep '^@{$rulenum} '`;
+}
+
+function buffer_rules_load() {
+    global $buffer_rules_rdr, $buffer_rules_normal;
+	$buffer = explode("\n",`pfctl -vvsn -a "miniupnpd" | grep '^@'`);
+	foreach ($buffer as $line) {
+		list($key, $value) = explode (" ", $line, 2);
+		$buffer_rules_rdr[$key] = $value;
+	}	
+	$buffer = explode("\n",`pfctl -vvsr | grep '^@'`);
+	foreach ($buffer as $line) {
+		list($key, $value) = explode (" ", $line, 2);
+		$buffer_rules_normal[$key] = $value;
+	}	
+}
+
+function buffer_rules_clear() {
+	unset($GLOBALS['buffer_rules_normal']);
+	unset($GLOBALS['buffer_rules_rdr']);
+}
+
+function find_rule_by_number_buffer($rulenum, $type){
+    global $g, $buffer_rules_rdr, $buffer_rules_normal;
+	
+	if ($type == "rdr")	{
+		$ruleString = $buffer_rules_rdr["@".$rulenum];
+		//TODO: get the correct 'description' part of a RDR log line. currently just first 30 characters..
+		$rulename = substr($ruleString,0,30);
+	} else {
+		$ruleString = $buffer_rules_normal["@".$rulenum];
+		list(,$rulename,) = explode("\"",$ruleString);
+		$rulename = str_replace("USER_RULE: ",'<img src="/themes/'.$g['theme'].'/images/icons/icon_frmfld_user.png" width="11" height="12" title="USER_RULE" alt="USER_RULE"/> ',htmlspecialchars($rulename));
+	}
+	return $rulename." (@".$rulenum.")";
 }
 
 function find_action_image($action) {
@@ -271,7 +348,7 @@ function handle_ajax($nentries, $tail = 50) {
 					$log_row['proto'] .= ":{$log_row['tcpflags']}";
 
 				$img = "<a href=\"#\" onClick=\"javascript:getURL('diag_logs_filter.php?getrulenum={$log_row['rulenum']},{$log_row['rulenum']}', outputrule);\">{$img}</a>";
-				$new_rules .= "{$img}||{$log_row['time']}||{$log_row['interface']}||{$log_row['src']}||{$log_row['dst']}||{$log_row['proto']}||" . time() . "||\n";
+				$new_rules .= "{$img}||{$log_row['time']}||{$log_row['interface']}||{$log_row['srcip']}||{$log_row['dst']}||{$log_row['proto']}||" . time() . "||\n";
 			}
 		}
 		echo $new_rules;

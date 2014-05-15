@@ -61,10 +61,6 @@ if($_POST['disablecarp'] <> "") {
                                        		interface_vip_bring_down($vip);
                                        		sleep(1);
                                        	break;
-                                       	case "carpdev-dhcp":
-                                       		interface_vip_bring_down($vip);
-                                       		sleep(1);
-                                       	break;
                                	}
                 	}
         	}
@@ -79,12 +75,8 @@ if($_POST['disablecarp'] <> "") {
 						interface_carp_configure($vip);
 						sleep(1);
 					break;
-					case "carpdev-dhcp":
-						interface_carpdev_configure($vip);
-						sleep(1);
-					break;
 					case "ipalias":
-						if (substr($vip['interface'], 0, 3) == "vip")
+						if (strstr($vip['interface'], "_vip"))
 							interface_ipalias_configure($vip);
 					break;
                                 }
@@ -98,6 +90,7 @@ if($_POST['disablecarp'] <> "") {
 $status = get_carp_status();
 
 $pgtitle = array(gettext("Status"),gettext("CARP"));
+$shortcut_section = "carp";
 include("head.inc");
 
 ?>
@@ -132,16 +125,16 @@ include("head.inc");
 			}
 ?>
 
-			<p>
+			<p/>
 			<table class="tabcont sortable" width="100%" border="0" cellpadding="6" cellspacing="0">
 				<tr>
-					<td class="listhdrr"><b><center><?=gettext("CARP Interface"); ?></center></b></td>
-					<td class="listhdrr"><b><center><?=gettext("Virtual IP"); ?></center></b></td>
-					<td class="listhdrr"><b><center><?=gettext("Status"); ?></center></b></td>
+					<td class="listhdrr" style="text-align:center"><b><?=gettext("CARP Interface"); ?></b></td>
+					<td class="listhdrr" style="text-align:center"><b><?=gettext("Virtual IP"); ?></b></td>
+					<td class="listhdrr" style="text-align:center"><b><?=gettext("Status"); ?></b></td>
 				</tr>
 <?php
 				if ($carpcount == 0) {
-					echo "</td></tr></table></table></div><center><br>" . gettext("Could not locate any defined CARP interfaces.");
+					echo "</table></td></tr></table></div></form><center><br/>" . gettext("Could not locate any defined CARP interfaces.");
 					echo "</center>";
 
 					include("fend.inc");
@@ -159,7 +152,7 @@ include("head.inc");
 						$vhid = $carp['vhid'];
 						$advskew = $carp['advskew'];
 						$advbase = $carp['advbase'];
-						$carp_int = "vip{$vhid}";
+						$carp_int = "{$carp['interface']}_vip{$vhid}";
 						$status = get_carp_interface_status($carp_int);
 						echo "<tr>";
 						$align = "valign='middle'";
@@ -175,9 +168,9 @@ include("head.inc");
 								$icon = "<img {$align} src='/themes/".$g['theme']."/images/icons/icon_log.gif'>";
 							}
 						}
-						echo "<td class=\"listlr\"><center>" . $carp_int . "&nbsp;</td>";
-						echo "<td class=\"listlr\"><center>" . $ipaddress . "&nbsp;</td>";
-						echo "<td class=\"listlr\"><center>{$icon}&nbsp;&nbsp;" . $status . "&nbsp;</td>";
+						echo "<td class=\"listlr\" style=\"text-align:center\">" . $carp_int . "&nbsp;</td>";
+						echo "<td class=\"listlr\" style=\"text-align:center\">" . $ipaddress . "&nbsp;</td>";
+						echo "<td class=\"listlr\" style=\"text-align:center\">{$icon}&nbsp;&nbsp;" . $status . "&nbsp;</td>";
 						echo "</tr>";
 					}
 				}
@@ -187,19 +180,19 @@ include("head.inc");
 		</tr>
 	</table>
 </div>
-
+</form>
 <p/>
 
 <span class="vexpl">
 <span class="red"><strong><?=gettext("Note"); ?>:</strong></span>
 <br />
-<?=gettext("You can configure CARP settings"); ?> <a href="pkg_edit.php?xml=carp_settings.xml&id=0"><?=gettext("here"); ?></a>.
+<?=gettext("You can configure high availability sync settings"); ?> <a href="system_hasync.php"><?=gettext("here"); ?></a>.
 </span>
 
 <p/>
 
 <?php
-	echo "<br>" . gettext("pfSync nodes") . ":<br>";
+	echo "<br />" . gettext("pfSync nodes") . ":<br />";
 	echo "<pre>";
 	system("/sbin/pfctl -vvss | /usr/bin/grep creator | /usr/bin/cut -d\" \" -f7 | /usr/bin/sort -u");
 	echo "</pre>";

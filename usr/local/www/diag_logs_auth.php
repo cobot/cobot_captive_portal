@@ -52,6 +52,7 @@ if ($_POST['clear'])
 	clear_log_file($portal_logfile);
 
 $pgtitle = array(gettext("Status"),gettext("System logs"),gettext("Portal Auth"));
+$shortcut_section = "captiveportal";
 include("head.inc");
 
 ?>
@@ -71,8 +72,7 @@ include("head.inc");
 	$tab_array[] = array(gettext("VPN"), false, "diag_logs_vpn.php");
 	$tab_array[] = array(gettext("Load Balancer"), false, "diag_logs_relayd.php");
 	$tab_array[] = array(gettext("OpenVPN"), false, "diag_logs_openvpn.php");
-	$tab_array[] = array(gettext("OpenNTPD"), false, "diag_logs_ntpd.php");
-	$tab_array[] = array(gettext("Wireless"), false, "diag_logs_wireless.php");
+	$tab_array[] = array(gettext("NTP"), false, "diag_logs_ntpd.php");
 	$tab_array[] = array(gettext("Settings"), false, "diag_logs_settings.php");
 	display_top_tabs($tab_array);
 ?>
@@ -86,11 +86,10 @@ include("head.inc");
 			  <?php printf(gettext("Last %s Portal Auth log entries"),$nentries);?></td>
 		  </tr>
 		  <?php dump_clog($portal_logfile, $nentries, true); ?>
-		<tr><td><br><form action="diag_logs_auth.php" method="post">
-			<input name="clear" type="submit" class="formbtn" value="<?= gettext("Clear log"); ?>"></td></tr>
+		<tr><td><br/><form action="diag_logs_auth.php" method="post">
+			<input name="clear" type="submit" class="formbtn" value="<?= gettext("Clear log"); ?>" /></form></td></tr>
 		</table>
 	</div>
-	</form>
 	</td>
   </tr>
 </table>

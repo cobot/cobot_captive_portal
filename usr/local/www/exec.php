@@ -38,6 +38,8 @@
 ##|*MATCH=exec.php*
 ##|-PRIV
 
+$allowautocomplete = true;
+
 require("guiconfig.inc");
 
 if (($_POST['submit'] == "Download") && file_exists($_POST['dlPath'])) {
@@ -69,7 +71,7 @@ if($_POST)
 // Function: is Blank
 // Returns true or false depending on blankness of argument.
 
-function isBlank( $arg ) { return ereg( "^\s*$", $arg ); }
+function isBlank( $arg ) { return preg_match( "/^\s*$/", $arg ); }
 
 
 // Function: Puts
@@ -230,7 +232,7 @@ if (!isBlank($_POST['txtCommand'])) {
    puts("\$ " . htmlspecialchars($_POST['txtCommand']));
    putenv("PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin");
    putenv("SCRIPT_FILENAME=" . strtok($_POST['txtCommand'], " "));	/* PHP scripts */
-   $ph = popen($_POST['txtCommand'], "r" );
+   $ph = popen($_POST['txtCommand'] . ' 2>&1', "r" );
    while ($line = fgets($ph)) echo htmlspecialchars($line);
    pclose($ph);
    puts("</pre>");
@@ -247,7 +249,7 @@ if (!isBlank($_POST['txtPHPCommand'])) {
 
 ?>
 <div id="niftyOutter">
-<form action="exec.php" method="POST" enctype="multipart/form-data" name="frmExecPlus" onSubmit="return frmExecPlus_onSubmit( this );">
+<form action="exec.php" method="post" enctype="multipart/form-data" name="frmExecPlus" onSubmit="return frmExecPlus_onSubmit( this );">
   <table>
 	<tr>
 	  <td colspan="2" valign="top" class="vnsepcell"><?=gettext("Execute Shell command"); ?></td>

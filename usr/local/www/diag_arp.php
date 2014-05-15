@@ -1,7 +1,7 @@
 <?php
 /*
 	diag_arp.php
-	part of the pfSense project	(http://www.pfsense.org)
+	part of the pfSense project	(https://www.pfsense.org)
 	Copyright (C) 2004-2009 Scott Ullrich <sullrich@gmail.com>
 
 	originally part of m0n0wall (http://m0n0.ch/wall)
@@ -249,7 +249,7 @@ function _getHostName($mac,$ip) {
 	else if ($dhcpip[$ip])
 		return $dhcpip[$ip];
 	else{
-		exec("host -W 1 $ip", $output);
+		exec("host -W 1 " . escapeshellarg($ip), $output);
 		if (preg_match('/.*pointer ([A-Za-z0-9.-]+)\..*/',$output[0],$matches)) {
 			if ($matches[1] <> $ip)
 				return $matches[1]; 
@@ -321,14 +321,15 @@ $mac_man = load_mac_manufacturer_table();
 						<td class="listlr"><?=$entry['ip'];?></td>
 						<td class="listr">
 						<?php
-						$mac=$entry['mac']; 
+						$mac=trim($entry['mac']);
 						$mac_hi = strtoupper($mac[0] . $mac[1] . $mac[3] . $mac[4] . $mac[6] . $mac[7]);
 						print $mac;
 						if(isset($mac_man[$mac_hi])){ print "<br/><font size=\"-2\"><i>{$mac_man[$mac_hi]}</i></font>"; }
 						?>
+						</td>
 						<td class="listr">
 							<?php
-							echo str_replace("Z_ ", "", $entry['dnsresolve']);
+							echo trim(str_replace("Z_ ", "", $entry['dnsresolve']));
 							?>
 						</td>
 						<td class="listr"><?=$hwif[$entry['interface']];?></td>
@@ -337,10 +338,13 @@ $mac_man = load_mac_manufacturer_table();
 			</table>
 		</td>
 	</tr>
+	<tr>
+		<td><br/><?= gettext("NOTE: Local IPv6 peers use") ?> <a href="diag_ndp.php"><?= gettext("NDP") ?></a> <?= gettext("instead of ARP") ?>.</td>
+	</tr>
 </table>
 
 <?php include("fend.inc"); ?>
 
 <script type="text/javascript">
-	$('loading').innerHTML = '';
+	jQuery('#loading').html('');
 </script>

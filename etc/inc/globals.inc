@@ -2,8 +2,8 @@
 /* $Id$ */
 /*
     globals.inc
-    part of pfSense (www.pfsense.com)
-    Copyright (C) 2004-2010 Scott Ullrich
+    part of pfSense (www.pfsense.org)
+    Copyright (C) 2004-2014 Electric Sheep Fencing LLC 
 
     Originally Part of m0n0wall
     Copyright (C) 2003-2004 Manuel Kasper <mk@neon1.net>.
@@ -34,28 +34,7 @@
 
 */
 
-function remove_numbers($string) {
-	$nums = array("1", "2", "3", "4", "5", "6", "7", "8", "9", "0", " ");
-	$string = str_replace($nums, '', $string);
-	return $string;
-}
-
-function get_nics_with_capabilities($CAPABILITIES) {
-	$ifs = `/sbin/ifconfig -l`;
-	$if_list = split(" ", $ifs);
-	$vlan_native_supp = array();
-	foreach($if_list as $if => $iface) {
-		$iface = trim($iface);
-		$capable = pfSense_get_interface_addresses($iface);
-		if(isset($capable['caps'][$CAPABILITIES])) {
-			$interfacenonum = remove_numbers($iface);
-			if(!in_array($interfacenonum, $vlan_native_supp))
-				$vlan_native_supp[] = $interfacenonum;
-		}
-	}
-	return $vlan_native_supp;
-}
-
+global $g;
 $g = array(
 	"base_packages" => "siproxd", 
 	"event_address" => "unix:///var/run/check_reload_status",
@@ -78,20 +57,22 @@ $g = array(
 	"xml_rootobj" => "pfsense",
 	"admin_group" => "admins",
 	"product_name" => "pfSense",
-	"product_copyright" => "BSD Perimeter LLC",
-	"product_copyright_url" => "http://www.bsdperimeter.com",
-	"product_copyright_years" => "2004 - 2011",
+	"product_copyright" => "Electric Sheep Fencing LLC",
+	"product_copyright_url" => "http://www.electricsheepfencing.com",
+	"product_copyright_years" => "2004 - 2014",
 	"product_website" => "www.pfsense.org",
-	"product_website_footer" => "http://www.pfsense.org/?gui20",
+	"product_website_footer" => "https://www.pfsense.org/?gui211",
 	"product_email" => "coreteam@pfsense.org",
 	"hideplatform" => false,
+	"hidedownloadbackup" => false,
+	"hidebackupbeforeupgrade" => false,
 	"disablethemeselection" => false,
 	"disablehelpmenu" => false,
 	"disablehelpicon" => false,
 	"disablecrashreporter" => false,
-	"crashreporterurl" => "http://crashreporter.pfsense.org/crash_reporter.php",
+	"crashreporterurl" => "https://crashreporter.pfsense.org/crash_reporter.php",
 	"debug" => false,
-	"latest_config" => "8.0",
+	"latest_config" => "10.1",
 	"nopkg_platforms" => array("cdrom"),
 	"minimum_ram_warning" => "101",
 	"minimum_ram_warning_text" => "128 MB",
@@ -99,38 +80,38 @@ $g = array(
 	"minimum_nic_count_text" => "*AT LEAST* 1",	
 	"wan_interface_name" => "wan", 
 	"nopccard_platforms" => array("wrap", "net48xx"),
-	"xmlrpcbaseurl" => "www.pfsense.com",
+	"xmlrpcbaseurl" => "https://packages.pfsense.org",
 	"captiveportal_path" => "/usr/local/captiveportal",
 	"captiveportal_element_path" => "/var/db/cpelements",
 	"captiveportal_element_sizelimit" => 1048576,
-	"xmlrpcpath" => "/pfSense/xmlrpc.php",
+	"xmlrpcpath" => "/xmlrpc.php",
 	"embeddedbootupslice" => "/dev/ad0a",
 	"services_dhcp_server_enable" => true,
 	"wireless_regex" => "/^(ndis|wi|ath|an|ral|ural|iwi|wlan|rum|run|bwn|zyd|mwl|bwi|ipw|iwn|malo|uath|upgt|urtw|wpi)/",
 	"help_base_url" => "/help.php"
 );
 
-// Loop through and set vlan_long_frame VLAN_MTU
-$vlan_native_supp = get_nics_with_capabilities("vlanmtu");
-$g['vlan_long_frame'] = array_merge(array("vge", "bfe",  "bge",  "dc",  "em",  "fxp",  "gem",  "hme",  "ixgb",  "le", "lem", "nge",  "re",  "rl",  "sis",  "sk",  "ste",  "ti",  "tl",  "tx",  "txp",  "vr", "xl", "lagg"), (array)$vlan_native_supp);
-
 /* IP TOS flags */
 $iptos = array("lowdelay", "throughput", "reliability");
 
 /* TCP flags */
-$tcpflags = array("syn", "ack", "fin", "rst", "psh", "urg");
+$tcpflags = array("syn", "ack", "fin", "rst", "psh", "urg", "ece", "cwr");
 
 if(file_exists("/etc/platform")) {
 	$arch = php_uname("m");
+	$arch = ($arch == "i386") ? "" : '/' . $arch;
+
+	/* Full installs and NanoBSD use the same update directory and manifest in 2.x */
+	$g['update_url']="https://updates.pfsense.org/_updaters{$arch}";
+	$g['update_manifest']="https://updates.pfsense.org/manifest";
+
 	$g['platform'] = trim(file_get_contents("/etc/platform"));
 	if($g['platform'] == "nanobsd") {
-		$g['update_url']="http://updates.pfsense.org/FreeBSD_RELENG_8_1/{$arch}/pfSense_RELENG_2_0/.updaters/";
-		$g['update_manifest']="http://updates.pfSense.com/nanobsd/manifest";
 		$g['firmware_update_text']="pfSense-*.img.gz";
+		$g['hidedownloadbackup'] = true;
+		$g['hidebackupbeforeupgrade'] = true;
 
 	} else {
-		$g['update_url']="http://updates.pfsense.org/FreeBSD_RELENG_8_1/{$arch}/pfSense_RELENG_2_0/.updaters/";
-		$g['update_manifest']="http://updates.pfSense.com/manifest";
 		$g['firmware_update_text']="pfSense-*.tgz";
 	}
 }
@@ -143,6 +124,8 @@ $sysctls = array("net.inet.ip.portrange.first" => "1024",
 	"net.inet.tcp.drop_synfin" => "1", 
 	"net.inet.ip.redirect" => "1", 
 	"net.inet6.ip6.redirect" => "1", 
+	"net.inet6.ip6.use_tempaddr" => "0",
+	"net.inet6.ip6.prefer_tempaddr" => "0",
 	"net.inet.tcp.syncookies" => "1", 
 	"net.inet.tcp.recvspace" => "65228", 
 	"net.inet.tcp.sendspace" => "65228", 
@@ -162,8 +145,19 @@ $sysctls = array("net.inet.ip.portrange.first" => "1024",
 	"net.inet.icmp.icmplim" => "0",
 	"vfs.read_max" => "32",
 	"kern.ipc.maxsockbuf" => "4262144",
-	"debug.pfftpproxy" => "0"
+	"debug.pfftpproxy" => "0",
+	"net.inet.ip.process_options" => 0,
+	"vfs.forcesync" => 0,
+	"kern.random.sys.harvest.interrupt" => 0,
+	"kern.random.sys.harvest.point_to_point" => 0,
+	"kern.random.sys.harvest.ethernet" => 0,
+	"net.route.netisr_maxqlen" => 1024,
+	"net.inet.udp.checksum" => 1
 );
+
+/* Include override values for the above if needed. If the file doesn't exist, don't try to load it. */
+if (file_exists("/etc/inc/globals_override.inc"))
+	@include("globals_override.inc");
 
 $config_parsed = false;
 

@@ -2,7 +2,7 @@
 /* $Id$ */
 /*
         load_balancer_virtual_server_edit.php
-        part of pfSense (http://www.pfsense.com/)
+        part of pfSense (https://www.pfsense.org/)
 
         Copyright (C) 2005-2008 Bill Marquette <bill.marquette@gmail.com>.
         All rights reserved.
@@ -46,10 +46,10 @@ if (!is_array($config['load_balancer']['virtual_server'])) {
 }
 $a_vs = &$config['load_balancer']['virtual_server'];
 
-if (isset($_POST['id']))
-	$id = $_POST['id'];
-else
+if (is_numericint($_GET['id']))
 	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
+	$id = $_POST['id'];
 
 if (isset($id) && $a_vs[$id]) {
   $pconfig = $a_vs[$id];
@@ -68,13 +68,13 @@ if ($_POST) {
 	/* input validation */
   switch($pconfig['mode']) {
     case "redirect": {
-    	$reqdfields = explode(" ", "ipaddr name port mode");
-    	$reqdfieldsn = array(gettext("IP Address"),gettext("Name"),gettext("Port"),gettext("Mode"));
+    	$reqdfields = explode(" ", "ipaddr name mode");
+    	$reqdfieldsn = array(gettext("IP Address"),gettext("Name"),gettext("Mode"));
     	break;
     }
     case "relay": {
-    	$reqdfields = explode(" ", "ipaddr name port mode relay_protocol");
-    	$reqdfieldsn = array(gettext("IP Address"),gettext("Name"),gettext("Port"),gettext("Relay Protocol"));
+    	$reqdfields = explode(" ", "ipaddr name mode relay_protocol");
+    	$reqdfieldsn = array(gettext("IP Address"),gettext("Name"),gettext("Relay Protocol"));
       break;
     }
   }
@@ -85,14 +85,19 @@ if ($_POST) {
 		if (($_POST['name'] == $config['load_balancer']['virtual_server'][$i]['name']) && ($i != $id))
 			$input_errors[] = gettext("This virtual server name has already been used.  Virtual server names must be unique.");
 
-	if (strpos($_POST['name'], " ") !== false)
-		$input_errors[] = gettext("You cannot use spaces in the 'name' field.");
+	if (preg_match('/[ \/]/', $_POST['name']))
+		$input_errors[] = gettext("You cannot use spaces or slashes in the 'name' field.");
 
-	if (!is_port($_POST['port']))
-		$input_errors[] = gettext("The port must be an integer between 1 and 65535.");
+	if ($_POST['port'] != "" && !is_portoralias($_POST['port']))
+		$input_errors[] = gettext("The port must be an integer between 1 and 65535, a port alias, or left blank.");
 
-	if(!is_ipaddr($_POST['ipaddr']))
-		$input_errors[] = sprintf(gettext("%s is not a valid IP address."), $_POST['ipaddr']);
+	if (!is_ipaddroralias($_POST['ipaddr']) && !is_subnetv4($_POST['ipaddr']))
+		$input_errors[] = sprintf(gettext("%s is not a valid IP address, IPv4 subnet, or alias."), $_POST['ipaddr']);
+	else if (is_subnetv4($_POST['ipaddr']) && subnet_size($_POST['ipaddr']) > 64)
+		$input_errors[] = sprintf(gettext("%s is a subnet containing more than 64 IP addresses."), $_POST['ipaddr']);
+
+	if ((strtolower($_POST['relay_protocol']) == "dns") && !empty($_POST['sitedown']))
+		$input_errors[] = gettext("You cannot select a Fall Back Pool when using the DNS relay protocol.");
 
 	if (!$input_errors) {
 		$vsent = array();
@@ -105,7 +110,7 @@ if ($_POST) {
 
 		update_if_changed("name", $vsent['name'], $_POST['name']);
 		update_if_changed("descr", $vsent['descr'], $_POST['descr']);
-		update_if_changed("pool", $vsent['pool'], $_POST['pool']);
+		update_if_changed("poolname", $vsent['poolname'], $_POST['poolname']);
 		update_if_changed("port", $vsent['port'], $_POST['port']);
 		update_if_changed("sitedown", $vsent['sitedown'], $_POST['sitedown']);
 		update_if_changed("ipaddr", $vsent['ipaddr'], $_POST['ipaddr']);
@@ -115,9 +120,13 @@ if ($_POST) {
 		if($_POST['sitedown'] == "")
 			unset($vsent['sitedown']);
 
-		if (isset($id) && $a_vs[$id])
+		if (isset($id) && $a_vs[$id]) {
+			if ($a_vs[$id]['name'] != $_POST['name']) {
+				/* Because the VS name changed, mark the old name for cleanup. */
+				cleanup_lb_mark_anchor($a_vs[$id]['name']);
+			}
 			$a_vs[$id] = $vsent;
-		else
+		} else
 			$a_vs[] = $vsent;
 
 		if ($changecount > 0) {
@@ -132,46 +141,16 @@ if ($_POST) {
 }
 
 $pgtitle = array(gettext("Services"),gettext("Load Balancer"),gettext("Virtual Server"),gettext("Edit"));
-$statusurl = "status_lb_vs.php";
-#$statusurl = "status_lb_pool.php";
-$logurl = "diag_logs_relayd.php";
+$shortcut_section = "relayd-virtualservers";
 
 include("head.inc");
 
 ?>
 
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
-<script language="javascript" type="text/javascript">
-function updateRelay(m) {
-  switch (m) {
-    case "relay": {
-      $('relay_protocol').enable();
-      $('relay').appear();
-      break;
-    }
-    case "redirect": {
-      $('relay_protocol').disable();
-      $('relay').hide();
-      break;
-    }
-  }
-}
+<script type="text/javascript" src="/javascript/autosuggest.js"></script>
+<script type="text/javascript" src="/javascript/suggestions.js"></script>
 
-document.observe("dom:loaded", function() {
-  // Setup some observers
-  $('redirect_mode').observe('click', function(){
-      updateRelay('redirect');
-  });
-  $('relay_mode').observe('click', function(){
-      updateRelay('relay');
-  });
-
-  // Go ahead and disable the relay stuff, we'll trigger
-  updateRelay("<?=htmlspecialchars($pconfig['mode']);?>");
-
-});
-
-</script>
 <?php include("fbegin.inc"); ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
             <form action="load_balancer_virtual_server_edit.php" method="post" name="iform" id="iform">
@@ -182,27 +161,42 @@ document.observe("dom:loaded", function() {
                 <tr align="left">
 		  			<td width="22%" valign="top" class="vncellreq"><?=gettext("Name"); ?></td>
                   <td width="78%" class="vtable" colspan="2">
-                    <input name="name" type="text" <?if(isset($pconfig['name'])) echo "value=\"{$pconfig['name']}\"";?>size="32" maxlength="32">
+                    <input name="name" type="text" <?if(isset($pconfig['name'])) echo "value=\"" . htmlspecialchars($pconfig['name']) . "\"";?>size="32" maxlength="32">
                   </td>
 			</tr>
                 <tr align="left">
 		  			<td width="22%" valign="top" class="vncell"><?=gettext("Description"); ?></td>
                   <td width="78%" class="vtable" colspan="2">
-                    <input name="descr" type="text" <?if(isset($pconfig['descr'])) echo "value=\"{$pconfig['descr']}\"";?>size="64">
+                    <input name="descr" type="text" <?if(isset($pconfig['descr'])) echo "value=\"" . htmlspecialchars($pconfig['descr']) . "\"";?>size="64">
                   </td>
 			</tr>
                 <tr align="left">
 		  			<td width="22%" valign="top" class="vncellreq"><?=gettext("IP Address"); ?></td>
                   <td width="78%" class="vtable" colspan="2">
-                    <input name="ipaddr" type="text" <?if(isset($pconfig['ipaddr'])) echo "value=\"{$pconfig['ipaddr']}\"";?> size="39" maxlength="39">
+                    <input class="formfldalias" id="ipaddr" name="ipaddr" type="text" <?if(isset($pconfig['ipaddr'])) echo "value=\"" . htmlspecialchars($pconfig['ipaddr']) . "\"";?> size="39" maxlength="39">
 					<br><?=gettext("This is normally the WAN IP address that you would like the server to listen on.  All connections to this IP and port will be forwarded to the pool cluster."); ?>
+					<br><?=gettext("You may also specify a host alias listed in Firewall -&gt; Aliases here."); ?>
+					<script type="text/javascript">
+					//<![CDATA[
+						var host_aliases = <?= json_encode(get_alias_list(array("host", "network", "url", "urltable"))) ?>;
+						var oTextbox1 = new AutoSuggestControl(document.getElementById("ipaddr"), new StateSuggestions(host_aliases));
+					//]]>
+					</script>
                   </td>
 			</tr>
                 <tr align="left">
-		  			<td width="22%" valign="top" class="vncellreq"><?=gettext("Port"); ?></td>
+		  			<td width="22%" valign="top" class="vncell"><?=gettext("Port"); ?></td>
                   <td width="78%" class="vtable" colspan="2">
-                    <input name="port" type="text" <?if(isset($pconfig['port'])) echo "value=\"{$pconfig['port']}\"";?> size="16" maxlength="16">
+                    <input class="formfldalias" name="port" id="port" type="text" <?if(isset($pconfig['port'])) echo "value=\"" . htmlspecialchars($pconfig['port']) . "\"";?> size="16" maxlength="16">
 					<br><?=gettext("This is the port that the clients will connect to.  All connections to this port will be forwarded to the pool cluster."); ?>
+					<br><?=gettext("If left blank, listening ports from the pool will be used."); ?>
+					<br><?=gettext("You may also specify a port alias listed in Firewall -&gt; Aliases here."); ?>
+					<script type="text/javascript">
+					//<![CDATA[
+						var port_aliases = <?= json_encode(get_alias_list("port")) ?>;
+						var oTextbox2 = new AutoSuggestControl(document.getElementById("port"), new StateSuggestions(port_aliases));
+					//]]>
+					</script>
                   </td>
 			</tr>
                 <tr align="left">
@@ -211,13 +205,13 @@ document.observe("dom:loaded", function() {
 			<?php if(count($config['load_balancer']['lbpool']) == 0): ?>
 				<b><?=gettext("NOTE:"); ?></b> <?=gettext("Please add a pool on the Pools tab to use this feature."); ?>
 			<?php else: ?>
-				<select id="pool" name="pool">
+				<select id="poolname" name="poolname">
 			<?php
 				for ($i = 0; isset($config['load_balancer']['lbpool'][$i]); $i++) {
 					$selected = "";
-					if ( $config['load_balancer']['lbpool'][$i]['name'] == $pconfig['pool'] )
+					if ( $config['load_balancer']['lbpool'][$i]['name'] == $pconfig['poolname'] )
 						$selected = " SELECTED";
-					echo "<option value=\"{$config['load_balancer']['lbpool'][$i]['name']}\"{$selected}>{$config['load_balancer']['lbpool'][$i]['name']}</option>";
+					echo "<option value=\"" . htmlspecialchars($config['load_balancer']['lbpool'][$i]['name']) . "\"{$selected}>{$config['load_balancer']['lbpool'][$i]['name']}</option>";
 				}
 			?>
 			<?php endif; ?>
@@ -237,11 +231,12 @@ document.observe("dom:loaded", function() {
             					$selected = "";
             					if ( $config['load_balancer']['lbpool'][$i]['name'] == $pconfig['sitedown'] )
             						$selected = " SELECTED";
-            					echo "<option value=\"{$config['load_balancer']['lbpool'][$i]['name']}\"{$selected}>{$config['load_balancer']['lbpool'][$i]['name']}</option>";
+						echo "<option value=\"" . htmlspecialchars($config['load_balancer']['lbpool'][$i]['name']) . "\"{$selected}>{$config['load_balancer']['lbpool'][$i]['name']}</option>";
             				}
             			?>
             			</select>
-				<br><b><?=gettext("NOTE:"); ?></b> <?=gettext("This is the server that clients will be redirected to if *ALL* servers in the pool are offline."); ?>
+				<br><?=gettext("The server pool to which clients will be redirected if *ALL* servers in the Virtual Server Pool are offline."); ?>
+				<br><?=gettext("This option is NOT compatible with the DNS relay protocol."); ?>
 				  <?php endif; ?>
                   </td>
 				</tr>

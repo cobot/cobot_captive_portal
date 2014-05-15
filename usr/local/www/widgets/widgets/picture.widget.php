@@ -2,7 +2,7 @@
 /*
         $Id$
         Copyright 2009 Scott Ullrich
-        Part of pfSense widgets (www.pfsense.com)
+        Part of pfSense widgets (https://www.pfsense.org)
 
         Redistribution and use in source and binary forms, with or without
         modification, are permitted provided that the following conditions are met:
@@ -33,7 +33,7 @@ require_once("pfsense-utils.inc");
 require_once("functions.inc");
 
 if($_GET['getpic']=="true") {
-	$pic_type_s = split("\.", $config['widgets']['picturewidget_filename']);
+	$pic_type_s = explode(".", $config['widgets']['picturewidget_filename']);
 	$pic_type = $pic_type_s[1];
 	if($config['widgets']['picturewidget']) 
 		$data = base64_decode($config['widgets']['picturewidget']);
@@ -49,13 +49,13 @@ if($_POST) {
 		/* read the file contents */
 		$fd_pic = fopen($_FILES['pictfile']['tmp_name'], "rb");		
 		while ( ($buf=fread( $fd_pic, 8192 )) != '' ) {
-		    // Here, $buf is guaranted to contain data
+		    // Here, $buf is guaranteed to contain data
 		    $data .= $buf;
 		}
 		fclose($fd_pic);
 		if(!$data) {
 			log_error("Warning, could not read file " . $_FILES['pictfile']['tmp_name']);
-			die("Cold not read temporary file");
+			die("Could not read temporary file");
 		} else {
 			$picname = basename($_FILES['uploadedfile']['name']);
 			$config['widgets']['picturewidget'] = base64_encode($data);
@@ -69,26 +69,27 @@ if($_POST) {
 
 ?>
 
-<input type="hidden" id="picture-config" name="picture-config" value="">
+<input type="hidden" id="picture-config" name="picture-config" value="" />
 
-<div id="picture-settings" name="picture-settings" class="widgetconfigdiv" style="display:none;">
-	</form>
+<div id="picture-settings" class="widgetconfigdiv" style="display:none;">
 	<form action="/widgets/widgets/picture.widget.php" method="post" name="iforma" enctype="multipart/form-data">
-		<input name="pictfile" type="file" class="formfld unknown" id="pictfile" size="20"></p>
+		<input name="pictfile" type="file" class="formfld unknown" id="pictfile" size="20" />
 		<input id="submita" name="submita" type="submit" class="formbtn" value="Upload" /><br/>
 		<b>NOTE:</b> Best image size is 350x350 or smaller.
 	</form>
 </div>
 
 <div id="picture-widgets" style="padding: 5px">
-	<a href='/widgets/widgets/picture.widget.php?getpic=true' target='_new'>
-		<img border=0 width="350" height="350" src="/widgets/widgets/picture.widget.php?getpic=true">
+	<a href='/widgets/widgets/picture.widget.php?getpic=true' target='_blank'>
+		<img border="0" width="350" height="350" src="/widgets/widgets/picture.widget.php?getpic=true" alt="picture" />
 	</a>
 </div>											 
 
 <!-- needed to show the settings widget icon -->
-<script language="javascript" type="text/javascript">
+<script type="text/javascript">
+//<![CDATA[
 	selectIntLink = "picture-configure";
 	textlink = document.getElementById(selectIntLink);
 	textlink.style.display = "inline";
+//]]>
 </script>

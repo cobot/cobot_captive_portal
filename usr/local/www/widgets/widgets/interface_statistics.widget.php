@@ -2,7 +2,7 @@
 /*
         $Id: interface_statistics.widget.php 
         Copyright 2007 Scott Dale
-        Part of pfSense widgets (www.pfsense.com)
+        Part of pfSense widgets (https://www.pfsense.org)
         originally based on m0n0wall (http://m0n0.ch/wall)
 
         Copyright (C) 2004-2005 T. Lechat <dev@lechat.org>, Manuel Kasper <mk@neon1.net>
@@ -82,7 +82,7 @@ require_once("/usr/local/www/widgets/include/interface_statistics.inc");
 		?>
 		<div style="padding: 5px">			
               <div id="int_labels" style="float:left;width:32%">
-				<table width="100%" border="0" cellspacing="0" cellpadding="0">
+				<table width="100%" border="0" cellspacing="0" cellpadding="0" summary="interfaces statistics">
 					<tr><td class="widgetsubheader" style="height:25px">&nbsp;&nbsp;&nbsp;</td></tr>	
 					<tr>
 	                	<td class="vncellt" style="height:25px">Packets In</td>
@@ -109,15 +109,14 @@ require_once("/usr/local/www/widgets/include/interface_statistics.inc");
 	          </div>
 	          <div id="interfacestats" style="float:right;overflow: auto; width:68%">
 	                   
-	          <table width="100%" border="0" cellspacing="0" cellpadding="0">
+	          <table width="100%" border="0" cellspacing="0" cellpadding="0" summary="the stats">
 	              <tr>
-		                <tr>
 		                <?php 
 		               		$interface_names = array();
 		                	foreach ($ifdescrs as $ifdescr => $ifname): 
 		                	$ifinfo = get_interface_info($ifdescr);
 		                	if ($ifinfo['status'] != "down"){ ?>
-			                	<td class="widgetsubheader" nowrap  style="height:25px">
+			                	<td class="widgetsubheader nowrap" style="height:25px">
 			                  		<?=htmlspecialchars($ifname);?>
 								</td>
 							<?php 							
@@ -131,7 +130,7 @@ require_once("/usr/local/www/widgets/include/interface_statistics.inc");
 			                <?php 
 			                $counter = 1;
 			                foreach ($array_in_packets as $data): ?>
-							<td class="listr" id="stat<?php echo $counter?>" nowrap style="height:25px">
+							<td class="listr nowrap" id="stat<?php echo $counter?>" style="height:25px">
 								<?=htmlspecialchars($data);?>
 			                </td>
 			                <?php 
@@ -143,7 +142,7 @@ require_once("/usr/local/www/widgets/include/interface_statistics.inc");
 			                <?php 
 			                $counter = 2;
 			                foreach ($array_out_packets as $data): ?>
-							<td class="listr" id="stat<?php echo $counter;?>" nowrap style="height:25px">
+							<td class="listr nowrap" id="stat<?php echo $counter;?>" style="height:25px">
 								<?=htmlspecialchars($data);?>
 			                </td>
 			                <?php 
@@ -155,7 +154,7 @@ require_once("/usr/local/www/widgets/include/interface_statistics.inc");
 			                <?php 
 			                $counter = 3;
 			                foreach ($array_in_bytes as $data): ?>
-							<td class="listr" id="stat<?php echo $counter;?>" nowrap style="height:25px">
+							<td class="listr nowrap" id="stat<?php echo $counter;?>" style="height:25px">
 								<?=htmlspecialchars($data);?>
 			                </td>
 			                <?php 
@@ -167,7 +166,7 @@ require_once("/usr/local/www/widgets/include/interface_statistics.inc");
 			                <?php 
 			                $counter = 4;
 			                foreach ($array_out_bytes as $data): ?>
-							<td class="listr" id="stat<?php echo $counter;?>" nowrap style="height:25px">
+							<td class="listr nowrap" id="stat<?php echo $counter;?>" style="height:25px">
 								<?=htmlspecialchars($data);?>
 			                </td>
 			                <?php 
@@ -179,7 +178,7 @@ require_once("/usr/local/www/widgets/include/interface_statistics.inc");
 			                <?php
 			                $counter = 5;
 				               foreach ($array_in_errors as $data): ?>
-									<td class="listr" id="stat<?php echo $counter;?>" nowrap style="height:25px">
+									<td class="listr nowrap" id="stat<?php echo $counter;?>" style="height:25px">
 										<?=htmlspecialchars($data);?>
 					                </td>
 				                <?php 
@@ -191,7 +190,7 @@ require_once("/usr/local/www/widgets/include/interface_statistics.inc");
 		                	<?php 
 		                	$counter = 6;
 			               foreach ($array_out_errors as $data): ?>
-								<td class="listr" id="stat<?php echo $counter;?>" nowrap style="height:25px">
+								<td class="listr nowrap" id="stat<?php echo $counter;?>" style="height:25px">
 									<?=htmlspecialchars($data);?>
 				                </td>
 			                <?php 
@@ -203,7 +202,7 @@ require_once("/usr/local/www/widgets/include/interface_statistics.inc");
 		                	<?php  
 		                	$counter = 7;
 				                foreach ($array_collisions as $data): ?>
-								<td class="listr" id="stat<?php echo $counter;?>" nowrap style="height:25px">
+								<td class="listr nowrap" id="stat<?php echo $counter;?>" style="height:25px">
 									<?=htmlspecialchars($data);?>
 				                </td>
 			                <?php 

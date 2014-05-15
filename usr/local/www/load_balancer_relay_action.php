@@ -2,7 +2,7 @@
 /* $Id$ */
 /*
 	load_balancer_protocol.php
-	part of pfSense (http://www.pfsense.com/)
+	part of pfSense (https://www.pfsense.org/)
 
 	Copyright (C) 2008 Bill Marquette <bill.marquette@gmail.com>.
 	All rights reserved.
@@ -65,7 +65,7 @@ if ($_POST) {
 }
 
 if ($_GET['act'] == "del") {
-	if ($a_action[$_GET['id']]) {
+	if (array_key_exists($_GET['id'], $a_action)) {
 		/* make sure no relay protocols reference this entry */
 		if (is_array($config['load_balancer']['lbprotocol'])) {
 			foreach ($config['load_balancer']['lbprotocol'] as $lbp) {
@@ -92,7 +92,7 @@ if ($_GET['act'] == "del") {
 /* for ($i = 0; isset($config['load_balancer']['lbprotocol'][$i]); $i++) {
 	for ($o = 0; isset($config['load_balancer']['lbprotocol'][$i]['options'][$o]); o++) {
 		$a_vs[$i]['options'][$o] = "	
-	$a_vs[$i]['pool'] = "<a href=\"/load_balancer_pool_edit.php?id={$poodex[$a_vs[$i]['pool']]}\">{$a_vs[$i]['pool']}</a>";
+	$a_vs[$i]['poolname'] = "<a href=\"/load_balancer_pool_edit.php?id={$poodex[$a_vs[$i]['poolname']]}\">{$a_vs[$i]['poolname']}</a>";
 	if ($a_vs[$i]['sitedown'] != '') {
 		$a_vs[$i]['sitedown'] = "<a href=\"/load_balancer_pool_edit.php?id={$poodex[$a_vs[$i]['sitedown']]}\">{$a_vs[$i]['sitedown']}</a>";
 	} else {
@@ -102,9 +102,7 @@ if ($_GET['act'] == "del") {
 */
 
 $pgtitle = array(gettext("Services"), gettext("Load Balancer"),gettext("Relay Action"));
-#$statusurl = "status_lb_vs.php";
-$statusurl = "status_lb_pool.php";
-$logurl = "diag_logs_relayd.php";
+$shortcut_section = "relayd";
 
 include("head.inc");
 

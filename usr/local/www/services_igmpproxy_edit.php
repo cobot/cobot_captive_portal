@@ -37,9 +37,9 @@
 */
 
 ##|+PRIV
-##|*IDENT=page-services-igmpproxy
+##|*IDENT=page-services-igmpproxy-edit
 ##|*NAME=Firewall: Igmpproxy: Edit page
-##|*DESCR=Allow access to the 'Firewall: Igmpproxy' page.
+##|*DESCR=Allow access to the 'Services: Igmpproxy: Edit' page.
 ##|*MATCH=services_igmpproxy_edit.php*
 ##|-PRIV
 
@@ -53,8 +53,9 @@ if (!is_array($config['igmpproxy']['igmpentry']))
 //igmpproxy_sort();
 $a_igmpproxy = &$config['igmpproxy']['igmpentry'];
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && $a_igmpproxy[$id]) {
@@ -129,6 +130,8 @@ include("head.inc");
 	include("fbegin.inc");
 ?>
 
+<script type="text/javascript" src="/javascript/jquery.ipv4v6ify.js">
+</script>
 <script type="text/javascript" src="/javascript/row_helper.js">
 </script>
 
@@ -137,11 +140,11 @@ include("head.inc");
 
 <script type="text/javascript">
 	rowname[0] = "address";
-	rowtype[0] = "textbox";
+	rowtype[0] = "textbox,ipv4v6";
 	rowsize[0] = "30";
 
 	rowname[1] = "address_subnet";
-	rowtype[1] = "select";
+	rowtype[1] = "select,ipv4v6";
 	rowsize[1] = "1";
 
 	rowname[2] = "detail";
@@ -205,7 +208,7 @@ include("head.inc");
   <tr>
     <td valign="top" class="vncell"><?=gettext("Threshold");?></td>
     <td class="vtable">
-      <input name="threshold" class="formfld unknown" id="threshold" value="<?php echo $pconfig['threshold'];?>">
+      <input name="threshold" class="formfld unknown" id="threshold" value="<?php echo htmlspecialchars($pconfig['threshold']);?>">
       <br />
       <span class="vexpl">
 	      <?=gettext("Defines the TTL threshold for  the  network  interface.  Packets".

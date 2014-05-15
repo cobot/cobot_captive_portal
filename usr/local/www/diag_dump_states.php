@@ -28,7 +28,7 @@
 */
 
 /*
-	pfSense_BUILDER_BINARIES:	/sbin/pfctl	
+	pfSense_BUILDER_BINARIES:	/sbin/pfctl
 	pfSense_MODULE:	filter
 */
 
@@ -54,12 +54,14 @@ if($_GET['action']) {
 	}
 }
 
-/* get our states */
-if($_GET['filter']) {
-	exec("/sbin/pfctl -s state | grep " . escapeshellarg(htmlspecialchars($_GET['filter'])), $states);
-}
-else {
-	exec("/sbin/pfctl -s state", $states);
+if ($_GET['filter'] && ($_GET['killfilter'] == "Kill")) {
+	if (is_ipaddr($_GET['filter'])) {
+		$tokill = escapeshellarg($_GET['filter'] . "/32");
+	} elseif (is_subnet($_GET['filter'])) {
+		$tokill = escapeshellarg($_GET['filter']);
+	}
+	$retval = mwexec("/sbin/pfctl -k {$tokill} -k 0/0");
+	$retval = mwexec("/sbin/pfctl -k 0.0.0.0/0 -k {$tokill}");
 }
 
 $pgtitle = array(gettext("Diagnostics"),gettext("Show States"));
@@ -68,24 +70,23 @@ include("head.inc");
 ?>
 
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC" onload="<?=$jsevents["body"]["onload"];?>">
-<script src="/javascript/sorttable.js" type="text/javascript"></script>
 <?php include("fbegin.inc"); ?>
 <form action="diag_dump_states.php" method="get" name="iform">
 
 <script type="text/javascript">
 	function removeState(srcip, dstip) {
-		var busy = function(icon) {
-			icon.onclick      = "";
-			icon.src          = icon.src.replace("\.gif", "_d.gif");
-			icon.style.cursor = "wait";
+		var busy = function(index,icon) {
+			jQuery(icon).bind("onclick","");
+			jQuery(icon).attr('src',jQuery(icon).attr('src').replace("\.gif", "_d.gif"));
+			jQuery(icon).css("cursor","wait");
 		}
 
-		$A(document.getElementsByName("i:" + srcip + ":" + dstip)).each(busy);
+		jQuery('img[name="i:' + srcip + ":" + dstip + '"]').each(busy);
 
-		new Ajax.Request(
+		jQuery.ajax(
 			"<?=$_SERVER['SCRIPT_NAME'];?>" +
 				"?action=remove&srcip=" + srcip + "&dstip=" + dstip,
-			{ method: "get", onComplete: removeComplete }
+			{ type: "get", complete: removeComplete }
 		);
 	}
 
@@ -96,8 +97,8 @@ include("head.inc");
 			return;
 		}
 
-		$A(document.getElementsByName("r:" + values[1] + ":" + values[2])).each(
-			function(row) { Effect.Fade(row, { duration: 1.0 }); }
+		jQuery('tr[name="r:' + values[1] + ":" + values[2] + '"]').each(
+			function(index,row) { jQuery(row).fadeOut(1000); }
 		);
 	}
 </script>
@@ -131,12 +132,17 @@ include("head.inc");
 			<form action="<?=$_SERVER['SCRIPT_NAME'];?>" method="get">
 			<table class="tabcont" width="100%" border="0" cellspacing="0" cellpadding="0">
 				<tr>
-					<td><?=gettext("Current state count:");?> <?=$current_statecount?></td>
+					<td>
+						<?=gettext("Current total state count");?>: <?= $current_statecount ?>
+					</td>
 					<td style="font-weight:bold;" align="right">
 						<?=gettext("Filter expression:");?>
 						<input type="text" name="filter" class="formfld search" value="<?=htmlspecialchars($_GET['filter']);?>" size="30" />
 						<input type="submit" class="formbtn" value="<?=gettext("Filter");?>" />
-					<td>
+					<?php if (is_ipaddr($_GET['filter']) || is_subnet($_GET['filter'])): ?>
+						<input type="submit" class="formbtn" name="killfilter" value="<?=gettext("Kill");?>" />
+					<?php endif; ?>
+					</td>
 				</tr>
 			</table>
 			</form>
@@ -156,48 +162,61 @@ include("head.inc");
 				<tbody>
 <?php
 $row = 0;
-if(count($states) > 0) {
-	foreach($states as $line) {
-		if($row >= 1000)
-			break;
+/* get our states */
+$grepline = ($_GET['filter']) ? "| grep " . escapeshellarg(htmlspecialchars($_GET['filter'])) : "";
+$fd = popen("/sbin/pfctl -s state {$grepline}", "r" );
+while ($line = chop(fgets($fd))) {
+	if($row >= 10000)
+		break;
 
-		$line_split = preg_split("/\s+/", $line);
-		$type  = array_shift($line_split);
-		$proto = array_shift($line_split);
-		$state = array_pop($line_split);
-		$info  = implode(" ", $line_split);
+	$line_split = preg_split("/\s+/", $line);
+	$type  = array_shift($line_split);
+	$proto = array_shift($line_split);
+	$state = array_pop($line_split);
+	$info  = implode(" ", $line_split);
 
-		/* break up info and extract $srcip and $dstip */
-		$ends = preg_split("/\<?-\>?/", $info);
-		$parts = split(":", $ends[0]);
-		$srcip = trim($parts[0]);
-		$parts = split(":", $ends[count($ends) - 1]);
-		$dstip = trim($parts[0]);
+	/* break up info and extract $srcip and $dstip */
+	$ends = preg_split("/\<?-\>?/", $info);
+	$parts = explode(":", $ends[0]);
+	$srcip = trim($parts[0]);
+	$parts = explode(":", $ends[count($ends) - 1]);
+	$dstip = trim($parts[0]);
 
-		echo "<tr valign='top' name='r:{$srcip}:{$dstip}'>
-				<td class='listlr'>{$proto}</td>
-				<td class='listr'>{$info}</td>
-				<td class='listr'>{$state}</td>
-				<td class='list'>
-				  <img src='/themes/{$g['theme']}/images/icons/icon_x.gif' height='17' width='17' border='0'
-				  	   onclick=\"removeState('{$srcip}', '{$dstip}');\" style='cursor:pointer;'
-				       name='i:{$srcip}:{$dstip}'
-				       title='" . gettext("Remove all state entries from") . " {$srcip} " . gettext("to") . " {$dstip}' alt='' />
-				</td>
-			  </tr>";
-		$row++;
-	}
-}
-else {
-	echo "<tr>
-			<td class='list' colspan='4' align='center' valign='top'>
-			  " . gettext("No states were found.") . "
+?>
+	<tr valign="top" name="r:<?= $srcip ?>:<?= $dstip ?>">
+			<td class="listlr"><?= $proto ?></td>
+			<td class="listr"><?= $info ?></td>
+			<td class="listr"><?= $state ?></td>
+			<td class="list">
+			<img src="/themes/<?= $g['theme'] ?>/images/icons/icon_x.gif" height="17" width="17" border="0"
+				onclick="removeState('<?= $srcip ?>', '<?= $dstip ?>');" style="cursor:pointer;"
+				name="i:<?= $srcip ?>:<?= $dstip ?>"
+				title="<?= gettext('Remove all state entries from') ?> <?= $srcip ?> <?= gettext('to') ?> <?= $dstip ?>" alt="" />
 			</td>
-		  </tr>";
+	</tr>
+<?php
+	$row++;
+	ob_flush();
 }
+
+if ($row == 0): ?>
+	<tr>
+		<td class="list" colspan="4" align="center" valign="top">
+		<?= gettext("No states were found.") ?>
+		</td>
+	</tr>
+<?php endif;
+pclose($fd);
 ?>
 			</tbody>
 			</table>
+		</td>
+	</tr>
+	<tr>
+		<td class="list" colspan="4" align="center" valign="top">
+		<?php if (!empty($_GET['filter'])): ?>
+			<?=gettext("States matching current filter")?>: <?= $row ?>
+		<?php endif; ?>
 		</td>
 	</tr>
 </table>

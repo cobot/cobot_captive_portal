@@ -121,104 +121,128 @@ class SendMonitor extends Monitor {
 }
 
 function echo_lbaction($action) {
-  global $config;
+	global $config;
   
-  // Index actions by name
-  $actions_a = array();
-  for ($i=0; isset($config['load_balancer']['lbaction'][$i]); $i++)
+	// Index actions by name
+	$actions_a = array();
+	for ($i=0; isset($config['load_balancer']['lbaction'][$i]); $i++)
 		$actions_a[$config['load_balancer']['lbaction'][$i]['name']] = $config['load_balancer']['lbaction'][$i];
 
-  $ret = "";
-  $ret .=  "{$actions_a[$action]['direction']} {$actions_a[$action]['type']} {$actions_a[$action]['action']}";
-  switch($actions_a[$action]['action']) {
-    case 'append': {
-      $ret .= " \"{$actions_a[$action]['options']['value']}\" to \"{$actions_a[$action]['options']['akey']}\"";
-      break;
-    }
-    case 'change': {
-      $ret .= " \"{$actions_a[$action]['options']['akey']}\" to \"{$actions_a[$action]['options']['value']}\"";
-      break;
-    }
-    case 'expect': {
-      $ret .= " \"{$actions_a[$action]['options']['value']}\" from \"{$actions_a[$action]['options']['akey']}\"";
-      break;
-    }
-    case 'filter': {
-      $ret .= " \"{$actions_a[$action]['options']['value']}\" from \"{$actions_a[$action]['options']['akey']}\"";
-      break;
-    }
-    case 'hash': {
-      $ret .= " \"{$actions_a[$action]['options']['akey']}\"";
-      break;
-    }
-    case 'log': {
-      $ret .= " \"{$actions_a[$action]['options']['akey']}\"";
-      break;
-    }
-  }
-  return $ret;
+	$ret = "";
+	$ret .=  "{$actions_a[$action]['direction']} {$actions_a[$action]['type']} {$actions_a[$action]['action']}";
+	switch($actions_a[$action]['action']) {
+	case 'append':
+		$ret .= " \"{$actions_a[$action]['options']['value']}\" to \"{$actions_a[$action]['options']['akey']}\"";
+		break;
+	case 'change':
+		$ret .= " \"{$actions_a[$action]['options']['akey']}\" to \"{$actions_a[$action]['options']['value']}\"";
+		break;
+	case 'expect':
+		$ret .= " \"{$actions_a[$action]['options']['value']}\" from \"{$actions_a[$action]['options']['akey']}\"";
+		break;
+	case 'filter':
+		$ret .= " \"{$actions_a[$action]['options']['value']}\" from \"{$actions_a[$action]['options']['akey']}\"";
+		break;
+	case 'hash':
+		$ret .= " \"{$actions_a[$action]['options']['akey']}\"";
+		break;
+	case 'log':
+		$ret .= " \"{$actions_a[$action]['options']['akey']}\"";
+		break;
+	}
+	return $ret;
 }
 
 function relayd_configure($kill_first=false) {
-  global $config, $g;
+	global $config, $g;
 
-  $vs_a = $config['load_balancer']['virtual_server'];
-  $pool_a = $config['load_balancer']['lbpool'];
-  $protocol_a = $config['load_balancer']['lbprotocol'];
-
-  $check_a = array();
-
-  foreach ((array)$config['load_balancer']['monitor_type'] as $type) {
-    switch($type['type']) {
-      case 'icmp': {
-        $mon = new ICMPMonitor($type['options']);
-	break;
-      }
-      case 'tcp': {
-        $mon = new TCPMonitor($type['options']);
-	break;
-      }
-      case 'http': {
-        $mon = new HTTPMonitor($type['options']);
-	break;
-      }
-      case 'https': {
-        $mon = new HTTPSMonitor($type['options']);
-	break;
-      }
-      case 'send': {
-        $mon = new SendMonitor($type['options']);
-	break;
-      }
-    }
-    if($mon) {
-      $check_a[$type['name']] = $mon->p();
-    }
-  }
-
-
-  $fd = fopen("{$g['varetc_path']}/relayd.conf", "w");
-
-  /* reindex pools by name as we loop through the pools array */
-  $pools = array();
-  $conf .= "log updates \n";
-  $conf .= "timeout 1000 \n";
-  /* Virtual server pools */
-  if(is_array($pool_a)) {
-    for ($i = 0; isset($pool_a[$i]); $i++) {
-      if(is_array($pool_a[$i]['servers'])) {
-	if (!empty($pool_a[$i]['retry'])) {
-		$retrytext = " retry {$pool_a[$i]['retry']}";
-		$srvtxt = implode("{$retrytext}, ", $pool_a[$i]['servers']) . "{$retrytext}";
-	} else {
-		$srvtxt = implode(", ", $pool_a[$i]['servers']);
+	// have to do this until every call to filter.inc is
+	// require_once() instead of require().
+	if (!function_exists('filter_expand_alias_array')) {
+		require_once("filter.inc");
 	}
-        $conf .= "table <{$pool_a[$i]['name']}> { $srvtxt }\n";
-        /* Index by name for easier fetching when we loop through the virtual servers */
-        $pools[$pool_a[$i]['name']] = $pool_a[$i];
-      }
-    }
-  }
+
+	$vs_a = $config['load_balancer']['virtual_server'];
+	$pool_a = $config['load_balancer']['lbpool'];
+	$protocol_a = $config['load_balancer']['lbprotocol'];
+	$setting = $config['load_balancer']['setting'];
+
+	$check_a = array();
+
+	foreach ((array)$config['load_balancer']['monitor_type'] as $type) {
+		switch($type['type']) {
+		case 'icmp':
+			$mon = new ICMPMonitor($type['options']);
+			break;
+		case 'tcp':
+			$mon = new TCPMonitor($type['options']);
+			break;
+		case 'http':
+			$mon = new HTTPMonitor($type['options']);
+			break;
+		case 'https':
+			$mon = new HTTPSMonitor($type['options']);
+			break;
+		case 'send':
+			$mon = new SendMonitor($type['options']);
+			break;
+		}
+		if($mon) {
+			$check_a[$type['name']] = $mon->p();
+		}
+	}
+	
+  
+	$fd = fopen("{$g['varetc_path']}/relayd.conf", "w");
+	$conf .= "log updates \n";
+
+	/* Global timeout, interval and prefork settings
+	   if not specified by the user:
+	   - use a 1000 ms timeout value as in pfsense 2.0.1 and above
+	   - leave interval and prefork empty, relayd will use its default values */
+	
+	if (isset($setting['timeout']) && !empty($setting['timeout'])) {
+		$conf .= "timeout ".$setting['timeout']." \n";
+	} else {
+		$conf .= "timeout 1000 \n";
+	}
+	
+	if (isset($setting['interval']) && !empty($setting['interval'])) {
+		$conf .= "interval ".$setting['interval']." \n";
+	}
+	
+	if (isset($setting['prefork']) && !empty($setting['prefork'])) {
+		$conf .= "prefork ".$setting['prefork']." \n";
+	}
+	
+	/* reindex pools by name as we loop through the pools array */
+	$pools = array();
+	/* Virtual server pools */
+	if(is_array($pool_a)) {
+		for ($i = 0; isset($pool_a[$i]); $i++) {
+			if(is_array($pool_a[$i]['servers'])) {
+				if (!empty($pool_a[$i]['retry'])) {
+					$retrytext = " retry {$pool_a[$i]['retry']}";
+				} else {
+					$retrytext = "";
+				}
+				$conf .= "table <{$pool_a[$i]['name']}> {\n";
+				foreach ($pool_a[$i]['servers'] as $server) {
+					if (is_subnetv4($server)) {
+						foreach (subnetv4_expand($server) as $ip) {
+							$conf .= "\t{$ip}{$retrytext}\n";
+						}
+					}
+					else {
+						$conf .= "\t{$server}{$retrytext}\n";
+					}
+				}
+				$conf .= "}\n";
+				/* Index by name for easier fetching when we loop through the virtual servers */
+				$pools[$pool_a[$i]['name']] = $pool_a[$i];
+			}
+		}
+	}
 //  if(is_array($protocol_a)) {
 //    for ($i = 0; isset($protocol_a[$i]); $i++) {
 //      $proto = "{$protocol_a[$i]['type']} protocol \"{$protocol_a[$i]['name']}\" {\n";
@@ -236,43 +260,101 @@ function relayd_configure($kill_first=false) {
 //  }
 
 	$conf .= "dns protocol \"dnsproto\" {\n";
-	$conf .= "	tcp { nodelay, sack, socket buffer 1024, backlog 1000 }\n";
+	$conf .= "\t" . "tcp { nodelay, sack, socket buffer 1024, backlog 1000 }\n";
 	$conf .= "}\n";
 
 	if(is_array($vs_a)) {
 		for ($i = 0; isset($vs_a[$i]); $i++) {
-			if (($vs_a[$i]['mode'] == 'relay') || ($vs_a[$i]['relay_protocol'] == 'dns')) {
-				$conf .= "relay \"{$vs_a[$i]['name']}\" {\n";
-				$conf .= "  listen on {$vs_a[$i]['ipaddr']} port {$vs_a[$i]['port']}\n";
+			
+			$append_port_to_name = false;
+			if (is_alias($pools[$vs_a[$i]['poolname']]['port'])) {
+				$dest_port_array = filter_expand_alias_array($pools[$vs_a[$i]['poolname']]['port']);
+				$append_port_to_name = true;
+			}
+			else {
+				$dest_port_array = array($pools[$vs_a[$i]['poolname']]['port']);
+			}
+			if (is_alias($vs_a[$i]['port'])) {
+				$src_port_array = filter_expand_alias_array($vs_a[$i]['port']);
+				$append_port_to_name = true;
+			}
+			else if ($vs_a[$i]['port']) {
+				$src_port_array = array($vs_a[$i]['port']);
+			}
+			else {
+				$src_port_array = $dest_port_array;
+			}
 
-				if ($vs_a[$i]['relay_protocol'] == "dns") {
-					$conf .= "  protocol \"dnsproto\"\n";
-				} else {
-					$conf .= "  protocol \"{$vs_a[$i]['relay_protocol']}\"\n";
+			$append_ip_to_name = false;
+			if (is_alias($vs_a[$i]['ipaddr'])) {
+				$ip_list = array();
+				foreach (filter_expand_alias_array($vs_a[$i]['ipaddr']) as $item) {
+					log_error("item is $item");
+					if (is_subnetv4($item)) {
+						$ip_list = array_merge($ip_list, subnetv4_expand($item));
+					}
+					else {
+						$ip_list[] = $item;
+					}
 				}
-				$lbmode = "";
-				if ( $pools[$vs_a[$i]['pool']]['mode'] == "loadbalance" ) {
-					$lbmode = "mode loadbalance";
+				$append_ip_to_name = true;
+			}
+			else if (is_subnetv4($vs_a[$i]['ipaddr'])) {
+				$ip_list = subnetv4_expand($vs_a[$i]['ipaddr']);
+				$append_ip_to_name = true;
+			}
+			else {
+				$ip_list = array($vs_a[$i]['ipaddr']);
+			}
+
+			for ($j = 0; $j < count($ip_list); $j += 1) {
+				$ip = $ip_list[$j];
+				for ($k = 0; $k < count($src_port_array) && $k < count($dest_port_array); $k += 1) {
+					$src_port  = $src_port_array[$k];
+					$dest_port = $dest_port_array[$k];
+
+					$name = $vs_a[$i]['name'];
+					if ($append_ip_to_name) {
+						$name .= "_" . $j;
+					}
+					if ($append_port_to_name) {
+						$name .= "_" . $src_port;
+					}
+
+					if (($vs_a[$i]['mode'] == 'relay') || ($vs_a[$i]['relay_protocol'] == 'dns')) {
+						$conf .= "relay \"{$name}\" {\n";
+						$conf .= "  listen on {$ip} port {$src_port}\n";
+
+						if ($vs_a[$i]['relay_protocol'] == "dns") {
+							$conf .= "  protocol \"dnsproto\"\n";
+						} else {
+							$conf .= "  protocol \"{$vs_a[$i]['relay_protocol']}\"\n";
+						}
+						$lbmode = "";
+						if ( $pools[$vs_a[$i]['poolname']]['mode'] == "loadbalance" ) {
+							$lbmode = "mode loadbalance";
+						}
+
+						$conf .= "  forward to <{$vs_a[$i]['poolname']}> port {$dest_port} {$lbmode} {$check_a[$pools[$vs_a[$i]['poolname']]['monitor']]} \n";
+
+						if (isset($vs_a[$i]['sitedown']) &&  strlen($vs_a[$i]['sitedown']) > 0 && ($vs_a[$i]['relay_protocol'] != 'dns'))
+							$conf .= "  forward to <{$vs_a[$i]['sitedown']}> port {$dest_port} {$lbmode} {$check_a[$pools[$vs_a[$i]['poolname']]['monitor']]} \n";
+						$conf .= "}\n";
+					} else  {
+						$conf .= "redirect \"{$name}\" {\n";
+						$conf .= "  listen on {$ip} port {$src_port}\n";
+						$conf .= "  forward to <{$vs_a[$i]['poolname']}> port {$dest_port} {$check_a[$pools[$vs_a[$i]['poolname']]['monitor']]} \n";
+
+						if (isset($config['system']['lb_use_sticky']))
+							$conf .= "  sticky-address\n";
+
+						/* sitedown MUST use the same port as the primary pool - sucks, but it's a relayd thing */
+						if (isset($vs_a[$i]['sitedown']) && strlen($vs_a[$i]['sitedown']) > 0 && ($vs_a[$i]['relay_protocol'] != 'dns'))
+							$conf .= "  forward to <{$vs_a[$i]['sitedown']}> port {$dest_port} {$check_a[$pools[$vs_a[$i]['sitedown']]['monitor']]} \n";
+
+						$conf .= "}\n";
+					}
 				}
-
-				$conf .= "  forward to <{$vs_a[$i]['pool']}> port {$pools[$vs_a[$i]['pool']]['port']} {$lbmode} {$check_a[$pools[$vs_a[$i]['pool']]['monitor']]} \n";
-
-				if (isset($vs_a[$i]['sitedown']) &&  strlen($vs_a[$i]['sitedown']) > 0)
-					$conf .= "  forward to <{$vs_a[$i]['sitedown']}> port {$pools[$vs_a[$i]['pool']]['port']} {$lbmode} {$check_a[$pools[$vs_a[$i]['pool']]['monitor']]} \n";
-				$conf .= "}\n";
-			} else  {
-				$conf .= "redirect \"{$vs_a[$i]['name']}\" {\n";
-				$conf .= "  listen on {$vs_a[$i]['ipaddr']} port {$vs_a[$i]['port']}\n";
-				$conf .= "  forward to <{$vs_a[$i]['pool']}> port {$pools[$vs_a[$i]['pool']]['port']} {$check_a[$pools[$vs_a[$i]['pool']]['monitor']]} \n";
-
-				if (isset($config['system']['lb_use_sticky']))
-					$conf .= "  sticky-address\n";
-
-				# sitedown MUST use the same port as the primary pool - sucks, but it's a relayd thing
-				if (isset($vs_a[$i]['sitedown']) && strlen($vs_a[$i]['sitedown']) > 0)
-					$conf .= "  forward to <{$vs_a[$i]['sitedown']}> port {$pools[$vs_a[$i]['pool']]['port']} {$check_a[$pools[$vs_a[$i]['pool']]['monitor']]} \n";
-
-				$conf .= "}\n";
 			}
 		}
 	}
@@ -283,6 +365,8 @@ function relayd_configure($kill_first=false) {
 		if (! empty($vs_a)) {
 			if ($kill_first) {
 				mwexec('pkill relayd');
+				/* Remove all active relayd anchors now that relayd is no longer running. */
+				cleanup_lb_anchor("*");
 				mwexec("/usr/local/sbin/relayd -f {$g['varetc_path']}/relayd.conf");
 			} else {
 				// it's running and there is a config, just reload
@@ -297,10 +381,14 @@ function relayd_configure($kill_first=false) {
 			 *  returns "command failed"
 			 */
 			mwexec('pkill relayd');
+			/* Remove all active relayd anchors now that relayd is no longer running. */
+			cleanup_lb_anchor("*");
 		}
 	} else {
 		if (! empty($vs_a)) {
 			// not running and there is a config, start it
+			/* Remove all active relayd anchors so it can start fresh. */
+			cleanup_lb_anchor("*");
 			mwexec("/usr/local/sbin/relayd -f {$g['varetc_path']}/relayd.conf");
 		}
 	}
@@ -385,19 +473,88 @@ function get_lb_summary() {
 	exec('/usr/local/sbin/relayctl show summary 2>&1', $relayctl);
 	$relay_hosts=Array();
 	foreach( (array) $relayctl as $line) {
-		$t=split("\t", $line);
+		$t = explode("\t", $line);
 		switch (trim($t[1])) {
 			case "table":
 				$curpool=trim($t[2]);
-			break;
+				break;
 			case "host":
 				$curhost=trim($t[2]);
 				$relay_hosts[$curpool][$curhost]['avail']=trim($t[3]);
 				$relay_hosts[$curpool][$curhost]['state']=trim($t[4]);
-			break;
+				break;
 		}
 	}
 	return $relay_hosts;
+}
+
+/* Get a list of all relayd virtual server anchors */
+function get_lb_anchors() {
+	/* NOTE: These names come back prepended with "relayd/" e.g. "relayd/MyVSName" */
+	return explode("\n", trim(`/sbin/pfctl -sA -a relayd | /usr/bin/awk '{print $1;}'`));
+}
+
+/* Remove NAT rules from a relayd anchor that is no longer in use.
+	$anchorname can either be * to clear all anchors or a specific anchor name.*/
+function cleanup_lb_anchor($anchorname = "*") {
+	$lbanchors = get_lb_anchors();
+	foreach ($lbanchors as $lba) {
+		if (($anchorname == "*") || ($lba == "relayd/{$anchorname}")) {
+			/* Flush both the NAT and the Table for the anchor, so it will be completely removed by pf. */
+			mwexec("/sbin/pfctl -a " . escapeshellarg($lba) . " -F nat");
+			mwexec("/sbin/pfctl -a " . escapeshellarg($lba) . " -F Tables");
+		}
+	}
+}
+
+/* Mark an anchor for later cleanup. This will allow us to remove an old VS name */
+function cleanup_lb_mark_anchor($name) {
+	global $g;
+	/* Nothing to do! */
+	if (empty($name))
+		return;
+	$filename = "{$g['tmp_path']}/relayd_anchors_remove";
+	$cleanup_anchors = array();
+	/* Read in any currently unapplied name changes */
+	if (file_exists($filename))
+		$cleanup_anchors = explode("\n", file_get_contents($filename));
+	/* Only add the anchor to the list if it's not already there. */
+	if (!in_array($name, $cleanup_anchors))
+		$cleanup_anchors[] = $name;
+	file_put_contents($filename, implode("\n", $cleanup_anchors));
+}
+
+/* Cleanup relayd anchors that have been marked for cleanup. */
+function cleanup_lb_marked() {
+	global $g, $config;
+	$filename = "{$g['tmp_path']}/relayd_anchors_remove";
+	$cleanup_anchors = array();
+	/* Nothing to do! */
+	if (!file_exists($filename)) {
+		return;
+	} else {
+		$cleanup_anchors = explode("\n", file_get_contents($filename));
+		/* Nothing to do! */
+		if (empty($cleanup_anchors))
+			return;
+	}
+
+	/* Load current names so we can make sure we don't remove an anchor that is still in use. */
+	$vs_a = $config['load_balancer']['virtual_server'];
+	$active_vsnames = array();
+	if(is_array($vs_a)) {
+		foreach ($vs_a as $vs) {
+			$active_vsnames[] = $vs['name'];
+		}
+	}
+
+	foreach ($cleanup_anchors as $anchor) {
+		/* Only cleanup an anchor if it is not still active. */
+		if (!in_array($anchor, $active_vsnames)) {
+			cleanup_lb_anchor($anchor);
+		}
+	}
+	unlink_if_exists($filename);
 }
 
 ?>

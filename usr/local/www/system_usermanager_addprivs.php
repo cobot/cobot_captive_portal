@@ -42,21 +42,13 @@ function admusercmp($a, $b) {
 	return strcasecmp($a['name'], $b['name']);
 }
 
-function admin_users_sort() {
-        global $g, $config;
-
-        if (!is_array($config['system']['user']))
-                return;
-
-        usort($config['system']['user'], "admusercmp");
-}
-
 require("guiconfig.inc");
 
 $pgtitle = array("System","User manager","Add privileges");
 
-$userid = $_GET['userid'];
-if (isset($_POST['userid']))
+if (is_numericint($_GET['userid']))
+	$userid = $_GET['userid'];
+if (isset($_POST['userid']) && is_numericint($_POST['userid']))
 	$userid = $_POST['userid'];
 
 $a_user = & $config['system']['user'][$userid];
@@ -102,7 +94,6 @@ if ($_POST) {
 			$a_user['priv'] = array_merge($a_user['priv'], $pconfig['sysprivs']);
 
 		$a_user['priv'] = sort_user_privs($a_user['priv']);
-		admin_users_sort();
 		local_user_set($a_user);
 		$retval = write_config();
 		$savemsg = get_std_save_message($retval);
@@ -125,7 +116,7 @@ include("head.inc");
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC" onload="<?= $jsevents["body"]["onload"] ?>">
 <?php include("fbegin.inc"); ?>
 <script type="text/javascript">
-<!--
+//<![CDATA[
 
 <?php
 
@@ -136,7 +127,7 @@ if (is_array($priv_list)) {
 	foreach($priv_list as $pname => $pdata) {
 		if (in_array($pname, $a_user['priv']))
 			continue;
-		$desc = addslashes($pdata['descr']);
+		$desc = addslashes(preg_replace("/pfSense/i", $g['product_name'], $pdata['descr']));
 		$jdescs .= "descs[{$id}] = '{$desc}';\n";
 		$id++;
 	}
@@ -151,7 +142,7 @@ function update_description() {
 	document.getElementById("pdesc").innerHTML = descs[index];
 }
 
-//-->
+//]]>
 </script>
 <?php
 	if ($input_errors)
@@ -159,7 +150,7 @@ function update_description() {
 	if ($savemsg)
 		print_info_box($savemsg);
 ?>
-<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="user manager add priveleges">
 	<tr>
 		<td>
 		<?php
@@ -176,11 +167,11 @@ function update_description() {
 		<td id="mainarea">
 			<div class="tabcont">
 				<form action="system_usermanager_addprivs.php" method="post" name="iform" id="iform">
-					<table width="100%" border="0" cellpadding="6" cellspacing="0">
+					<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="main area">
 						<tr>
 							<td width="22%" valign="top" class="vncellreq"><?=gettext("System Privileges");?></td>
 							<td width="78%" class="vtable">
-								<select name="sysprivs[]" id="sysprivs" class="formselect" onchange="update_description();" multiple size="20">
+								<select name="sysprivs[]" id="sysprivs" class="formselect" onchange="update_description();" multiple="multiple" size="35">
 									<?php
 										foreach($priv_list as $pname => $pdata):
 											if (in_array($pname, $a_user['priv']))
@@ -205,7 +196,7 @@ function update_description() {
 								<input id="submitt"  name="Submit" type="submit" class="formbtn" value="<?=gettext("Save");?>" />
 								<input id="cancelbutton" class="formbtn" type="button" value="<?=gettext("Cancel");?>" onclick="history.back()" />
 								<?php if (isset($userid)): ?>
-								<input name="userid" type="hidden" value="<?=$userid;?>" />
+								<input name="userid" type="hidden" value="<?=htmlspecialchars($userid);?>" />
 								<?php endif; ?>
 							</td>
 						</tr>

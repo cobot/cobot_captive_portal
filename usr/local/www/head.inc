@@ -3,49 +3,64 @@
 	pfSense_MODULE:	header
 */
 
-/* 
- *   if user has selected a custom template, use it.
- *   otherwise default to pfsense tempalte
- */
-if (($g["disablethemeselection"] === true) && !empty($g["default_theme"]) && (is_dir($g["www_path"].'/themes/'.$g["default_theme"])))
-	$g['theme'] = $g["default_theme"];
-elseif($config['theme'] <> "" && (is_dir($g["www_path"].'/themes/'.$config['theme'])))
-	$g['theme'] = $config['theme'];
-else
-	$g['theme'] = "pfsense";
-
-/*
- *  If this device is an apple ipod/iphone
- *  switch the theme to one that works with it.
- */
-$lowres_ua = array("iPhone", "iPod", "iPad", "Android", "BlackBerry", "Opera Mini", "Opera Mobi");
-foreach($lowres_ua as $useragent)
-	if(strstr($_SERVER['HTTP_USER_AGENT'], $useragent))
-		$g['theme'] = empty($g['theme_lowres']) ? "pfsense" : $g['theme_lowres'];
+$g['theme'] = get_current_theme();
 
 $pagetitle = gentitle( $pgtitle );
 
 ?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html>
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
 	<title><?php echo($config['system']['hostname'] . "." . $config['system']['domain'] . " - " . $pagetitle); ?></title>
 	<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
 	<link rel="apple-touch-icon" href="/themes/<?php echo $g['theme']; ?>/apple-touch-icon.png"/>
-        <?php if (strpos($_SERVER["SCRIPT_FILENAME"], "wizard.php") !== false &&
+	<link rel="shortcut icon" href="/themes/<?php echo $g['theme']; ?>/images/icons/favicon.ico"/>
+		<?php 
+		if (file_exists("{$g['www_path']}/themes/{$g['theme']}/table.css")):
+			echo "<link type=\"text/css\" rel=\"stylesheet\" href=\"/themes/{$g['theme']}/table.css\" />";
+        else:
+        	echo "<link type=\"text/css\" rel=\"stylesheet\" href=\"/css/table.css\" media=\"all\" />";
+        endif;
+		?>
+
+		<?php if (strpos($_SERVER["SCRIPT_FILENAME"], "wizard.php") !== false &&
                   file_exists("{$g['www_path']}/themes/{$g['theme']}/wizard.css")): ?>
-					<?php echo "<style type=\"text/css\" src=\"/themes/{$g['theme']}/wizard.css\"></style>"; ?>
+					<?php echo "<link type=\"text/css\" rel=\"stylesheet\" href=\"/themes/{$g['theme']}/wizard.css\" />"; ?>
         <?php else: ?>
-        	<link rel="stylesheet" href="/themes/<?php echo $g['theme']; ?>/all.css" media="all" />
+        	<link type="text/css" rel="stylesheet" href="/themes/<?php echo $g['theme']; ?>/all.css" media="all" />
         <?php endif; ?>
-		<link rel="stylesheet" type="text/css" href="/niftycssCode.css">
-		<link rel="stylesheet" type="text/css" href="/niftycssprintCode.css" media="print">
-		<link rel="stylesheet" type="text/css" href="/themes/<?=$g['theme']?>/new_tab_menu.css" media="all">
+		<link rel="stylesheet" type="text/css" href="/niftycssCode.css" />
+		<link rel="stylesheet" type="text/css" href="/niftycssprintCode.css" media="print" />
+		<link rel="stylesheet" type="text/css" href="/themes/<?=$g['theme']?>/new_tab_menu.css" media="all" />
 		<script type="text/javascript" src="/javascript/niftyjsCode.js"></script>
+		<script type="text/javascript" src="/javascript/jquery.js"></script>
+		<script type="text/javascript" src="/javascript/jquery/jquery-ui.custom.min.js"></script>
 		<script type="text/javascript">
+		//<![CDATA[
 			var theme = "<?php echo $g['theme']; ?>";
+
+			jQuery.noConflict();
+		//]]>
 		</script>
+		
+		<script type="text/javascript" src="/javascript/sorttable.js"></script>
+		<script type="text/javascript" src="/javascript/ticker.js"></script>
+		<style type="text/css" id="antiClickjack">
+		/*<![CDATA[*/
+		body{display:none}
+		/*]]>*/
+		</style>
+		<script type="text/javascript">
+		//<![CDATA[
+		if (self === top) {
+			var antiClickjack = document.getElementById("antiClickjack"); antiClickjack.parentNode.removeChild(antiClickjack);
+		} else {
+			top.location = self.location;
+		}
+		//]]>
+		</script>
+		
 		<?php echo "\t<script type=\"text/javascript\" src=\"/themes/{$g['theme']}/loader.js\"></script>\n"; ?>
 <?php
 		if($_GET['enablefirebuglite']) {

@@ -1,0 +1,7 @@
+2014-05-07 13:08:03 [unknown:userdel] admin(0) account removed
+2014-05-07 13:08:03 [unknown:groupadd] all(1998)
+2014-05-07 13:08:03 [unknown:usermod] root(0):wheel(0):Charlie &:/root:/bin/sh
+2014-05-07 13:08:03 [unknown:useradd] admin(0):wheel(0):System Administrator:/root:/etc/rc.initial
+2014-05-07 13:08:03 [unknown:useradd] admin(0) home /root made
+2014-05-07 13:08:03 [unknown:groupmod] all(1998)
+2014-05-07 13:08:03 [unknown:groupadd] admins(1999)

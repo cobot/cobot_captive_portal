@@ -3,7 +3,7 @@
 /* $Id$ */
 /*
     rc.carpdown
-    part of pfSense (http://www.pfSense.com)
+    part of pfSense (https://www.pfsense.org)
     Copyright (C) 2004 Scott Ullrich
     All rights reserved.
 
@@ -32,10 +32,24 @@
 require_once("functions.inc");
 require_once("config.inc");
 require_once("notices.inc");
+require_once("openvpn.inc");
+require_once("interfaces.inc");
 
-$notificationmsg = "A carp cluster member has resumed the state 'BACKUP'";
+$notificationmsg = sprintf('Carp cluster member "%2$s (%1$s)" has resumed the state "BACKUP"',$argv[1],convert_friendly_interface_to_friendly_descr($argv[1]));
 
 notify_via_smtp($notificationmsg);
 notify_via_growl($notificationmsg);
+
+/* Stop OpenVPN clients running on this VIP, since multiple active OpenVPN clients on a CARP cluster can be problematic. */
+global $config;
+if (is_array($config['openvpn']) && is_array($config['openvpn']['openvpn-client'])) {
+	foreach ($config['openvpn']['openvpn-client'] as $settings) {
+		if ($settings['interface'] == $argv[1]) {
+			log_error("Stopping OpenVPN instance on {$settings['interface']} because of transition to CARP backup.");
+			openvpn_restart('client', $settings);
+		}
+	}
+}
+
 
 ?>

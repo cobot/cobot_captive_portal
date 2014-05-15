@@ -27,7 +27,13 @@
 
 # Set our operating platform
 PLATFORM=`/bin/cat /etc/platform`
-EXTENSIONSDIR="/usr/local/lib/php/20060613/"
+MIN_REALMEM_FOR_APC=512
+
+if [ -d /usr/local/lib/php/20090626 ]; then
+	EXTENSIONSDIR="/usr/local/lib/php/20090626/"
+else
+	EXTENSIONSDIR="/usr/local/lib/php/20060613/"
+fi
 
 # Grab amount of memory that is detected
 if [ -f /var/log/dmesg.boot ]; then
@@ -41,51 +47,61 @@ if [ -z "$AVAILMEM" ]; then
 	AVAILMEM=`/bin/expr $MEM / 1048576`
 fi
 
-# Calculate APC SHM size according 
-# to detected memory values
-if [ "$AVAILMEM" -lt "65" ]; then
-	APCSHMEMSIZE="1M"
-fi
-if [ "$AVAILMEM" -lt "96" ]; then
-	APCSHMEMSIZE="5M"
-fi
-if [ "$AVAILMEM" -lt "128" ]; then
-	APCSHMEMSIZE="10M"
-fi
-if [ "$AVAILMEM" -gt "128" ]; then
-	APCSHMEMSIZE="15M"
-fi
-if [ "$AVAILMEM" -gt "256" ]; then
-	APCSHMEMSIZE="20M"
-fi
-if [ "$AVAILMEM" -gt "384" ]; then
-	APCSHMEMSIZE="25M"
-fi
-if [ "$AVAILMEM" -gt "512" ]; then
-	APCSHMEMSIZE="30M"
-fi
-if [ "$AVAILMEM" -gt "784" ]; then
-	APCSHMEMSIZE="35M"
+
+# Get amount of ram installed on this system
+REALMEM=`/sbin/sysctl hw.realmem | /usr/bin/awk '{print $2/1048576}' | /usr/bin/awk -F '.' '{print $1}'`
+export REALMEM
+export LOWMEM
+
+if [  "$REALMEM" -lt "$MIN_REALMEM_FOR_APC" ]; then
+	LOWMEM="TRUE"
+	echo ">>> Under $MIN_REALMEM_FOR_APC megabytes of ram detected.  Not enabling APC."
+	echo ">>> Under $MIN_REALMEM_FOR_APC megabytes of ram detected.  Not enabling APC." | /usr/bin/logger -p daemon.info -i -t rc.php_ini_setup
+else
+
+	# Calculate APC SHM size according 
+	# to detected memory values
+	if [ "$AVAILMEM" -gt "135" ]; then
+		APCSHMEMSIZE="10M"
+	fi
+	if [ "$AVAILMEM" -gt "256" ]; then
+		APCSHMEMSIZE="20M"
+	fi
+	if [ "$AVAILMEM" -gt "384" ]; then
+		APCSHMEMSIZE="25M"
+	fi
+	if [ "$AVAILMEM" -gt "512" ]; then
+		APCSHMEMSIZE="30M"
+	fi
+	if [ "$AVAILMEM" -gt "784" ]; then
+		APCSHMEMSIZE="50M"
+	fi
 fi
 
 # Set upload directory
 if [ "$PLATFORM" = "embedded" -o "$PLATFORM" = "nanobsd" ]; then
-	UPLOADTMPDIR="/root"
+	UPLOADTMPDIR=`/usr/bin/grep upload_path /etc/inc/globals.inc | /usr/bin/cut -d'"' -f4`
 else 
 	UPLOADTMPDIR="/tmp"
 fi
 
 # Define php modules.  Do not add .so, it will  
 # be done automatically by the script below.
-PHPMODULES="apc"
-PHPMODULES="$PHPMODULES standard"
+PHPMODULES="standard"
+if [ "$LOWMEM" != "TRUE" ]; then
+	PHPMODULES="$PHPMODULES apc"
+fi
+# Config read/write
+PHPMODULES="$PHPMODULES xml libxml dom"
+PHPMODULES="$PHPMODULES simplexml xmlreader xmlwriter"
 # Downloading via HTTP/FTP (pkg mgr, etc)
 PHPMODULES="$PHPMODULES curl date"
 # Internationalization 
 PHPMODULES="$PHPMODULES gettext"
 # User manager
 PHPMODULES="$PHPMODULES ldap openssl pcntl"
-PHPMODULES="$PHPMODULES mhash"
+PHPMODULES="$PHPMODULES hash"
+PHPMODULES="$PHPMODULES mcrypt"
 # Regexs, PERL style!
 PHPMODULES="$PHPMODULES pcre"
 # The mighty posix!
@@ -97,9 +113,6 @@ PHPMODULES="$PHPMODULES session"
 PHPMODULES="$PHPMODULES suhosin"
 # Firewall rules edit
 PHPMODULES="$PHPMODULES ctype"
-# Config read/write
-PHPMODULES="$PHPMODULES xml xmlreader xmlwriter libxml"
-PHPMODULES="$PHPMODULES simplexml"
 # firewall_rules_edit.php
 PHPMODULES="$PHPMODULES mbstring"
 # Synchronization primitives
@@ -110,12 +123,18 @@ PHPMODULES="$PHPMODULES zlib"
 PHPMODULES="$PHPMODULES spl"
 PHPMODULES="$PHPMODULES pdo"
 PHPMODULES="$PHPMODULES sqlite"
+# RADIUS
+PHPMODULES="$PHPMODULES radius"
 # ZeroMQ
 PHPMODULES="$PHPMODULES zmq"
 # SSH2
 PHPMODULES="$PHPMODULES ssh2"
 # pfSense extensions
 PHPMODULES="$PHPMODULES pfSense"
+# json
+PHPMODULES="$PHPMODULES json"
+# bcmath
+PHPMODULES="$PHPMODULES bcmath"
 
 PHP_ZEND_MODULES="ioncube_loader"
 PHP_ZEND_MODULES_TS="ioncube_loader_ts"
@@ -133,7 +152,6 @@ PHP_ZEND_MODULES_TS="ioncube_loader_ts"
 #	Reflection \
 #	mysql \
 #	bz2	\
-#	json \
 
 # Clear the .ini file to make sure we are clean
 if [ -f /usr/local/etc/php.ini ]; then
@@ -143,6 +161,9 @@ if [ -f /usr/local/lib/php.ini ]; then
 	/bin/rm /usr/local/lib/php.ini
 fi
 LOADED_MODULES=`/usr/local/bin/php -m | /usr/bin/grep -v "\["`
+
+# Fetch the timezone from the XML and set it here. We set it later too in the running scripts
+TIMEZONE=`cat /conf/config.xml | egrep -E '<timezone>(.*?)</timezone>' | awk -F'>' '{print $2}'|awk -F'<' '{print $1}'`
 
 # Get a loaded module list in the stock php
 # Populate a dummy php.ini to avoid
@@ -154,23 +175,23 @@ output_buffering = "0"
 expose_php = Off
 implicit_flush = true
 magic_quotes_gpc = Off
-max_execution_time = 99999999
-max_input_time = 99999999
-set_time_limit = 0
+max_execution_time = 900
+max_input_time = 1800
 register_argc_argv = On
 file_uploads = On
 upload_tmp_dir = ${UPLOADTMPDIR}
-upload_max_filesize = 100M
-post_max_size = 100M
+upload_max_filesize = 200M
+post_max_size = 200M
 html_errors = Off
 zlib.output_compression = Off
 zlib.output_compression_level = 1
 include_path = ".:/etc/inc:/usr/local/www:/usr/local/captiveportal:/usr/local/pkg"
-;display_startup_errors=off
-;display_errors=off
+display_startup_errors=on
+display_errors=on
 log_errors=on
 error_log=/tmp/PHP_errors.log
 extension_dir=${EXTENSIONSDIR}
+date.timezone="${TIMEZONE}"
 
 ; Extensions
 
@@ -242,11 +263,8 @@ for EXT in $PHP_ZEND_MODULES_TS; do
 	fi
 done
 
-# Get amount of ram installed on this system
-RAM=`/sbin/sysctl hw.realmem | /usr/bin/awk '{print $2/1000000}' | /usr/bin/awk -F '.' '{print $1}'`
-export RAM
-export LOWMEM
-if [  "$RAM" -gt 96 ]; then
+
+if [ "$LOWMEM" != "TRUE" ]; then
 
 	/bin/cat >>/usr/local/lib/php.ini <<EOF
 
@@ -256,11 +274,6 @@ apc.enable_cli="0"
 apc.shm_size="${APCSHMEMSIZE}"
 
 EOF
-
-else
-	LOWMEM="TRUE"
-	echo ">>> WARNING!  under 128 megabytes of ram detected.  Not enabling APC."
-	echo ">>> WARNING!  under 128 megabytes of ram detected.  Not enabling APC." | /usr/bin/logger -p daemon.info -i -t rc.php_ini_setup
 fi
 
 	/bin/cat >>/usr/local/lib/php.ini <<EOF

@@ -37,7 +37,7 @@ require_once("/usr/local/www/widgets/include/carp_status.inc");
 $carp_enabled = get_carp_status();
 
 ?>
-<table bgcolor="#990000" width="100%" border="0" cellspacing="0" cellpadding="0">
+<table bgcolor="#990000" width="100%" border="0" cellspacing="0" cellpadding="0" summary="carp status">
 <?php
 	if(is_array($config['virtualip']['vip'])) {
 		$carpint=0;
@@ -49,27 +49,27 @@ $carp_enabled = get_carp_status();
 			$netmask = $carp['subnet_bits'];
 			$vhid = $carp['vhid'];
 			$advskew = $carp['advskew'];
-			$carp_int = "vip{$vhid}";
+			$carp_int = "{$carp['interface']}_vip{$vhid}";
 			$status = get_carp_interface_status($carp_int);
 ?>
 <tr>
-	<td class="vncellt" width="30%">
-		<img src="./themes/<?= $g['theme']; ?>/images/icons/icon_cablenic.gif"/> &nbsp;
-		<strong><a href="/pkg_edit.php?xml=carp_settings.xml&id=0">
+	<td class="vncellt" width="35%">
+		<img src="./themes/<?= $g['theme']; ?>/images/icons/icon_cablenic.gif" alt="cablenic" />&nbsp;
+		<strong><a href="/system_hasync.php">
 		<span style="color:#000000"><?=htmlspecialchars($carp_int);?></span></a></strong>
 	</td>
-	<td width="70%"  class="listr">
+	<td width="65%"  class="listr">
 <?php
 			if($carp_enabled == false) {
 				$status = "DISABLED";
-				echo "<img src='/themes/".$g['theme']."/images/icons/icon_block.gif' title=\"$status\">";
+				echo "<img src='/themes/".$g['theme']."/images/icons/icon_block.gif' title=\"$status\" alt=\"$status\" />";
 			} else {
 				if($status == "MASTER") {
-					echo "<img src='/themes/".$g['theme']."/images/icons/icon_pass.gif' title=\"$status\">";
+					echo "<img src='/themes/".$g['theme']."/images/icons/icon_pass.gif' title=\"$status\" alt=\"$status\" />";
 				} else if($status == "BACKUP") {
-					echo "<img src='/themes/".$g['theme']."/images/icons/icon_pass_d.gif' title=\"$status\">";
+					echo "<img src='/themes/".$g['theme']."/images/icons/icon_pass_d.gif' title=\"$status\" alt=\"$status\" />";
 				} else if($status == "INIT") {
-					echo "<img src='/themes/".$g['theme']."/images/icons/icon_log.gif' title=\"$status\">";
+					echo "<img src='/themes/".$g['theme']."/images/icons/icon_log.gif' title=\"$status\" alt=\"$status\" />";
 				}
 			}
 			if ($ipaddress){ ?> &nbsp;

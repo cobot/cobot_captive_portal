@@ -35,40 +35,53 @@
 ##|*MATCH=services_captiveportal_vouchers_edit.php*
 ##|-PRIV
 
-$statusurl = "status_captiveportal_vouchers.php";
-$logurl = "diag_logs_auth.php";
-
 require("guiconfig.inc");
 require("functions.inc");
-require("filter.inc");
+require_once("filter.inc");
 require("shaper.inc");
 require("captiveportal.inc");
 require_once("voucher.inc");
 
 $pgtitle = array(gettext("Services"), gettext("Captive portal"), gettext("Edit Voucher Rolls"));
+$shortcut_section = "captiveportal-vouchers";
+
+$cpzone = $_GET['zone'];
+if (isset($_POST['zone']))
+        $cpzone = $_POST['zone'];
+
+if (empty($cpzone) || empty($config['captiveportal'][$cpzone])) {
+        header("Location: services_captiveportal_zones.php");
+        exit;
+}
+
+if (!is_array($config['captiveportal']))
+        $config['captiveportal'] = array();
+$a_cp =& $config['captiveportal'];
 
 if (!is_array($config['voucher'])) {
     $config['voucher'] = array();
 }
 
-if (!is_array($config['voucher']['roll'])) {
-	$config['voucher']['roll'] = array();
+if (!is_array($config['voucher'][$cpzone]['roll'])) {
+	$config['voucher'][$cpzone]['roll'] = array();
 }
-$a_roll = &$config['voucher']['roll'];
+$a_roll = &$config['voucher'][$cpzone]['roll'];
 
-$id = $_GET['id'];
-if (isset($_POST['id']))
+if (is_numericint($_GET['id']))
+	$id = $_GET['id'];
+if (isset($_POST['id']) && is_numericint($_POST['id']))
 	$id = $_POST['id'];
 
 if (isset($id) && $a_roll[$id]) {
+	$pconfig['zone'] = $a_roll[$id]['zone'];
 	$pconfig['number'] = $a_roll[$id]['number'];
 	$pconfig['count'] = $a_roll[$id]['count'];
 	$pconfig['minutes'] = $a_roll[$id]['minutes'];
-	$pconfig['comment'] = $a_roll[$id]['comment'];
+	$pconfig['descr'] = $a_roll[$id]['descr'];
 }
 
-$maxnumber = (1<<$config['voucher']['rollbits']) -1;    // Highest Roll#
-$maxcount = (1<<$config['voucher']['ticketbits']) -1;   // Highest Ticket#
+$maxnumber = (1<<$config['voucher'][$cpzone]['rollbits']) -1;    // Highest Roll#
+$maxcount = (1<<$config['voucher'][$cpzone]['ticketbits']) -1;   // Highest Ticket#
 
 if ($_POST) {
 	
@@ -103,12 +116,13 @@ if ($_POST) {
         if (isset($id) && $a_roll[$id])
             $rollent = $a_roll[$id];
 
+        $rollent['zone']  = $_POST['zone'];
         $rollent['number']  = $_POST['number'];
         $rollent['minutes'] = $_POST['minutes'];
-        $rollent['comment'] = $_POST['comment'];
+        $rollent['descr'] = $_POST['descr'];
 
         /* New Roll or modified voucher count: create bitmask */
-	$voucherlck = lock('voucher');
+	$voucherlck = lock("voucher{$cpzone}");
         if ($_POST['count'] != $rollent['count']) {
             $rollent['count'] = $_POST['count'];
             $len = ($rollent['count']>>3) + 1;   // count / 8 +1
@@ -142,7 +156,7 @@ if ($_POST) {
 
         write_config();
 
-        header("Location: services_captiveportal_vouchers.php");
+        header("Location: services_captiveportal_vouchers.php?zone={$cpzone}");
         exit;
     }
 }
@@ -181,7 +195,7 @@ include("head.inc");
 	<tr> 
 	  <td width="22%" valign="top" class="vncell"><?=gettext("Comment"); ?></td>
 	  <td width="78%" class="vtable"> 
-		<?=$mandfldhtml;?><input name="comment" type="text" class="formfld" id="comment" size="60" value="<?=htmlspecialchars($pconfig['comment']);?>"> 
+		<?=$mandfldhtml;?><input name="descr" type="text" class="formfld" id="descr" size="60" value="<?=htmlspecialchars($pconfig['descr']);?>"> 
         <br>
         <span class="vexpl"><?=gettext("Can be used to further identify this roll. Ignored by the system"); ?>.</span>
 		</td>
@@ -190,6 +204,7 @@ include("head.inc");
 	  <td width="22%" valign="top">&nbsp;</td>
 	  <td width="78%"> 
 		<input name="Submit" type="submit" class="formbtn" value="<?=gettext("Save"); ?>"> 
+		<input name="zone" type="hidden" value="<?=htmlspecialchars($cpzone);?>">
 		<?php if (isset($id) && $a_roll[$id]): ?>
 		<input name="id" type="hidden" value="<?=htmlspecialchars($id);?>">
 		<?php endif; ?>

@@ -43,6 +43,8 @@
 ##|-PRIV
 
 require_once("guiconfig.inc");
+require_once("shaper.inc");
+require_once("filter.inc");
 
 if ($_GET['if']) {
 	$interface = $_GET['if'];
@@ -56,13 +58,14 @@ if ($_GET['if']) {
 }
 
 $pgtitle = array(gettext("Status"),gettext("Interfaces"));
+$shortcut_section = "interfaces";
 include("head.inc");
 
 ?>
 
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC">
 <?php include("fbegin.inc"); ?>
-<table width="100%" border="0" cellspacing="0" cellpadding="0">
+<table width="100%" border="0" cellspacing="0" cellpadding="0" summary="status interfaces">
 <?php 
 	$i = 0; 
 	$ifdescrs = get_configured_interface_with_descr(false, true);
@@ -95,11 +98,29 @@ include("head.inc");
 		<td width="78%" class="listr">
 			<?=htmlspecialchars($ifinfo['dhcplink']);?>&nbsp;&nbsp;
 			<?php if ($ifinfo['dhcplink'] == "up"): ?>
-				<a href="status_interfaces.php?action=Release&if=<?php echo $ifdescr; ?>">
-				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Release");?>" class="formbtns">
+				<a href="status_interfaces.php?action=Release&amp;if=<?php echo $ifdescr; ?>">
+				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Release");?>" class="formbtns" />
 			<?php else: ?>
-				<a href="status_interfaces.php?action=Renew&if=<?php echo $ifdescr; ?>">
-				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Renew");?>" class="formbtns">
+				<a href="status_interfaces.php?action=Renew&amp;if=<?php echo $ifdescr; ?>">
+				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Renew");?>" class="formbtns" />
+			<?php endif; ?>
+			</a>
+		</td>
+	</tr>
+	<?php endif;
+	if ($ifinfo['dhcp6link']): ?>
+	<tr>
+		<td width="22%" class="vncellt">
+			DHCP6
+		</td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($ifinfo['dhcp6link']);?>&nbsp;&nbsp;
+			<?php if ($ifinfo['dhcp6link'] == "up"): ?>
+				<a href="status_interfaces.php?action=Release&amp;if=<?php echo $ifdescr; ?>">
+				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Release");?>" class="formbtns" />
+			<?php else: ?>
+				<a href="status_interfaces.php?action=Renew&amp;if=<?php echo $ifdescr; ?>">
+				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Renew");?>" class="formbtns" />
 			<?php endif; ?>
 			</a>
 		</td>
@@ -110,11 +131,11 @@ include("head.inc");
 		<td width="78%" class="listr">
 			<?=htmlspecialchars($ifinfo['pppoelink']);?>&nbsp;&nbsp;
 			<?php if ($ifinfo['pppoelink'] == "up"): ?>
-				<a href="status_interfaces.php?action=Disconnect&if=<?php echo $ifdescr; ?>">
-				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Disconnect");?>" class="formbtns">
+				<a href="status_interfaces.php?action=Disconnect&amp;if=<?php echo $ifdescr; ?>">
+				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Disconnect");?>" class="formbtns" />
 			<?php else: ?>
-				<a href="status_interfaces.php?action=Connect&if=<?php echo $ifdescr; ?>">
-				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Connect");?>" class="formbtns">
+				<a href="status_interfaces.php?action=Connect&amp;if=<?php echo $ifdescr; ?>">
+				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Connect");?>" class="formbtns" />
 				<?php endif; ?>
 			</a>
 		</td>
@@ -125,11 +146,11 @@ include("head.inc");
 		<td width="78%" class="listr">
 			<?=htmlspecialchars($ifinfo['pptplink']);?>&nbsp;&nbsp;
 			<?php if ($ifinfo['pptplink'] == "up"): ?>
-				<a href="status_interfaces.php?action=Disconnect&if=<?php echo $ifdescr; ?>">
-				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Disconnect");?>" class="formbtns">
+				<a href="status_interfaces.php?action=Disconnect&amp;if=<?php echo $ifdescr; ?>">
+				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Disconnect");?>" class="formbtns" />
 			<?php else: ?>
-				<a href="status_interfaces.php?action=Connect&if=<?php echo $ifdescr; ?>">
-				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Connect");?>" class="formbtns">
+				<a href="status_interfaces.php?action=Connect&amp;if=<?php echo $ifdescr; ?>">
+				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Connect");?>" class="formbtns" />
 			<?php endif; ?>
 			</a>
 		</td>
@@ -140,11 +161,11 @@ include("head.inc");
 		<td width="78%" class="listr">
 			<?=htmlspecialchars($ifinfo['l2tplink']);?>&nbsp;&nbsp;
 			<?php if ($ifinfo['l2tplink'] == "up"): ?>
-				<a href="status_interfaces.php?action=Disconnect&if=<?php echo $ifdescr; ?>">
-				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Disconnect");?>" class="formbtns">
+				<a href="status_interfaces.php?action=Disconnect&amp;if=<?php echo $ifdescr; ?>">
+				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Disconnect");?>" class="formbtns" />
 			<?php else: ?>
-				<a href="status_interfaces.php?action=Connect&if=<?php echo $ifdescr; ?>">
-				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Connect");?>" class="formbtns">
+				<a href="status_interfaces.php?action=Connect&amp;if=<?php echo $ifdescr; ?>">
+				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Connect");?>" class="formbtns" />
 			<?php endif; ?>
 			</a>
 		</td>
@@ -155,12 +176,12 @@ include("head.inc");
 		<td width="78%" class="listr">
 			<?=htmlspecialchars($ifinfo['pppinfo']);?>
 			<?php if ($ifinfo['ppplink'] == "up"): ?>
-				<a href="status_interfaces.php?action=Disconnect&if=<?php echo $ifdescr; ?>">
-				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Disconnect");?>" class="formbtns">
+				<a href="status_interfaces.php?action=Disconnect&amp;if=<?php echo $ifdescr; ?>">
+				<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Disconnect");?>" class="formbtns" />
 			<?php else: ?>
 				<?php if (!$ifinfo['nodevice']): ?>
-					<a href="status_interfaces.php?action=Connect&if=<?php echo $ifdescr; ?>">
-					<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Connect");?>" class="formbtns">
+					<a href="status_interfaces.php?action=Connect&amp;if=<?php echo $ifdescr; ?>">
+					<input type="button" name="<?php echo $ifdescr; ?>" value="<?=gettext("Connect");?>" class="formbtns" />
 				<?php endif; ?>
 			<?php endif; ?>
 			</a>
@@ -171,6 +192,62 @@ include("head.inc");
 		<td width="22%" class="vncellt"><?=gettext("Uptime ");?><?php if ($ifinfo['ppp_uptime_accumulated']) echo "(historical)"; ?></td>
 		<td width="78%" class="listr">
 			<?=htmlspecialchars($ifinfo['ppp_uptime']);?> <?=htmlspecialchars($ifinfo['ppp_uptime_accumulated']);?>
+		</td>
+        </tr>
+	<?php  endif; if ($ifinfo['cell_rssi']): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("Cell Signal (RSSI)");?></td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($ifinfo['cell_rssi']);?>
+		</td>
+        </tr>
+	<?php  endif; if ($ifinfo['cell_mode']): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("Cell Mode");?></td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($ifinfo['cell_mode']);?>
+		</td>
+        </tr>
+	<?php  endif; if ($ifinfo['cell_simstate']): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("Cell SIM State");?></td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($ifinfo['cell_simstate']);?>
+		</td>
+        </tr>
+	<?php  endif; if ($ifinfo['cell_service']): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("Cell Service");?></td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($ifinfo['cell_service']);?>
+		</td>
+        </tr>
+	<?php  endif; if ($ifinfo['cell_bwupstream']): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("Cell Upstream");?></td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($ifinfo['cell_bwupstream']);?> kbit/s
+		</td>
+        </tr>
+	<?php  endif; if ($ifinfo['cell_bwdownstream']): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("Cell Downstream");?></td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($ifinfo['cell_bwdownstream']);?> kbit/s
+		</td>
+        </tr>
+	<?php  endif; if ($ifinfo['cell_upstream']): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("Cell Current Up");?></td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($ifinfo['cell_upstream']);?> kbit/s
+		</td>
+        </tr>
+	<?php  endif; if ($ifinfo['cell_downstream']): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("Cell Current Down");?></td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($ifinfo['cell_downstream']);?> kbit/s
 		</td>
         </tr>
 	<?php  endif; if ($ifinfo['macaddr']): ?>
@@ -189,7 +266,7 @@ include("head.inc");
 	<?php if ($ifinfo['dhcplink'] != "down" && $ifinfo['pppoelink'] != "down" && $ifinfo['pptplink'] != "down"): ?>
 	<?php if ($ifinfo['ipaddr']): ?>
 	<tr>
-		<td width="22%" class="vncellt"><?=gettext("IP address");?></td>
+		<td width="22%" class="vncellt"><?=gettext("IPv4 address");?></td>
 		<td width="78%" class="listr">
 			<?=htmlspecialchars($ifinfo['ipaddr']);?>
 			&nbsp; 
@@ -197,17 +274,48 @@ include("head.inc");
 	</tr>
 	<?php endif; ?><?php if ($ifinfo['subnet']): ?>
 	<tr>
-		<td width="22%" class="vncellt"><?=gettext("Subnet mask");?></td>
+		<td width="22%" class="vncellt"><?=gettext("Subnet mask IPv4");?></td>
 		<td width="78%" class="listr">
 			<?=htmlspecialchars($ifinfo['subnet']);?>
 		</td>
 	</tr>
 	<?php endif; ?><?php if ($ifinfo['gateway']): ?>
 	<tr>
-		<td width="22%" class="vncellt"><?=gettext("Gateway");?></td>
+		<td width="22%" class="vncellt"><?=gettext("Gateway IPv4");?></td>
 		<td width="78%" class="listr">
 			<?=htmlspecialchars($config['interfaces'][$ifdescr]['gateway']);?>
 			<?=htmlspecialchars($ifinfo['gateway']);?>
+		</td>
+	</tr>
+	<?php endif; ?><?php if ($ifinfo['linklocal']): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("IPv6 Link Local");?></td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($ifinfo['linklocal']);?>
+			&nbsp; 
+		</td>
+	</tr>
+	<?php endif; ?><?php if ($ifinfo['ipaddrv6']): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("IPv6 address");?></td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($ifinfo['ipaddrv6']);?>
+			&nbsp; 
+		</td>
+	</tr>
+	<?php endif; ?><?php if ($ifinfo['subnetv6']): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("Subnet mask IPv6");?></td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($ifinfo['subnetv6']);?>
+		</td>
+	</tr>
+	<?php endif; ?><?php if ($ifinfo['gatewayv6']): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("Gateway IPv6");?></td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($config['interfaces'][$ifdescr]['gatewayv6']);?>
+			<?=htmlspecialchars($ifinfo['gatewayv6']);?>
 		</td>
 	</tr>
 	<?php endif; if ($ifdescr == "wan" && file_exists("{$g['varetc_path']}/resolv.conf")): ?>
@@ -217,7 +325,7 @@ include("head.inc");
 		<?php
 			$dns_servers = get_dns_servers();
 			foreach($dns_servers as $dns) {
-				echo "{$dns}<br>";
+				echo "{$dns}<br/>";
 			}
 		?>
 		</td>
@@ -227,6 +335,22 @@ include("head.inc");
 		<td width="22%" class="vncellt"><?=gettext("Media");?></td>
 		<td width="78%" class="listr">
 			<?=htmlspecialchars($ifinfo['media']);?>
+		</td>
+	</tr>
+	<?php endif; if ($ifinfo['laggproto']): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("LAGG Protocol");?></td>
+		<td width="78%" class="listr">
+			<?=htmlspecialchars($ifinfo['laggproto']);?>
+		</td>
+	</tr>
+	<?php endif; if (is_array($ifinfo['laggport'])): ?>
+	<tr>
+		<td width="22%" class="vncellt"><?=gettext("LAGG Ports");?></td>
+		<td width="78%" class="listr">
+			<?php 	foreach ($ifinfo['laggport'] as $laggport) { ?>
+					<?php echo htmlspecialchars($laggport); ?><br/>
+			<?php	} ?>
 		</td>
 	</tr>
 <?php endif; ?><?php if ($ifinfo['channel']): ?>
@@ -349,10 +473,12 @@ include("head.inc");
 
 <br/>
 
-</strong><?php printf(gettext("Using dial-on-demand will bring the connection up again if any packet ".
+<?php printf(gettext("Using dial-on-demand will bring the connection up again if any packet ".
 "triggers it. To substantiate this point: disconnecting manually ".
 "will %snot%s prevent dial-on-demand from making connections ".
 "to the outside! Don't use dial-on-demand if you want to make sure that the line ".
 "is kept disconnected."),'<strong>','</strong>')?>
 
 <?php include("fend.inc"); ?>
+</body>
+</html>

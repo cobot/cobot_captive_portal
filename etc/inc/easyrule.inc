@@ -46,7 +46,7 @@ function easyrule_find_rule_interface($int) {
 	if ($config['pptpd']['mode'] == "server")
 		$iflist['pptp'] = "PPTP VPN";
 
-	if (is_pppoe_server_enabled() && have_ruleint_access("pppoe"))
+	if ($config['pppoe']['mode'] == "server")
 		$iflist['pppoe'] = "PPPoE VPN";
 
 	if ($config['l2tp']['mode'] == "server")
@@ -71,7 +71,7 @@ function easyrule_find_rule_interface($int) {
 	return false;
 }
 
-function easyrule_block_rule_exists($int = 'wan') {
+function easyrule_block_rule_exists($int = 'wan', $ipproto = "inet") {
 	global $blockaliasname, $config;
 	/* No rules, we we know it doesn't exist */
 	if (!is_array($config['filter']['rule'])) {
@@ -82,13 +82,14 @@ function easyrule_block_rule_exists($int = 'wan') {
 	foreach ($config['filter']['rule'] as $rule) {
 		if (!is_array($rule) || !is_array($rule['source']))
 			continue;
-		if ($rule['source']['address'] == $blockaliasname . strtoupper($int) && ($rule['interface'] == $int))
+		$checkproto = isset($rule['ipprotocol']) ? $rule['ipprotocol'] : "inet";
+		if ($rule['source']['address'] == $blockaliasname . strtoupper($int) && ($rule['interface'] == $int) && ($checkproto == $ipproto))
 			return true;
 	}
 	return false;
 }
 
-function easyrule_block_rule_create($int = 'wan') {
+function easyrule_block_rule_create($int = 'wan', $ipproto = "inet") {
 	global $blockaliasname, $config;
 	/* If the alias doesn't exist, exit.
 	 * Can't create an empty alias, and we don't know a host */
@@ -96,7 +97,7 @@ function easyrule_block_rule_create($int = 'wan') {
 		return false;
 
 	/* If the rule already exists, no need to do it again */
-	if (easyrule_block_rule_exists($int))
+	if (easyrule_block_rule_exists($int, $ipproto))
 		return true;
 
 	/* No rules, start a new array */
@@ -111,9 +112,11 @@ function easyrule_block_rule_create($int = 'wan') {
 	$filterent = array();
 	$filterent['type'] = 'block';
 	$filterent['interface'] = $int;
+	$filterent['ipprotocol'] = $ipproto;
 	$filterent['source']['address'] = $blockaliasname . strtoupper($int);
 	$filterent['destination']['any'] = '';
-	$filterent['descr'] = "Easy Rule: Blocked from Firewall Log View";
+	$filterent['descr'] = gettext("Easy Rule: Blocked from Firewall Log View");
+	$filterent['created'] = make_config_revision_entry(null, gettext("Easy Rule"));
 
 	array_splice($a_filter, 0, 0, array($filterent));
 
@@ -136,7 +139,8 @@ function easyrule_block_alias_getid($int = 'wan') {
 function easyrule_block_alias_add($host, $int = 'wan') {
 	global $blockaliasname, $config;
 	/* If the host isn't a valid IP address, bail */
-	if (!is_ipaddr($host))
+	$host = trim($host, "[]");
+	if (!is_ipaddr($host) && !is_subnet($host))
 		return false;
 
 	/* If there are no aliases, start an array */
@@ -152,25 +156,35 @@ function easyrule_block_alias_add($host, $int = 'wan') {
 
 	$alias = array();
 
+	if (is_subnet($host)) {
+		list($host, $mask) = explode("/", $host);
+	} elseif (is_specialnet($host)) {
+		$mask = 0;
+	} elseif (is_ipaddrv6($host)) {
+		$mask = 128;
+	} else {
+		$mask = 32;
+	}
+
 	if (isset($id) && $a_aliases[$id]) {
 		/* Make sure this IP isn't already in the list. */
-		if (in_array($host.'/32', explode(" ", $a_aliases[$id]['address'])))
+		if (in_array($host.'/'.$mask, explode(" ", $a_aliases[$id]['address'])))
 			return true;
 		/* Since the alias already exists, just add to it. */
 		$alias['name']    = $a_aliases[$id]['name'];
 		$alias['type']    = $a_aliases[$id]['type'];
 		$alias['descr']   = $a_aliases[$id]['descr'];
 
-		$alias['address'] = $a_aliases[$id]['address'] . ' ' . $host . '/32';
-	 	$alias['detail']  = $a_aliases[$id]['detail'] . 'Entry added ' . date('r') . '||';
+		$alias['address'] = $a_aliases[$id]['address'] . ' ' . $host . '/' . $mask;
+		$alias['detail']  = $a_aliases[$id]['detail'] . gettext('Entry added') . ' ' . date('r') . '||';
 	} else {
 		/* Create a new alias with all the proper information */
 	 	$alias['name']    = $blockaliasname . strtoupper($int);
 	 	$alias['type']    = 'network';
-		$alias['descr']   = "Hosts blocked from Firewall Log view";
+		$alias['descr']   = gettext("Hosts blocked from Firewall Log view");
 
-		$alias['address'] = $host . '/32';
-	 	$alias['detail']  = 'Entry added ' . date('r') . '||';
+		$alias['address'] = $host . '/' . $mask;
+		$alias['detail']  = gettext('Entry added') . ' ' . date('r') . '||';
 	}
 
 	/* Replace the old alias if needed, otherwise tack it on the end */
@@ -185,10 +199,11 @@ function easyrule_block_alias_add($host, $int = 'wan') {
 	return true;
 }
 
-function easyrule_block_host_add($host, $int = 'wan') {
+function easyrule_block_host_add($host, $int = 'wan', $ipproto = "inet") {
 	global $retval;
 	/* Bail if the supplied host is not a valid IP address */
-	if (!is_ipaddr($host))
+	$host = trim($host, "[]");
+	if (!is_ipaddr($host) && !is_subnet($host))
 		return false;
 
 	/* Flag whether or not we need to reload the filter */
@@ -207,8 +222,8 @@ function easyrule_block_host_add($host, $int = 'wan') {
 	 * have been modified by the user in some way. Adding to the
 	 * Alias is what's important.
 	 */
-	if (!easyrule_block_rule_exists($int)) {
-		if (easyrule_block_rule_create($int)) {
+	if (!easyrule_block_rule_exists($int, $ipproto)) {
+		if (easyrule_block_rule_create($int, $ipproto)) {
 			$dirty = true;
 		} else {
 			return false;
@@ -230,7 +245,7 @@ function easyrule_block_host_add($host, $int = 'wan') {
 	}
 }
 
-function easyrule_pass_rule_add($int, $proto, $srchost, $dsthost, $dstport) {
+function easyrule_pass_rule_add($int, $proto, $srchost, $dsthost, $dstport, $ipproto) {
 	global $config;
 
 	/* No rules, start a new array */
@@ -245,7 +260,8 @@ function easyrule_pass_rule_add($int, $proto, $srchost, $dsthost, $dstport) {
 	$filterent = array();
 	$filterent['type'] = 'pass';
 	$filterent['interface'] = $int;
-	$filterent['descr'] = "Easy Rule: Passed from Firewall Log View";
+	$filterent['ipprotocol'] = $ipproto;
+	$filterent['descr'] = gettext("Easy Rule: Passed from Firewall Log View");
 
 	if ($proto != "any")
 		$filterent['protocol'] = $proto;
@@ -257,9 +273,33 @@ function easyrule_pass_rule_add($int, $proto, $srchost, $dsthost, $dstport) {
 	if ($proto == "icmp")
 		$filterent['icmptype'] = 'echoreq';
 
-	pconfig_to_address($filterent['source'], $srchost, 32);
-	pconfig_to_address($filterent['destination'], $dsthost, 32, '', $dstport, $dstport);
+	if ((strtolower($proto) == "icmp6") || (strtolower($proto) == "icmpv6"))
+		$filterent['protocol'] = "icmp";
 
+	if (is_subnet($srchost)) {
+		list($srchost, $srcmask) = explode("/", $srchost);
+	} elseif (is_specialnet($srchost)) {
+		$srcmask = 0;
+	} elseif (is_ipaddrv6($srchost)) {
+		$srcmask = 128;
+	} else {
+		$srcmask = 32;
+	}
+
+	if (is_subnet($dsthost)) {
+		list($dsthost, $dstmask) = explode("/", $dsthost);
+	} elseif (is_specialnet($dsthost)) {
+		$dstmask = 0;
+	} elseif (is_ipaddrv6($dsthost)) {
+		$dstmask = 128;
+	} else {
+		$dstmask = 32;
+	}
+
+	pconfig_to_address($filterent['source'], $srchost, $srcmask);
+	pconfig_to_address($filterent['destination'], $dsthost, $dstmask, '', $dstport, $dstport);
+
+	$filterent['created'] = make_config_revision_entry(null, gettext("Easy Rule"));
 	$a_filter[] = $filterent;
 
 	write_config($filterent['descr']);
@@ -272,63 +312,66 @@ function easyrule_pass_rule_add($int, $proto, $srchost, $dsthost, $dstport) {
 	}
 }
 
-function easyrule_parse_block($int, $src) {
+function easyrule_parse_block($int, $src, $ipproto = "inet") {
 	if (!empty($src) && !empty($int)) {
-		if (!is_ipaddr($src)) {
-			return "Tried to block invalid IP: " . htmlspecialchars($src);
+		$src = trim($src, "[]");
+		if (!is_ipaddr($src) && !is_subnet($src)) {
+			return gettext("Tried to block invalid IP:") . ' ' . htmlspecialchars($src);
 		}
 		$int = easyrule_find_rule_interface($int);
 		if ($int === false) {
-			return "Invalid interface for block rule: " . htmlspecialchars($int);
+			return gettext("Invalid interface for block rule:") . ' ' . htmlspecialchars($int);
 		}
-		if (easyrule_block_host_add($src, $int)) {
-			return "Host added successfully";
+		if (easyrule_block_host_add($src, $int, $ipproto)) {
+			return gettext("Host added successfully");
 		} else {
-			return "Failed to create block rule, alias, or add host.";
+			return gettext("Failed to create block rule, alias, or add host.");
 		}
 	} else {
-		return "Tried to block but had no host IP or interface";
+		return gettext("Tried to block but had no host IP or interface");
 	}
-	return "Unknown block error.";
+	return gettext("Unknown block error.");
 }
-function easyrule_parse_pass($int, $proto, $src, $dst, $dstport = 0) {
+function easyrule_parse_pass($int, $proto, $src, $dst, $dstport = 0, $ipproto = "inet") {
 	/* Check for valid int, srchost, dsthost, dstport, and proto */
 	global $protocols_with_ports;
+	$src = trim($src, "[]");
+	$dst = trim($dst, "[]");
 
 	if (!empty($int) && !empty($proto) && !empty($src) && !empty($dst)) {
 		$int = easyrule_find_rule_interface($int);
 		if ($int === false) {
-			return "Invalid interface for pass rule: " . htmlspecialchars($int);
+			return gettext("Invalid interface for pass rule:") . ' ' . htmlspecialchars($int);
 		}
 		if (getprotobyname($proto) == -1) {
-			return "Invalid protocol for pass rule: " . htmlspecialchars($proto);
+			return gettext("Invalid protocol for pass rule:") . ' ' . htmlspecialchars($proto);
 		}
-		if (!is_ipaddr($src)) {
-			return "Tried to pass invalid source IP: " . htmlspecialchars($src);
+		if (!is_ipaddr($src) && !is_subnet($src) && !is_ipaddroralias($src) && !is_specialnet($src)) {
+			return gettext("Tried to pass invalid source IP:") . ' ' . htmlspecialchars($src);
 		}
-		if (!is_ipaddr($dst)) {
-			return "Tried to pass invalid destination IP: " . htmlspecialchars($dst);
+		if (!is_ipaddr($dst) && !is_subnet($dst) && !is_ipaddroralias($dst) && !is_specialnet($dst)) {
+			return gettext("Tried to pass invalid destination IP:") . ' ' . htmlspecialchars($dst);
 		}
 		if (in_array($proto, $protocols_with_ports)) {
 			if (empty($dstport)) {
-				return "Missing destination port: " . htmlspecialchars($dstport);
+				return gettext("Missing destination port:") . ' ' . htmlspecialchars($dstport);
 			}
-			if (!is_port($dstport)) {
-				return "Tried to pass invalid destination port: " . htmlspecialchars($dstport);
+			if (!is_port($dstport) && ($dstport != "any")) {
+				return gettext("Tried to pass invalid destination port:") . ' ' . htmlspecialchars($dstport);
 			}
 		} else {
 			$dstport = 0;
 		}
 		/* Should have valid input... */
-		if (easyrule_pass_rule_add($int, $proto, $src, $dst, $dstport)) {
-			return "Successfully added pass rule!";
+		if (easyrule_pass_rule_add($int, $proto, $src, $dst, $dstport, $ipproto)) {
+			return gettext("Successfully added pass rule!");
 		} else {
-			return "Failed to add pass rule.";
+			return gettext("Failed to add pass rule.");
 		}
 	} else {
-		return "Missing parameters for pass rule.";
+		return gettext("Missing parameters for pass rule.");
 	}
-	return "Unknown pass error.";
+	return gettext("Unknown pass error.");
 }
 
 ?>

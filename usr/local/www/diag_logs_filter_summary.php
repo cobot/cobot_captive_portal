@@ -31,7 +31,8 @@
 	pfSense_MODULE:	filter
 */
 
-$pgtitle = gettext("Diagnostics").": ".gettext("System logs").": ".gettext("Firewall Log Summary");
+$pgtitle = gettext("Status").": ".gettext("System logs").": ".gettext("Firewall Log Summary");
+$shortcut_section = "firewall";
 require_once("guiconfig.inc");
 include_once("filter_log.inc");
 
@@ -78,7 +79,7 @@ function stat_block($summary, $stat, $num) {
 			$numentries++;
 			$outstr = $k[$i];
 			if (is_ipaddr($outstr)) {
-				$outstr = "<a href=\"diag_dns.php?host={$outstr}\" title=\"".gettext("Reverse Resolve with DNS")."\"><img border=\"0\" src=\"/themes/nervecenter/images/icons/icon_log.gif\"></a> {$outstr}";
+				$outstr = "<a href=\"diag_dns.php?host={$outstr}\" title=\"".gettext("Reverse Resolve with DNS")."\"><img border=\"0\" src=\"/themes/{$g['theme']}/images/icons/icon_log.gif\"></a> {$outstr}";
 			} elseif (substr_count($outstr, '/') == 1) {
 				list($proto, $port) = explode('/', $outstr);
 				$service = getservbyport($port, strtolower($proto));
@@ -176,7 +177,7 @@ include("head.inc"); ?>
 	}
 </script>
 
-<? include("fbegin.inc"); ?>
+<?php include("fbegin.inc"); ?>
 <table width="100%" border="0" cellpadding="0" cellspacing="0">
   <tr><td>
 <?php
@@ -190,8 +191,7 @@ include("head.inc"); ?>
 	$tab_array[] = array(gettext("VPN"), false, "diag_logs_vpn.php");
 	$tab_array[] = array(gettext("Load Balancer"), false, "diag_logs_relayd.php");
 	$tab_array[] = array(gettext("OpenVPN"), false, "diag_logs_openvpn.php");
-	$tab_array[] = array(gettext("OpenNTPD"), false, "diag_logs_ntpd.php");
-	$tab_array[] = array(gettext("Wireless"), false, "diag_logs_wireless.php");
+	$tab_array[] = array(gettext("NTP"), false, "diag_logs_ntpd.php");
 	$tab_array[] = array(gettext("Settings"), false, "diag_logs_settings.php");
 	display_top_tabs($tab_array);
 ?>

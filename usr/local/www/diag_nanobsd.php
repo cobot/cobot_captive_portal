@@ -58,7 +58,6 @@ nanobsd_detect_slice_info();
 ?>
 
 <body link="#0000CC" vlink="#0000CC" alink="#0000CC" onload="<?=$jsevents["body"]["onload"];?>">
-<script src="/javascript/scriptaculous/prototype.js" type="text/javascript"></script>
 
 <?php include("fbegin.inc"); ?>
 
@@ -70,7 +69,7 @@ if($_POST['bootslice']) {
 	$statusmsg = gettext("Setting slice information, please wait..."); 
 	echo <<<EOF
 	 	<div id="loading">
-			<img src="/themes/metallic/images/misc/loader.gif"> 
+			<img src="/themes/{$g['theme']}/images/misc/loader.gif"> 
 			$statusmsg
 			<p/>&nbsp;
 		</div>
@@ -86,7 +85,7 @@ if($_POST['destslice']) {
 	$statusmsg = gettext("Duplicating slice.  Please wait, this will take a moment...");
 echo <<<EOF
  	<div id="loading">
-		<img src="/themes/metallic/images/misc/loader.gif">
+		<img src="/themes/{$g['theme']}/images/misc/loader.gif">
 		$statusmsg
 		<p/>&nbsp;
 	</div>
@@ -100,15 +99,24 @@ EOF;
 	nanobsd_detect_slice_info();
 }
 
-if (isset($_POST['rrdbackup'])) {
-	$config['system']['rrdbackup'] = $_POST['rrdbackup'];
-	install_cron_job("/etc/rc.backup_rrd.sh", ($config['system']['rrdbackup'] > 0), $minute="0", "*/{$config['system']['rrdbackup']}");
-}
-if (isset($_POST['dhcpbackup'])) {
-	$config['system']['dhcpbackup'] = $_POST['dhcpbackup'];
-	install_cron_job("/etc/rc.backup_dhcpleases.sh", ($config['system']['dhcpbackup'] > 0), $minute="0", "*/{$config['system']['dhcpbackup']}");
+if ($_POST['changero']) {
+	if (is_writable("/")) {
+		conf_mount_ro();
+	} else {
+		conf_mount_rw();
+	}
 }
 
+if ($_POST['setrw']) {
+	conf_mount_rw();
+	if (isset($_POST['nanobsd_force_rw']))
+		$config['system']['nanobsd_force_rw'] = true;
+	else
+		unset($config['system']['nanobsd_force_rw']);
+
+	write_config("Changed Permanent Read/Write Setting");
+	conf_mount_ro();
+}
 
 if ($savemsg)
 	print_info_box($savemsg)
@@ -156,6 +164,45 @@ if ($savemsg)
 						<td colspan="2" valign="top" class="">&nbsp;</td>
 					</tr>					
 					<tr>
+						<td colspan="2" valign="top" class="listtopic"><?=gettext("Media Read/Write Status");?></td>
+					</tr>
+					<tr>
+						<td valign="top" class="vncell">Current Read/Write Status:</td>
+						<td valign="top" class="vncell">
+							<form action="diag_nanobsd.php" method="post" name="iform">
+							<?php if (is_writable("/")) {
+								$refcount = refcount_read(1000);
+								/* refcount_read returns -1 when shared memory section does not exist */
+								if ($refcount == 1 || $refcount == -1) {
+									$refdisplay = "";
+								} else {
+									$refdisplay = " (reference count " . $refcount . ")";
+								}
+								echo gettext("Read/Write") . $refdisplay;
+								if (!isset($config['system']['nanobsd_force_rw']))
+									echo "<br/><input type='submit' name='changero' value='" . gettext("Switch to Read-Only") . "'>";
+							} else {
+								echo gettext("Read-Only");
+								if (!isset($config['system']['nanobsd_force_rw']))
+									echo "<br/><input type='submit' name='changero' value='" . gettext("Switch to Read/Write") . "'>";
+							} ?>
+							</form>
+							<br/><?php echo gettext("NOTE: This setting is only temporary, and can be switched dynamically in the background."); ?>
+						</td>
+					</tr>
+					<tr>
+						<td valign="top" class="vncell">Permanent Read/Write:</td>
+						<td valign="top" class="vncell">
+							<form action="diag_nanobsd.php" method="post" name="iform">
+								<input type="checkbox" name="nanobsd_force_rw" <?php if (isset($config['system']['nanobsd_force_rw'])) echo "checked"; ?>> <?php echo gettext("Keep media mounted read/write at all times.") ?>
+								<br/><input type='submit' name='setrw' value='<?php echo gettext("Save") ?>'>
+							</form>
+						</td>
+					</tr>
+					<tr>
+						<td colspan="2" valign="top" class="">&nbsp;</td>
+					</tr>
+					<tr>
 						<td colspan="2" valign="top" class="listtopic"><?=gettext("Duplicate bootup slice to alternate");?></td>
 					</tr>
 					<tr>
@@ -182,41 +229,10 @@ if ($savemsg)
 						<td colspan="2" valign="top" class="listtopic"><?=gettext("Periodic Data Backup");?></td>
 					</tr>
 					<tr>
-						<td width="22%" valign="top" class="vncell"><?=gettext("RRD Backup");?></td>
+						<td width="22%" valign="top" class="vncell"><?=gettext("RRD/DHCP Backup");?></td>
 						<td width="78%" class="vtable">
-							<form action="diag_nanobsd.php" method="post" name="iform">
-								<?=gettext("Frequency:");?>
-								<select name='rrdbackup'>
-									<option value='0' <? if (!isset($config['system']['rrdbackup']) || ($config['system']['rrdbackup'] == 0)) echo "selected"; ?>><?=gettext("Disable"); ?></option>
-								<? for ($x=1; $x<=24; $x++) { ?>
-									<option value='<?= $x ?>' <? if ($config['system']['rrdbackup'] == $x) echo "selected"; ?>><?= $x ?> <?=gettext("hour"); ?><? if ($x>1) echo "s"; ?></option>
-								<? } ?>
-								</select>
-								<br/>
-								<?=gettext("This will periodically backup the RRD data so it can be restored automatically on the next boot. Keep in mind that the more frequent the backup, the more writes will happen to your media.");?>
-								<br/>
-								<br/>
+							<?=gettext("These options have been relocated to");?> <a href="system_advanced_misc.php"><?=gettext("System > Advanced, Miscellaneous tab")?></a>.
 						</td>
-					</tr>
-					<tr>
-						<td width="22%" valign="top" class="vncell"><?=gettext("DHCP Leases Backup");?></td>
-						<td width="78%" class="vtable">
-							<form action="diag_nanobsd.php" method="post" name="iform">
-								<?=gettext("Frequency:");?>
-								<select name='dhcpbackup'>
-									<option value='0' <? if (!isset($config['system']['dhcpbackup']) || ($config['system']['dhcpbackup'] == 0)) echo "selected"; ?>><?=gettext("Disable"); ?></option>
-								<? for ($x=1; $x<=24; $x++) { ?>
-									<option value='<?= $x ?>' <? if ($config['system']['dhcpbackup'] == $x) echo "selected"; ?>><?= $x ?> <?=gettext("hour"); ?><? if ($x>1) echo "s"; ?></option>
-								<? } ?>
-								</select>
-								<br/>
-								<?=gettext("This will periodically backup the DHCP leases data so it can be restored automatically on the next boot. Keep in mind that the more frequent the backup, the more writes will happen to your media.");?>
-								<br/>
-								<br/>
-						</td>
-					</tr>
-					<tr>
-						<td valign="top" class="">&nbsp;</td><td><br/><input type='submit' value='<?=gettext("Save"); ?>'></form></td>
 					</tr>
 <?php if(file_exists("/conf/upgrade_log.txt")): ?>
 					<tr>
@@ -229,15 +245,15 @@ if ($savemsg)
 						<td width="22%" valign="top" class="vncell"><?=gettext("View previous upgrade log");?></td>
 						<td width="78%" class="vtable">
 						<?php
-							if($_POST['viewupgradelog']) {
+							if ($_POST['viewupgradelog']) {
 								echo "<textarea name='log' cols='80' rows='40'>";
-								echo file_get_contents("/conf/upgrade_log.txt");
+								echo str_ireplace("pfsense", $g['product_name'], file_get_contents("/conf/upgrade_log.txt"));
 								echo "\nFile list:\n";
-								echo file_get_contents("/conf/file_upgrade_log.txt");
+								echo str_ireplace("pfsense", $g['product_name'], file_get_contents("/conf/file_upgrade_log.txt"));
 								echo "\nMisc log:\n";
-								echo file_get_contents("/conf/firmware_update_misc.log");
+								echo str_ireplace("pfsense", $g['product_name'], file_get_contents("/conf/firmware_update_misc_log.txt"));
 								echo "\nfdisk/bsdlabel log:\n";
-								echo file_get_contents("/conf/fdisk_upgrade_log.txt");
+								echo str_ireplace("pfsense", $g['product_name'], file_get_contents("/conf/fdisk_upgrade_log.txt"));
 								echo "</textarea>";
 							} else {
 								echo "<form action='diag_nanobsd.php' method='post' name='iform'>";
@@ -263,7 +279,7 @@ if ($savemsg)
 
 // Clear the loading indicator
 echo "<script type=\"text/javascript\">";
-echo "$('loading').innerHTML = '';";
+echo "jQuery('#loading').html('');";
 echo "</script>";	
 
 ?>

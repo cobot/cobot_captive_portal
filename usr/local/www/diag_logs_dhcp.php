@@ -57,6 +57,7 @@ if ($_POST['clear']) {
 }
 
 $pgtitle = array(gettext("Status"),gettext("System logs"),gettext("DHCP"));
+$shortcut_section = "dhcp";
 include("head.inc");
 
 ?>
@@ -76,8 +77,7 @@ include("head.inc");
 	$tab_array[] = array(gettext("VPN"), false, "diag_logs_vpn.php");
 	$tab_array[] = array(gettext("Load Balancer"), false, "diag_logs_relayd.php");
 	$tab_array[] = array(gettext("OpenVPN"), false, "diag_logs_openvpn.php");
-	$tab_array[] = array(gettext("OpenNTPD"), false, "diag_logs_ntpd.php");
-	$tab_array[] = array(gettext("Wireless"), false, "diag_logs_wireless.php");
+	$tab_array[] = array(gettext("NTP"), false, "diag_logs_ntpd.php");
 	$tab_array[] = array(gettext("Settings"), false, "diag_logs_settings.php");
 	display_top_tabs($tab_array);
 ?>
@@ -91,12 +91,11 @@ include("head.inc");
 			  <?php printf(gettext("Last %s DHCP service log entries"), $nentries);?></td>
 		  </tr>
 		  <?php dump_clog($dhcpd_logfile, $nentries); ?>
-		<tr><td><br><form action="diag_logs_dhcp.php" method="post">
-			<input name="clear" type="submit" class="formbtn" value="<?= gettext("Clear log");?>"></td>
+		<tr><td><br/><form action="diag_logs_dhcp.php" method="post">
+			<input name="clear" type="submit" class="formbtn" value="<?= gettext("Clear log");?>" /></form></td>
 			<td>NOTE: Clearing the log file will restart the DHCP daemon.</td></tr>
 		</table>
 	</div>
-</form>
 	</td>
   </tr>
 </table>
