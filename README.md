@@ -58,11 +58,13 @@ Go to the _Services_, _Captive Portal_.
 
 ![Select captive portal](https://raw.github.com/cobot/cobot_captive_portal/master/screenshots/captive_portal.png)
 
-Only on Pfsense 2.1.0: create a captive portal zone with any name (for example 'cobot').
+Only on Pfsense 2.1.0 and later: create a captive portal zone with any name (for example 'cobot').
 
 ![Create zone](https://raw.github.com/cobot/cobot_captive_portal/master/screenshots/captive_portal_zone.png)
 
 Check _Enable captive portal_, select the interface you want to protect (in most cases LAN), enter the subdomain (http://_subdomain_.cobot.me) of your space under _Space subdomain_ and your access token (you can get this token on Cobot under _Setup_ => _Wifi integration_).
+
+*Important*: If you are planning to use day-long passes set the soft timeout to 8 hours and the hard timeout to 24h. If you are planning to use time pass shorter than 1 day set both timeouts to the duration of the time pass, e.g. if you offer 4h passes set the hard timeout to 4 hours.
 
 ![Activate captive portal](https://raw.github.com/cobot/cobot_captive_portal/master/screenshots/edit_captive_portal.png)
 
