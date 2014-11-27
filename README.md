@@ -1,5 +1,10 @@
 ## Cobot Captive Portal
 
+### Discontinued
+
+***We have stopped working on Pfsense and won't be working on it anymore. We now recommend Cobot customers to get a [Netbox](https://www.cobot.me/pages/netbox-wifi-integration)***.
+
+
 This is a system patch for the [Pfsense](http://pfsense.org) router software that adds support for [Cobot](http://cobot.me) to the captive portal feature of Pfsense.
 
 With this patch installed the captive portal will authenticate directly against the Cobot API, allowing users to log in using their Cobot account credentials.
